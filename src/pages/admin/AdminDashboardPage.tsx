@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { collection, getDocs, orderBy, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 export default function AdminDashboardPage() {
+  const { t } = useTranslation()
   const { staff, logout } = useAuth()
   const { club } = useClubData()
   const [todayBookings, setTodayBookings] = useState<(Booking & { id: string })[]>([])
@@ -35,21 +37,21 @@ export default function AdminDashboardPage() {
     <div className="content-container py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1>Admin dashboard</h1>
-          <p className="text-text-secondary">Signed in as {staff?.email}</p>
+          <h1>{t('admin.dashboardTitle')}</h1>
+          <p className="text-text-secondary">{t('admin.signedInAs', { email: staff?.email })}</p>
         </div>
-        <Button variant="outline" onClick={logout}>Sign out</Button>
+        <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
       </div>
 
       <Card className="arena-card">
         <CardHeader>
-          <CardTitle className="text-white">Today's bookings</CardTitle>
+          <CardTitle className="text-white">{t('admin.todaysBookings')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-text-muted">Loading...</p>
+            <p className="text-text-muted">{t('common.loading')}</p>
           ) : todayBookings.length === 0 ? (
-            <p className="text-text-muted">No bookings today.</p>
+            <p className="text-text-muted">{t('admin.noBookingsToday')}</p>
           ) : (
             <div className="space-y-2">
               {todayBookings.map((b) => (
@@ -57,7 +59,7 @@ export default function AdminDashboardPage() {
                   <span className="mono text-primary">{b.startTime}</span>
                   <span className="text-white">{b.name}</span>
                   <span className={b.status === 'cancelled' ? 'text-status-muted' : 'text-status-success'}>
-                    {b.status}
+                    {b.status === 'cancelled' ? t('admin.statusCancelled') : t('admin.statusConfirmed')}
                   </span>
                 </div>
               ))}
@@ -66,10 +68,7 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      <p className="text-text-muted text-sm">
-        Zone/hours management and manual booking creation are follow-up work — this is a read-only
-        starting point.
-      </p>
+      <p className="text-text-muted text-sm">{t('admin.followUpNote')}</p>
     </div>
   )
 }

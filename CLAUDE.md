@@ -41,6 +41,11 @@ fresh, independent codebase, only conventions are reused.
   concurrent requests
 - Payments: build data model + UI step now, gate behind 
   `paymentsEnabled` config flag — currently OFF
+- Localization: app must support Slovak and English. Default language 
+  is chosen from the browser's language (Slovak if the browser is set 
+  to Slovak, English otherwise) — no hardcoded default. A language 
+  switcher must be easy to find at the top of the app (header) so the 
+  user can override it at any time.
 
 ## Multi-tenant / re-brand requirement
 All club-specific data (name, logo, colors, zones, hours, contact, 

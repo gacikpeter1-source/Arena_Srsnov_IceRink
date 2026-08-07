@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { createBooking, SlotUnavailableError } from '@/lib/bookings'
 import { queueBookingConfirmationEmail } from '@/lib/email'
+import { isSupportedLanguage } from '@/i18n'
 import { Club, Zone } from '@/types'
 
 interface BookingModalProps {
@@ -28,6 +30,7 @@ export default function BookingModal({
   onClose,
   onBooked
 }: BookingModalProps) {
+  const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,7 +41,7 @@ export default function BookingModal({
     setError(null)
 
     if (!formData.name || !formData.email || !formData.phone) {
-      setError('Please fill in all fields.')
+      setError(t('booking.fillAllFields'))
       return
     }
 
@@ -72,15 +75,16 @@ export default function BookingModal({
           name: formData.name,
           email: formData.email
         },
-        window.location.origin
+        window.location.origin,
+        isSupportedLanguage(i18n.language) ? i18n.language : 'en'
       )
       onBooked()
     } catch (err) {
       if (err instanceof SlotUnavailableError) {
-        setError(err.message)
+        setError(t('booking.slotUnavailable'))
       } else {
         console.error('Error creating booking:', err)
-        setError('Something went wrong. Please try again.')
+        setError(t('common.error'))
       }
     } finally {
       setSubmitting(false)
@@ -99,23 +103,22 @@ export default function BookingModal({
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="bg-background-card max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white text-center text-2xl">Booking confirmed</DialogTitle>
+            <DialogTitle className="text-white text-center text-2xl">{t('booking.confirmed')}</DialogTitle>
           </DialogHeader>
           <div className="py-6 space-y-4 text-center">
             <div>
-              <div className="text-text-muted mb-2">Your confirmation code</div>
+              <div className="text-text-muted mb-2">{t('booking.yourCode')}</div>
               <div className="text-primary text-4xl font-bold mono tracking-wider">
                 {result.confirmationCode}
               </div>
             </div>
             <p className="text-text-secondary text-sm">
-              We've emailed a confirmation with a link to manage or cancel this booking to{' '}
-              {formData.email}.
+              {t('booking.emailedNotice', { email: formData.email })}
             </p>
           </div>
           <DialogFooter>
             <Button onClick={handleClose} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
-              Close
+              {t('common.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -127,9 +130,9 @@ export default function BookingModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="bg-background-card max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white text-xl">Book {zone.name}</DialogTitle>
+          <DialogTitle className="text-white text-xl">{t('booking.bookZone', { zone: zone.name })}</DialogTitle>
           <div className="text-text-muted text-sm mt-2">
-            {date} at {startTime} &middot; {durationMinutes} min
+            {t('booking.slotInfo', { date, startTime, duration: t('common.minutes', { count: durationMinutes }) })}
           </div>
         </DialogHeader>
 
@@ -137,7 +140,7 @@ export default function BookingModal({
           {error && <div className="text-status-danger text-sm">{error}</div>}
 
           <div>
-            <Label htmlFor="name" className="text-white">Name</Label>
+            <Label htmlFor="name" className="text-white">{t('common.name')}</Label>
             <Input
               id="name"
               value={formData.name}
@@ -148,7 +151,7 @@ export default function BookingModal({
           </div>
 
           <div>
-            <Label htmlFor="email" className="text-white">Email</Label>
+            <Label htmlFor="email" className="text-white">{t('common.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -160,7 +163,7 @@ export default function BookingModal({
           </div>
 
           <div>
-            <Label htmlFor="phone" className="text-white">Phone</Label>
+            <Label htmlFor="phone" className="text-white">{t('common.phone')}</Label>
             <Input
               id="phone"
               type="tel"
@@ -173,14 +176,14 @@ export default function BookingModal({
 
           <DialogFooter className="flex gap-2 pt-4">
             <Button type="button" variant="outline" onClick={handleClose} className="flex-1 border-border text-white">
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={submitting}
               className="flex-1 bg-primary hover:bg-primary-gold text-primary-foreground"
             >
-              {submitting ? 'Booking...' : 'Confirm booking'}
+              {submitting ? t('booking.booking') : t('booking.confirmBooking')}
             </Button>
           </DialogFooter>
         </form>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function AdminLoginPage() {
+  const { t } = useTranslation()
   const { login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -23,7 +25,7 @@ export default function AdminLoginPage() {
       navigate('/admin')
     } catch (err) {
       console.error('Login failed:', err)
-      setError('Invalid email or password.')
+      setError(t('admin.invalidCredentials'))
     } finally {
       setSubmitting(false)
     }
@@ -33,13 +35,13 @@ export default function AdminLoginPage() {
     <div className="content-container py-12 max-w-sm mx-auto">
       <Card className="arena-card">
         <CardHeader>
-          <CardTitle className="text-white">Staff login</CardTitle>
+          <CardTitle className="text-white">{t('admin.loginTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <p className="text-status-danger text-sm">{error}</p>}
             <div>
-              <Label htmlFor="email" className="text-white">Email</Label>
+              <Label htmlFor="email" className="text-white">{t('common.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -50,7 +52,7 @@ export default function AdminLoginPage() {
               />
             </div>
             <div>
-              <Label htmlFor="password" className="text-white">Password</Label>
+              <Label htmlFor="password" className="text-white">{t('admin.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -61,7 +63,7 @@ export default function AdminLoginPage() {
               />
             </div>
             <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
-              {submitting ? 'Signing in...' : 'Sign in'}
+              {submitting ? t('admin.signingIn') : t('admin.signIn')}
             </Button>
           </form>
         </CardContent>

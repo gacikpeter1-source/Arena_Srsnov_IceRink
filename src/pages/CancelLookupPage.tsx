@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useClubData } from '@/hooks/useClubData'
 import { cancelBooking } from '@/lib/bookings'
 import { queueCancellationEmail } from '@/lib/email'
+import { isSupportedLanguage } from '@/i18n'
 import { Booking, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 export default function CancelLookupPage() {
+  const { t, i18n } = useTranslation()
   const { club } = useClubData()
   const [confirmationCode, setConfirmationCode] = useState('')
   const [email, setEmail] = useState('')
@@ -50,14 +53,19 @@ export default function CancelLookupPage() {
     if (!booking || !club || !zone) return
     try {
       await cancelBooking(booking.id)
-      await queueCancellationEmail(club, zone, {
-        name: booking.name,
-        email: booking.email,
-        date: booking.date,
-        startTime: booking.startTime,
-        durationMinutes: booking.durationMinutes,
-        confirmationCode: booking.confirmationCode
-      })
+      await queueCancellationEmail(
+        club,
+        zone,
+        {
+          name: booking.name,
+          email: booking.email,
+          date: booking.date,
+          startTime: booking.startTime,
+          durationMinutes: booking.durationMinutes,
+          confirmationCode: booking.confirmationCode
+        },
+        isSupportedLanguage(i18n.language) ? i18n.language : 'en'
+      )
       setStatus('cancelled')
     } catch (err) {
       console.error('Error cancelling booking:', err)
@@ -69,40 +77,40 @@ export default function CancelLookupPage() {
     <div className="content-container py-6 max-w-md mx-auto">
       <Card className="arena-card">
         <CardHeader>
-          <CardTitle className="text-white">Find your booking</CardTitle>
+          <CardTitle className="text-white">{t('manageBooking.findTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {status === 'found' && booking && zone && (
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
                 <p><strong className="text-white">{zone.name}</strong></p>
-                <p>{booking.date} at {booking.startTime}</p>
+                <p>{t('common.dateAtTime', { date: booking.date, startTime: booking.startTime })}</p>
                 <p className="mono text-primary">{booking.confirmationCode}</p>
               </div>
               {booking.status === 'cancelled' ? (
-                <p className="text-status-muted">This booking is already cancelled.</p>
+                <p className="text-status-muted">{t('manageBooking.alreadyCancelled')}</p>
               ) : (
                 <Button onClick={handleCancel} variant="destructive" className="w-full">
-                  Cancel this booking
+                  {t('manageBooking.cancelThisBooking')}
                 </Button>
               )}
             </div>
           )}
 
           {status === 'cancelled' && (
-            <p className="text-status-success">Your booking has been cancelled.</p>
+            <p className="text-status-success">{t('manageBooking.cancelled')}</p>
           )}
 
           {status !== 'found' && status !== 'cancelled' && (
             <form onSubmit={handleSearch} className="space-y-4">
               {status === 'not_found' && (
-                <p className="text-status-danger text-sm">No booking found with those details.</p>
+                <p className="text-status-danger text-sm">{t('manageBooking.notFound')}</p>
               )}
               {status === 'error' && (
-                <p className="text-status-danger text-sm">Something went wrong. Please try again.</p>
+                <p className="text-status-danger text-sm">{t('common.error')}</p>
               )}
               <div>
-                <Label htmlFor="code" className="text-white">Confirmation code</Label>
+                <Label htmlFor="code" className="text-white">{t('manageBooking.confirmationCode')}</Label>
                 <Input
                   id="code"
                   value={confirmationCode}
@@ -113,7 +121,7 @@ export default function CancelLookupPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="email" className="text-white">Email</Label>
+                <Label htmlFor="email" className="text-white">{t('common.email')}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -124,7 +132,7 @@ export default function CancelLookupPage() {
                 />
               </div>
               <Button type="submit" disabled={status === 'searching'} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
-                {status === 'searching' ? 'Searching...' : 'Find booking'}
+                {status === 'searching' ? t('manageBooking.searching') : t('manageBooking.findBooking')}
               </Button>
             </form>
           )}

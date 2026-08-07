@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchLockedSlots } from '@/lib/bookings'
 import { resolveDivisionMode } from '@/lib/divisionRules'
@@ -14,6 +15,7 @@ function generateDayOptions(count: number) {
 }
 
 export default function HomePage() {
+  const { t, i18n } = useTranslation()
   const { club, zones, timeSlotConfig, divisionRules, loading, error } = useClubData()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [lockedSlots, setLockedSlots] = useState<Set<string>>(new Set())
@@ -54,13 +56,13 @@ export default function HomePage() {
   }, [timeSlotConfig, divisionRules, zones, selectedDate])
 
   if (loading) {
-    return <div className="content-container py-12 text-center text-text-muted">Loading...</div>
+    return <div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>
   }
 
   if (error || !club) {
     return (
       <div className="content-container py-12 text-center text-status-danger">
-        {error ?? 'Club not found.'}
+        {error ?? t('home.clubNotFound')}
       </div>
     )
   }
@@ -69,7 +71,7 @@ export default function HomePage() {
     <div className="content-container py-6 space-y-6">
       <div>
         <h1>{club.name}</h1>
-        <p className="text-text-secondary">Pick a date and time to book the rink.</p>
+        <p className="text-text-secondary">{t('home.subtitle')}</p>
       </div>
 
       {/* Day picker */}
@@ -84,7 +86,7 @@ export default function HomePage() {
                 isSelected ? 'bg-primary text-primary-foreground' : 'bg-background-card text-text-secondary hover:bg-background-cardHover'
               }`}
             >
-              <div className="text-xs">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+              <div className="text-xs">{day.toLocaleDateString(i18n.language, { weekday: 'short' })}</div>
               <div className="font-semibold">{day.getDate()}</div>
             </button>
           )
@@ -93,7 +95,7 @@ export default function HomePage() {
 
       {/* Time slots, each showing the zone(s) offered for that window */}
       {schedule.length === 0 ? (
-        <Card className="arena-card p-8 text-center text-text-secondary">Closed on this day.</Card>
+        <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
       ) : (
         <div className="space-y-2">
           {schedule.map(({ time, zones: slotZones }) => (
@@ -101,7 +103,7 @@ export default function HomePage() {
               <div className="w-14 mono text-sm text-text-muted flex-shrink-0">{time}</div>
               <div className="flex gap-2 flex-wrap">
                 {slotZones.length === 0 ? (
-                  <span className="text-text-muted text-sm">No zones configured</span>
+                  <span className="text-text-muted text-sm">{t('home.noZonesConfigured')}</span>
                 ) : (
                   slotZones.map((zone) => {
                     const isTaken = lockedSlots.has(`${zone.id}__${time}`)

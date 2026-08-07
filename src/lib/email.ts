@@ -1,5 +1,6 @@
 import { addDoc, collection } from 'firebase/firestore'
 import { db } from './firebase'
+import i18n, { SupportedLanguage } from '@/i18n'
 import { Club, Zone } from '@/types'
 
 /**
@@ -16,7 +17,7 @@ async function queueEmail(to: string, subject: string, html: string): Promise<vo
   }
 }
 
-function emailShell(club: Club, title: string, bodyHtml: string): string {
+function emailShell(club: Club, title: string, bodyHtml: string, footer: string): string {
   const primary = club.colors?.primary ?? '#FDB913'
   return `
     <!DOCTYPE html>
@@ -31,7 +32,7 @@ function emailShell(club: Club, title: string, bodyHtml: string): string {
             ${bodyHtml}
           </div>
           <div style="text-align: center; margin-top: 20px; color: #666; font-size: 12px;">
-            <p>This email was sent automatically by ${club.name}'s booking system.</p>
+            <p>${footer}</p>
           </div>
         </div>
       </body>
@@ -59,45 +60,63 @@ interface BookingEmailInfo {
   email: string
 }
 
+/**
+ * Emails are sent in the language the customer was using when they made or
+ * cancelled the booking (`lang`), independent of whatever language the app
+ * happens to be displaying in right now — i18next's getFixedT resolves
+ * strings for a specific language without touching the live UI language.
+ */
 export async function queueBookingConfirmationEmail(
   club: Club,
   zone: Zone,
   booking: BookingEmailInfo,
-  cancelBaseUrl: string
+  cancelBaseUrl: string,
+  lang: SupportedLanguage
 ): Promise<void> {
+  const t = i18n.getFixedT(lang)
   const cancelUrl = `${cancelBaseUrl}/my-booking/${booking.bookingId}/${booking.cancellationToken}`
   const body = `
-    <p>Hi ${booking.name},</p>
-    <p>Your booking is <strong>confirmed</strong>:</p>
-    ${infoRow('Zone', zone.name)}
-    ${infoRow('Date', booking.date)}
-    ${infoRow('Time', booking.startTime)}
-    ${infoRow('Duration', `${booking.durationMinutes} min`)}
-    ${infoRow('Confirmation code', booking.confirmationCode)}
+    <p>${t('email.greeting', { name: booking.name })}</p>
+    <p>${t('email.confirmedIntro')}</p>
+    ${infoRow(t('email.zone'), zone.name)}
+    ${infoRow(t('email.date'), booking.date)}
+    ${infoRow(t('email.time'), booking.startTime)}
+    ${infoRow(t('email.duration'), t('common.minutes', { count: booking.durationMinutes }))}
+    ${infoRow(t('email.confirmationCode'), booking.confirmationCode)}
     <div style="margin-top: 20px; padding: 15px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
-      <p style="margin: 0 0 15px; font-size: 14px; color: #666;">Need to cancel?</p>
+      <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${t('email.needToCancel')}</p>
       <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-        Cancel booking
+        ${t('email.cancelBooking')}
       </a>
-      <p style="margin: 15px 0 0; font-size: 12px; color: #999;">This link expires in 14 days.</p>
+      <p style="margin: 15px 0 0; font-size: 12px; color: #999;">${t('email.linkExpires')}</p>
     </div>
   `
-  await queueEmail(booking.email, `Booking confirmed — ${club.name}`, emailShell(club, 'Booking confirmed', body))
+  await queueEmail(
+    booking.email,
+    t('email.bookingConfirmedSubject', { club: club.name }),
+    emailShell(club, t('email.bookingConfirmedTitle'), body, t('email.footer', { club: club.name }))
+  )
 }
 
 export async function queueCancellationEmail(
   club: Club,
   zone: Zone,
-  booking: Pick<BookingEmailInfo, 'name' | 'email' | 'date' | 'startTime' | 'durationMinutes' | 'confirmationCode'>
+  booking: Pick<BookingEmailInfo, 'name' | 'email' | 'date' | 'startTime' | 'durationMinutes' | 'confirmationCode'>,
+  lang: SupportedLanguage
 ): Promise<void> {
+  const t = i18n.getFixedT(lang)
   const body = `
-    <p>Hi ${booking.name},</p>
-    <p>Your booking has been <strong>cancelled</strong>:</p>
-    ${infoRow('Zone', zone.name, '#dc2626')}
-    ${infoRow('Date', booking.date, '#dc2626')}
-    ${infoRow('Time', booking.startTime, '#dc2626')}
-    ${infoRow('Confirmation code', booking.confirmationCode, '#dc2626')}
-    <p style="margin-top: 20px;">If this wasn't you, or you'd like to rebook, just visit the app again.</p>
+    <p>${t('email.greeting', { name: booking.name })}</p>
+    <p>${t('email.cancelledIntro')}</p>
+    ${infoRow(t('email.zone'), zone.name, '#dc2626')}
+    ${infoRow(t('email.date'), booking.date, '#dc2626')}
+    ${infoRow(t('email.time'), booking.startTime, '#dc2626')}
+    ${infoRow(t('email.confirmationCode'), booking.confirmationCode, '#dc2626')}
+    <p style="margin-top: 20px;">${t('email.rebookNotice')}</p>
   `
-  await queueEmail(booking.email, `Booking cancelled — ${club.name}`, emailShell(club, 'Booking cancelled', body))
+  await queueEmail(
+    booking.email,
+    t('email.bookingCancelledSubject', { club: club.name }),
+    emailShell(club, t('email.bookingCancelledTitle'), body, t('email.footer', { club: club.name }))
+  )
 }
