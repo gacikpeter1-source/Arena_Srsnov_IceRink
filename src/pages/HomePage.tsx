@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchLockedSlots } from '@/lib/bookings'
+import { resolveDivisionMode } from '@/lib/divisionRules'
 import { addDays, formatDateISO, minutesToTime, timeToMinutes } from '@/lib/utils'
 import { Zone } from '@/types'
 import { Card } from '@/components/ui/card'
@@ -13,9 +14,8 @@ function generateDayOptions(count: number) {
 }
 
 export default function HomePage() {
-  const { club, zones, timeSlotConfig, loading, error } = useClubData()
+  const { club, zones, timeSlotConfig, divisionRules, loading, error } = useClubData()
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   const [lockedSlots, setLockedSlots] = useState<Set<string>>(new Set())
   const [pendingBooking, setPendingBooking] = useState<{ zone: Zone; time: string } | null>(null)
 
@@ -23,33 +23,35 @@ export default function HomePage() {
   const dateISO = formatDateISO(selectedDate)
 
   useEffect(() => {
-    if (zones.length > 0 && !selectedZone) {
-      setSelectedZone(zones[0])
-    }
-  }, [zones, selectedZone])
-
-  useEffect(() => {
     if (!club) return
     fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
   }, [club, dateISO])
 
-  const timeSlots = useMemo(() => {
-    if (!timeSlotConfig) return []
-    const dayHours = timeSlotConfig.hours.find((h) => h.dayOfWeek === selectedDate.getDay())
-    if (!dayHours) return []
-
-    const slots: string[] = []
-    const openMin = timeToMinutes(dayHours.openTime)
-    const closeMin = timeToMinutes(dayHours.closeTime)
-    for (let m = openMin; m + timeSlotConfig.slotDurationMinutes <= closeMin; m += timeSlotConfig.slotDurationMinutes) {
-      slots.push(minutesToTime(m))
-    }
-    return slots
-  }, [timeSlotConfig, selectedDate])
-
   const refreshLockedSlots = () => {
     if (club) fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
   }
+
+  // For each open time slot on the selected day, resolve which division
+  // mode is offered (per admin schedule, default 'full') and pair it with
+  // the zones for that mode.
+  const schedule = useMemo(() => {
+    if (!timeSlotConfig) return []
+    const dayOfWeek = selectedDate.getDay()
+    const dayHours = timeSlotConfig.hours.find((h) => h.dayOfWeek === dayOfWeek)
+    if (!dayHours) return []
+
+    const openMin = timeToMinutes(dayHours.openTime)
+    const closeMin = timeToMinutes(dayHours.closeTime)
+    const rows: { time: string; zones: Zone[] }[] = []
+
+    for (let m = openMin; m + timeSlotConfig.slotDurationMinutes <= closeMin; m += timeSlotConfig.slotDurationMinutes) {
+      const time = minutesToTime(m)
+      const mode = resolveDivisionMode(divisionRules, dayOfWeek, time)
+      const slotZones = zones.filter((z) => z.mode === mode)
+      rows.push({ time, zones: slotZones })
+    }
+    return rows
+  }, [timeSlotConfig, divisionRules, zones, selectedDate])
 
   if (loading) {
     return <div className="content-container py-12 text-center text-text-muted">Loading...</div>
@@ -67,7 +69,7 @@ export default function HomePage() {
     <div className="content-container py-6 space-y-6">
       <div>
         <h1>{club.name}</h1>
-        <p className="text-text-secondary">Pick a date, zone, and time to book.</p>
+        <p className="text-text-secondary">Pick a date and time to book the rink.</p>
       </div>
 
       {/* Day picker */}
@@ -89,44 +91,35 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Zone tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {zones.map((zone) => (
-          <button
-            key={zone.id}
-            onClick={() => setSelectedZone(zone)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              selectedZone?.id === zone.id
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background-card text-text-secondary hover:bg-background-cardHover'
-            }`}
-          >
-            {zone.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Time slots */}
-      {!selectedZone ? (
-        <Card className="arena-card p-8 text-center text-text-secondary">No zones configured yet.</Card>
-      ) : timeSlots.length === 0 ? (
+      {/* Time slots, each showing the zone(s) offered for that window */}
+      {schedule.length === 0 ? (
         <Card className="arena-card p-8 text-center text-text-secondary">Closed on this day.</Card>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-          {timeSlots.map((time) => {
-            const isTaken = lockedSlots.has(`${selectedZone.id}__${time}`)
-            return (
-              <Button
-                key={time}
-                variant={isTaken ? 'secondary' : 'outline'}
-                disabled={isTaken}
-                onClick={() => setPendingBooking({ zone: selectedZone, time })}
-                className="mono"
-              >
-                {time}
-              </Button>
-            )
-          })}
+        <div className="space-y-2">
+          {schedule.map(({ time, zones: slotZones }) => (
+            <div key={time} className="flex items-center gap-3 flex-wrap">
+              <div className="w-14 mono text-sm text-text-muted flex-shrink-0">{time}</div>
+              <div className="flex gap-2 flex-wrap">
+                {slotZones.length === 0 ? (
+                  <span className="text-text-muted text-sm">No zones configured</span>
+                ) : (
+                  slotZones.map((zone) => {
+                    const isTaken = lockedSlots.has(`${zone.id}__${time}`)
+                    return (
+                      <Button
+                        key={zone.id}
+                        variant={isTaken ? 'secondary' : 'outline'}
+                        disabled={isTaken}
+                        onClick={() => setPendingBooking({ zone, time })}
+                      >
+                        {zone.name}
+                      </Button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

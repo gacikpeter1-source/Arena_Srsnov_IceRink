@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Club, TimeSlotConfig, Zone } from '@/types'
+import { Club, DivisionRule, TimeSlotConfig, Zone } from '@/types'
 
 const CLUB_ID = import.meta.env.VITE_CLUB_ID
 
@@ -9,6 +9,7 @@ interface ClubData {
   club: Club | null
   zones: Zone[]
   timeSlotConfig: TimeSlotConfig | null
+  divisionRules: DivisionRule[]
   loading: boolean
   error: string | null
 }
@@ -17,6 +18,7 @@ export function useClubData(): ClubData {
   const [club, setClub] = useState<Club | null>(null)
   const [zones, setZones] = useState<Zone[]>([])
   const [timeSlotConfig, setTimeSlotConfig] = useState<TimeSlotConfig | null>(null)
+  const [divisionRules, setDivisionRules] = useState<DivisionRule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +39,7 @@ export function useClubData(): ClubData {
         setZones(
           zonesSnap.docs
             .map((d) => ({ id: d.id, ...d.data() }) as Zone)
-            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .sort((a, b) => a.slotIndex - b.slotIndex)
         )
 
         const configSnap = await getDocs(
@@ -47,6 +49,11 @@ export function useClubData(): ClubData {
           const d = configSnap.docs[0]
           setTimeSlotConfig({ id: d.id, ...d.data() } as TimeSlotConfig)
         }
+
+        const rulesSnap = await getDocs(
+          query(collection(db, 'divisionRules'), where('clubId', '==', CLUB_ID))
+        )
+        setDivisionRules(rulesSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as DivisionRule))
       } catch (err) {
         console.error('Error loading club data:', err)
         setError('Failed to load club configuration')
@@ -57,5 +64,5 @@ export function useClubData(): ClubData {
     load()
   }, [])
 
-  return { club, zones, timeSlotConfig, loading, error }
+  return { club, zones, timeSlotConfig, divisionRules, loading, error }
 }

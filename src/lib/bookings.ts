@@ -1,6 +1,5 @@
 import { collection, doc, getDocs, query, runTransaction, serverTimestamp, where } from 'firebase/firestore'
 import { db } from './firebase'
-import { Zone } from '@/types'
 import { generateConfirmationCode, generateToken } from './utils'
 
 export class SlotUnavailableError extends Error {
@@ -47,30 +46,20 @@ export interface CreatedBooking {
 /**
  * Atomically checks and reserves a zone/date/time slot.
  *
- * A zone's `conflictsWith` list (including itself) names every zone that
- * shares physical ice with it. We lock every zone in that list so that,
- * e.g., booking "Half A" also blocks "Full Rink" for the same slot, and
- * booking "Full Rink" is blocked if any half/third is already booked.
- * All reads happen before any writes, as required by Firestore transactions.
+ * Only one division mode (full/half/third) is ever offered for a given
+ * date/time — decided by the admin's DivisionRule schedule, resolved
+ * client-side before this is called (see resolveDivisionMode in
+ * lib/divisionRules.ts). Same-mode zones are physically disjoint slices of
+ * the rink, so a single lock document per zoneId+date+startTime is enough
+ * to prevent double-booking; no cross-zone conflict check is needed.
  */
 export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
-  const zoneRef = doc(db, 'zones', input.zoneId)
+  const lockRef = doc(db, 'slotLocks', slotLockId(input.clubId, input.zoneId, input.date, input.startTime))
   const bookingRef = doc(collection(db, 'bookings'))
 
   return runTransaction(db, async (tx) => {
-    const zoneSnap = await tx.get(zoneRef)
-    if (!zoneSnap.exists()) {
-      throw new Error('Zone not found')
-    }
-    const zone = zoneSnap.data() as Zone
-    const lockedZoneIds = zone.conflictsWith.length > 0 ? zone.conflictsWith : [zone.id]
-
-    const lockRefs = lockedZoneIds.map((zoneId) =>
-      doc(db, 'slotLocks', slotLockId(input.clubId, zoneId, input.date, input.startTime))
-    )
-    const lockSnaps = await Promise.all(lockRefs.map((ref) => tx.get(ref)))
-
-    if (lockSnaps.some((snap) => snap.exists())) {
+    const lockSnap = await tx.get(lockRef)
+    if (lockSnap.exists()) {
       throw new SlotUnavailableError()
     }
 
@@ -78,21 +67,18 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
     const cancellationToken = generateToken()
     const tokenExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
 
-    lockRefs.forEach((ref, i) => {
-      tx.set(ref, {
-        clubId: input.clubId,
-        zoneId: lockedZoneIds[i],
-        date: input.date,
-        startTime: input.startTime,
-        bookingId: bookingRef.id,
-        createdAt: serverTimestamp()
-      })
+    tx.set(lockRef, {
+      clubId: input.clubId,
+      zoneId: input.zoneId,
+      date: input.date,
+      startTime: input.startTime,
+      bookingId: bookingRef.id,
+      createdAt: serverTimestamp()
     })
 
     tx.set(bookingRef, {
       clubId: input.clubId,
       zoneId: input.zoneId,
-      lockedZoneIds,
       date: input.date,
       startTime: input.startTime,
       durationMinutes: input.durationMinutes,
@@ -111,10 +97,8 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
 }
 
 /**
- * Cancels a booking and releases its slot locks so the zone/time becomes
- * bookable again. Releases exactly the locks created at booking time
- * (stored on the booking as `lockedZoneIds`), independent of the zone's
- * current config.
+ * Cancels a booking and releases its slot lock so the zone/time becomes
+ * bookable again.
  */
 export async function cancelBooking(bookingId: string): Promise<void> {
   const bookingRef = doc(db, 'bookings', bookingId)
@@ -129,11 +113,8 @@ export async function cancelBooking(bookingId: string): Promise<void> {
       throw new Error('Booking is already cancelled')
     }
 
-    const lockedZoneIds: string[] = booking.lockedZoneIds ?? [booking.zoneId]
-    const lockRefs = lockedZoneIds.map((zoneId) =>
-      doc(db, 'slotLocks', slotLockId(booking.clubId, zoneId, booking.date, booking.startTime))
-    )
-    lockRefs.forEach((ref) => tx.delete(ref))
+    const lockRef = doc(db, 'slotLocks', slotLockId(booking.clubId, booking.zoneId, booking.date, booking.startTime))
+    tx.delete(lockRef)
 
     tx.update(bookingRef, {
       status: 'cancelled',

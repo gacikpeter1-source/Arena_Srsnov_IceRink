@@ -35,6 +35,14 @@ service cloud.firestore {
       allow write: if isStaff(request.resource.data.clubId);
     }
 
+    // Recurring windows where the rink is offered as halves/thirds instead
+    // of the default whole-rink booking (see src/lib/divisionRules.ts).
+    match /divisionRules/{ruleId} {
+      allow read: if true;
+      allow create, update: if isStaff(request.resource.data.clubId);
+      allow delete: if isStaff(resource.data.clubId);
+    }
+
     match /staff/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
       allow read: if isAdmin(resource.data.clubId);

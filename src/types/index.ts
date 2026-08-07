@@ -16,16 +16,19 @@ export interface Club {
   createdAt: Date
 }
 
+export type DivisionMode = 'full' | 'half' | 'third'
+
 export interface Zone {
   id: string
   clubId: string
   name: string // "Full Rink" | "Half A" | "Third 1" ...
-  type: 'full' | 'half' | 'third'
-  // Zone IDs (including itself) that share physical ice with this zone.
-  // Booking one zone must block every zone listed here for the same
-  // date/time — this is how "Full Rink" blocks "Half A" and vice versa.
-  conflictsWith: string[]
-  sortOrder: number
+  mode: DivisionMode
+  // Position within its mode (0 for full; 0/1 for half; 0/1/2 for third).
+  // Same-mode zones are physically disjoint slices of the rink, so they
+  // never conflict with each other — only one mode is ever offered for a
+  // given date/time (see DivisionRule), so there's nothing to block across
+  // modes either.
+  slotIndex: number
   active: boolean
 }
 
@@ -42,6 +45,18 @@ export interface TimeSlotConfig {
   hours: DayHours[]
 }
 
+// Admin-configured recurring window where the rink is offered as halves or
+// thirds instead of the default whole-rink (1/1) booking. A date/time with
+// no matching rule falls back to 'full'.
+export interface DivisionRule {
+  id: string
+  clubId: string
+  dayOfWeek: number // 0=Sun .. 6=Sat
+  startTime: string // "18:00", inclusive
+  endTime: string // "20:00", exclusive
+  mode: Exclude<DivisionMode, 'full'>
+}
+
 export interface Payment {
   required: boolean
   amount: number
@@ -54,9 +69,6 @@ export interface Booking {
   id: string
   clubId: string
   zoneId: string
-  // Zone IDs whose slot locks this booking holds (see lib/bookings.ts).
-  // Set at creation time so cancellation releases exactly what was locked.
-  lockedZoneIds: string[]
   date: string // "2026-08-07"
   startTime: string // "18:00"
   durationMinutes: number
