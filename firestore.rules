@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isStaff(clubId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/staff/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.clubId == clubId;
+    }
+
+    function isAdmin(clubId) {
+      return isStaff(clubId) &&
+        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Club config — public read (needed to render the booking UI with no
+    // login), writes restricted to that club's admin staff.
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow write: if isAdmin(clubId);
+    }
+
+    match /zones/{zoneId} {
+      allow read: if true;
+      allow create, update: if isStaff(request.resource.data.clubId);
+      allow delete: if isAdmin(resource.data.clubId);
+    }
+
+    match /timeSlotConfig/{configId} {
+      allow read: if true;
+      allow write: if isStaff(request.resource.data.clubId);
+    }
+
+    match /staff/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isAdmin(resource.data.clubId);
+      allow write: if isAdmin(request.resource.data.clubId);
+    }
+
+    // Bookings: publicly creatable (anonymous booking, no login required)
+    // and publicly readable so a customer can look themselves up by
+    // confirmation code + email, or via their emailed cancel-link token.
+    //
+    // KNOWN LIMITATION (same trade-off the Arena-Srsnov reference app
+    // makes on its `registrations` collection): public read also allows
+    // listing/querying the whole collection directly, not just doc-by-id
+    // lookups. Fine for a first build; before real traffic, move lookup
+    // and cancellation through a Cloud Function so the client never
+    // queries `bookings` directly.
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow create: if true;
+      // Only allow flipping status to 'cancelled' (+ timestamp) — never
+      // arbitrary edits to name/zone/time after the booking is made.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && resource.data.status == 'confirmed'
+        && request.resource.data.status == 'cancelled';
+    }
+
+    // Slot locks back the atomic check-and-reserve transaction in
+    // src/lib/bookings.ts. Same public-write trade-off as bookings above.
+    match /slotLocks/{lockId} {
+      allow read: if true;
+      allow create: if true;
+      allow delete: if true;
+    }
+
+    // Mail queue for the Firebase "Trigger Email from Firestore" extension.
+    // Anyone may enqueue a notification; only the extension (which bypasses
+    // rules) reads or deletes.
+    match /mail/{emailId} {
+      allow create: if true;
+      allow read, delete: if false;
+    }
+  }
+}
