@@ -14,6 +14,16 @@
     "brand": "Ice Rink Booking",
     "manageBooking": "Manage my booking"
   },
+  "hub": {
+    "tagline": "Book your ice time, manage training, and more — all in one place.",
+    "reserveRink": "Reserve Ice Rink",
+    "reserveRinkDesc": "Book the full rink or a zone for a time slot.",
+    "trainingReservations": "Training Reservations",
+    "trainingReservationsDesc": "Sign up for hockey training sessions.",
+    "tournaments": "Tournaments",
+    "tournamentsDesc": "Browse and register for tournaments.",
+    "comingSoon": "Coming soon"
+  },
   "home": {
     "subtitle": "Pick a date and time to book the rink.",
     "closedToday": "Closed on this day.",

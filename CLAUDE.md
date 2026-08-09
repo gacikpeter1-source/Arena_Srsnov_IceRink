@@ -47,17 +47,43 @@ fresh, independent codebase, only conventions are reused.
   switcher must be easy to find at the top of the app (header) so the 
   user can override it at any time.
 
+## Branding assets
+PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
+variants) are derived from the club's official mascot graphic (cropped 
+square, wordmark excluded — text doesn't read at icon sizes). Source 
+lives outside the repo (was a one-off upload); regenerate by re-cropping 
+a fresh square export from the club if the mascot art changes. Other 
+clubs re-branding this codebase need their own icon set generated the 
+same way — this isn't config-driven like colors are, since it's binary 
+image assets, not a value.
+
 ## Multi-tenant / re-brand requirement
 All club-specific data (name, logo, colors, zones, hours, contact, 
 paymentsEnabled) in one config (Firestore `clubs` collection or config 
 file). New customer deployment = config + env vars + new Vercel 
 project, zero code changes.
 
-## Future integration (separate repo, not this session)
-Arena-Srsnov will own the production domain. Landing page there will 
-offer "Reserve Icerink" (this app) and "Training Reservation" 
-(Arena-Srsnov), joined via Next.js/Vite Multi-Zone-style rewrites once 
-this app has a live Vercel URL.
+## Product direction: this app is the integration hub
+Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
+the core of the final product. `/` is a branded hub home screen (club 
+logo, name, tagline) with cards linking to each club service:
+- "Reserve Ice Rink" — this app's own booking flow, at `/book`, always 
+  enabled
+- "Training Reservations" — external link to the Arena-Srsnov training 
+  app, from `clubs.integrations.trainingReservationsUrl`
+- "Tournaments" — external link to a future tournament system, from 
+  `clubs.integrations.tournamentsUrl`
+Both integration URLs are optional on the `Club` config; unset shows 
+the card as "coming soon" rather than a dead link. This keeps the 
+integration config-driven and per-club, consistent with the 
+multi-tenant requirement — no code changes needed once those URLs 
+exist. Current assumption: integration is via external links out to 
+separately-deployed apps, not a merged single codebase. Revisit if 
+that assumption turns out wrong.
+
+Superseded original plan (kept for history): Arena-Srsnov would own 
+the production domain and link to this app instead, joined via 
+Next.js/Vite Multi-Zone-style rewrites.
 
 ## First task
 Do NOT write code yet. Inspect Arena-Srsnov and report: Firestore 

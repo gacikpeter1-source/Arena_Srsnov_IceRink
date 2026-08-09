@@ -14,6 +14,16 @@
     "brand": "Rezervácia ľadovej plochy",
     "manageBooking": "Moja rezervácia"
   },
+  "hub": {
+    "tagline": "Rezervujte si ľad, spravujte tréningy a ďalšie služby na jednom mieste.",
+    "reserveRink": "Rezervovať ľadovú plochu",
+    "reserveRinkDesc": "Rezervujte celú plochu alebo zónu na časový úsek.",
+    "trainingReservations": "Rezervácia tréningov",
+    "trainingReservationsDesc": "Prihláste sa na hokejové tréningy.",
+    "tournaments": "Turnaje",
+    "tournamentsDesc": "Prehliadajte a registrujte sa na turnaje.",
+    "comingSoon": "Už čoskoro"
+  },
   "home": {
     "subtitle": "Vyberte dátum a čas rezervácie ľadovej plochy.",
     "closedToday": "V tento deň je zatvorené.",
