@@ -30,6 +30,12 @@ async function seed() {
     },
     timezone: 'Europe/Bratislava',
     paymentsEnabled: false,
+    // PLACEHOLDER — unset until the sibling apps are live; the hub home
+    // screen shows those cards as "coming soon" until these are filled in.
+    integrations: {
+      trainingReservationsUrl: '',
+      tournamentsUrl: ''
+    },
     createdAt: new Date()
   })
 

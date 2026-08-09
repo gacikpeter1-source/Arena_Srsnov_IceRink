@@ -14,7 +14,7 @@ function generateDayOptions(count: number) {
   return Array.from({ length: count }, (_, i) => addDays(today, i))
 }
 
-export default function HomePage() {
+export default function BookingPage() {
   const { t, i18n } = useTranslation()
   const { club, zones, timeSlotConfig, divisionRules, loading, error } = useClubData()
   const [selectedDate, setSelectedDate] = useState(new Date())

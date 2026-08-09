@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import HomePage from './pages/HomePage'
+import HubHomePage from './pages/HubHomePage'
+import BookingPage from './pages/BookingPage'
 import CancelLookupPage from './pages/CancelLookupPage'
 import CancelViaTokenPage from './pages/CancelViaTokenPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
@@ -15,7 +16,8 @@ export default function App() {
     <div className="min-h-screen">
       <header className="border-b border-border">
         <div className="content-container flex items-center justify-between py-3 gap-3">
-          <Link to="/" className="font-semibold text-white">
+          <Link to="/" className="flex items-center gap-2 font-semibold text-white">
+            <img src="/icon-192.png" alt="" className="w-7 h-7 rounded-md" />
             {t('nav.brand')}
           </Link>
           <div className="flex items-center gap-4">
@@ -29,7 +31,8 @@ export default function App() {
 
       <main>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HubHomePage />} />
+          <Route path="/book" element={<BookingPage />} />
           <Route path="/my-booking" element={<CancelLookupPage />} />
           <Route path="/my-booking/:bookingId/:token" element={<CancelViaTokenPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />

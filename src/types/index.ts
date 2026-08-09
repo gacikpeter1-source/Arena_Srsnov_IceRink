@@ -13,6 +13,13 @@ export interface Club {
   }
   timezone: string
   paymentsEnabled: boolean
+  // Links to sibling club services shown as cards on the hub home screen.
+  // Unset until those apps are actually live — the card then shows as
+  // "coming soon" instead of a dead link.
+  integrations?: {
+    trainingReservationsUrl?: string
+    tournamentsUrl?: string
+  }
   createdAt: Date
 }
 
