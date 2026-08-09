@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HubHomePage from './pages/HubHomePage'
@@ -5,9 +6,13 @@ import BookingPage from './pages/BookingPage'
 import CancelLookupPage from './pages/CancelLookupPage'
 import CancelViaTokenPage from './pages/CancelViaTokenPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
-import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import LanguageSwitcher from './components/LanguageSwitcher'
+
+// Code-split: the admin dashboard pulls in the xlsx library for
+// import/export, which is sizable and irrelevant to the public booking
+// flow most visitors use — keep it out of the main bundle.
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 
 export default function App() {
   const { t } = useTranslation()
@@ -40,7 +45,9 @@ export default function App() {
             path="/admin"
             element={
               <ProtectedRoute>
-                <AdminDashboardPage />
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <AdminDashboardPage />
+                </Suspense>
               </ProtectedRoute>
             }
           />

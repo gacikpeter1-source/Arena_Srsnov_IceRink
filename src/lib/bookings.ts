@@ -1,5 +1,6 @@
-import { collection, doc, getDocs, query, runTransaction, serverTimestamp, where } from 'firebase/firestore'
+import { collection, doc, getDocs, orderBy, query, runTransaction, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
+import { Booking } from '@/types'
 import { generateConfirmationCode, generateToken } from './utils'
 
 export class SlotUnavailableError extends Error {
@@ -121,4 +122,37 @@ export async function cancelBooking(bookingId: string): Promise<void> {
       cancelledAt: serverTimestamp()
     })
   })
+}
+
+/**
+ * Admin-only: fixes up who a booking is for, without touching its zone,
+ * date/time, or status. Requires the isStaff Firestore rule.
+ */
+export async function updateBookingContact(
+  bookingId: string,
+  contact: { name: string; email: string; phone: string }
+): Promise<void> {
+  await updateDoc(doc(db, 'bookings', bookingId), contact)
+}
+
+/**
+ * Admin-only: all bookings for a club within an inclusive date range
+ * (across every zone), for the admin overview table and Excel export.
+ */
+export async function fetchBookingsInRange(
+  clubId: string,
+  startDate: string,
+  endDate: string
+): Promise<(Booking & { id: string })[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'bookings'),
+      where('clubId', '==', clubId),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate),
+      orderBy('date', 'asc'),
+      orderBy('startTime', 'asc')
+    )
+  )
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Booking & { id: string })
 }

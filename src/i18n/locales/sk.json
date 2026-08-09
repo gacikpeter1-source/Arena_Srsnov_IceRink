@@ -8,7 +8,9 @@
     "email": "E-mail",
     "phone": "Telefón",
     "minutes": "{{count}} min",
-    "dateAtTime": "{{date}} o {{startTime}}"
+    "dateAtTime": "{{date}} o {{startTime}}",
+    "save": "Uložiť",
+    "edit": "Upraviť"
   },
   "nav": {
     "brand": "Rezervácia ľadovej plochy",
@@ -82,10 +84,26 @@
     "dashboardTitle": "Administrácia",
     "signedInAs": "Prihlásený ako {{email}}",
     "signOut": "Odhlásiť sa",
-    "todaysBookings": "Dnešné rezervácie",
-    "noBookingsToday": "Dnes žiadne rezervácie.",
-    "followUpNote": "Správa zón/hodín a manuálne vytváranie rezervácií budú doplnené neskôr — toto je zatiaľ len na čítanie.",
     "statusConfirmed": "potvrdené",
-    "statusCancelled": "zrušené"
+    "statusCancelled": "zrušené",
+    "reservations": "Rezervácie",
+    "from": "Od",
+    "to": "Do",
+    "thisWeek": "Tento týždeň",
+    "date": "Dátum",
+    "time": "Čas",
+    "zone": "Zóna",
+    "status": "Stav",
+    "newReservation": "Nová rezervácia",
+    "createReservation": "Vytvoriť rezerváciu",
+    "editReservation": "Upraviť rezerváciu",
+    "selectTime": "Vyberte čas",
+    "selectZone": "Vyberte zónu",
+    "confirmCancel": "Zrušiť túto rezerváciu?",
+    "noBookingsInRange": "V tomto období nie sú žiadne rezervácie.",
+    "exportExcel": "Exportovať do Excelu",
+    "importExcel": "Importovať z Excelu",
+    "importing": "Importuje sa...",
+    "importedCount": "Importovaných {{count}} rezervácií."
   }
 }
