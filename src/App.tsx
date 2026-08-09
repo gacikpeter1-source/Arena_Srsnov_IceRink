@@ -8,11 +8,27 @@ import CancelViaTokenPage from './pages/CancelViaTokenPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import LanguageSwitcher from './components/LanguageSwitcher'
+import { useAuth } from './contexts/AuthContext'
 
 // Code-split: the admin dashboard pulls in the xlsx library for
 // import/export, which is sizable and irrelevant to the public booking
 // flow most visitors use — keep it out of the main bundle.
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
+
+function Footer() {
+  const { t } = useTranslation()
+  const { staff } = useAuth()
+
+  return (
+    <footer className="border-t border-border mt-12">
+      <div className="content-container py-4 text-center">
+        <Link to={staff ? '/admin' : '/admin/login'} className="text-xs text-text-muted hover:text-primary">
+          {staff ? t('admin.dashboardTitle') : t('admin.loginTitle')}
+        </Link>
+      </div>
+    </footer>
+  )
+}
 
 export default function App() {
   const { t } = useTranslation()
@@ -53,6 +69,8 @@ export default function App() {
           />
         </Routes>
       </main>
+
+      <Footer />
     </div>
   )
 }
