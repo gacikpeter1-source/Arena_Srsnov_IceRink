@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import AdminCreateBookingModal from '@/components/AdminCreateBookingModal'
 import EditBookingModal from '@/components/EditBookingModal'
+import AdminStaffPanel from '@/components/AdminStaffPanel'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -42,6 +43,18 @@ export default function AdminDashboardPage() {
     refreshBookings()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [club, dateFrom, dateTo])
+
+  if (staff?.role === 'pending') {
+    return (
+      <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
+        <h1>{t('admin.pendingTitle')}</h1>
+        <p className="text-text-secondary">{t('admin.pendingNotice')}</p>
+        <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
+      </div>
+    )
+  }
+
+  const canManageStaff = staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const handleCancel = async (booking: Booking & { id: string }) => {
     if (!confirm(t('admin.confirmCancel'))) return
@@ -231,6 +244,10 @@ export default function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {canManageStaff && staff && club && (
+        <AdminStaffPanel clubId={club.id} viewerUid={staff.uid} viewerRole={staff.role} />
+      )}
 
       {club && timeSlotConfig && (
         <AdminCreateBookingModal

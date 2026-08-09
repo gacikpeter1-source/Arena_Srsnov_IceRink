@@ -95,11 +95,20 @@ export interface Booking {
   cancelledAt?: Date
 }
 
+// Role hierarchy:
+// - superadmin: full control, and the only role that can grant/revoke 'owner'
+// - owner ("Club owner"): manages bookings/schedules, and can grant/revoke
+//   'assistant' for their own club — but cannot touch owner/superadmin roles
+// - assistant: manages bookings/schedules, cannot manage other staff
+// - pending: a self-registered account with no permissions yet, awaiting an
+//   owner or superadmin to grant it a role
+export type StaffRole = 'superadmin' | 'owner' | 'assistant' | 'pending'
+
 export interface StaffUser {
   uid: string
   clubId: string
   email: string
   name: string
-  role: 'admin' | 'staff'
+  role: StaffRole
   createdAt: Date
 }

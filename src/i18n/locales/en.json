@@ -104,6 +104,25 @@
     "exportExcel": "Export to Excel",
     "importExcel": "Import from Excel",
     "importing": "Importing...",
-    "importedCount": "Imported {{count}} reservation(s)."
+    "importedCount": "Imported {{count}} reservation(s).",
+    "createAccount": "Create an account",
+    "haveAccount": "Already have an account? Sign in",
+    "signupTitle": "Create staff account",
+    "signupNotice": "Your account will need to be approved by a club owner or admin before you can manage reservations.",
+    "signUp": "Sign up",
+    "signingUp": "Creating account...",
+    "signupError": "Could not create account. The email may already be in use.",
+    "pendingTitle": "Awaiting approval",
+    "pendingNotice": "Your account has been created but doesn't have access yet. A club owner or admin needs to approve it — check back later.",
+    "staffTab": "Staff",
+    "role": "Role",
+    "roleSuperadmin": "Super admin",
+    "roleOwner": "Club owner",
+    "roleAssistant": "Assistant",
+    "rolePending": "Pending approval",
+    "grantOwner": "Grant Club owner",
+    "grantAssistant": "Grant Assistant",
+    "revoke": "Revoke",
+    "you": "you"
   }
 }
