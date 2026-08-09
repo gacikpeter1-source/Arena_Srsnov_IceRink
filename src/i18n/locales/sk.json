@@ -1,0 +1,81 @@
+{
+  "common": {
+    "loading": "Načítava sa...",
+    "close": "Zavrieť",
+    "cancel": "Zrušiť",
+    "error": "Niečo sa pokazilo. Skúste to znova.",
+    "name": "Meno",
+    "email": "E-mail",
+    "phone": "Telefón",
+    "minutes": "{{count}} min",
+    "dateAtTime": "{{date}} o {{startTime}}"
+  },
+  "nav": {
+    "brand": "Rezervácia ľadovej plochy",
+    "manageBooking": "Moja rezervácia"
+  },
+  "home": {
+    "subtitle": "Vyberte dátum a čas rezervácie ľadovej plochy.",
+    "closedToday": "V tento deň je zatvorené.",
+    "noZonesConfigured": "Nie sú nastavené žiadne zóny",
+    "clubNotFound": "Klub sa nenašiel."
+  },
+  "booking": {
+    "bookZone": "Rezervovať {{zone}}",
+    "slotInfo": "{{date}} o {{startTime}} · {{duration}}",
+    "fillAllFields": "Vyplňte prosím všetky polia.",
+    "confirmed": "Rezervácia potvrdená",
+    "yourCode": "Váš potvrdzovací kód",
+    "emailedNotice": "Potvrdenie s odkazom na správu alebo zrušenie tejto rezervácie sme poslali na {{email}}.",
+    "confirmBooking": "Potvrdiť rezerváciu",
+    "booking": "Rezervuje sa...",
+    "slotUnavailable": "Táto zóna už nie je pre vybraný čas dostupná."
+  },
+  "manageBooking": {
+    "findTitle": "Nájsť moju rezerváciu",
+    "manageTitle": "Správa rezervácie",
+    "confirmationCode": "Potvrdzovací kód",
+    "findBooking": "Nájsť rezerváciu",
+    "searching": "Hľadá sa...",
+    "notFound": "Rezervácia s týmito údajmi sa nenašla.",
+    "alreadyCancelled": "Táto rezervácia už bola zrušená.",
+    "cancelThisBooking": "Zrušiť túto rezerváciu",
+    "cancelled": "Vaša rezervácia bola zrušená.",
+    "invalidLink": "Tento odkaz je neplatný.",
+    "expiredLink": "Platnosť tohto odkazu vypršala."
+  },
+  "email": {
+    "bookingConfirmedSubject": "Rezervácia potvrdená — {{club}}",
+    "bookingCancelledSubject": "Rezervácia zrušená — {{club}}",
+    "bookingConfirmedTitle": "Rezervácia potvrdená",
+    "bookingCancelledTitle": "Rezervácia zrušená",
+    "greeting": "Dobrý deň, {{name}},",
+    "confirmedIntro": "Vaša rezervácia je potvrdená:",
+    "cancelledIntro": "Vaša rezervácia bola zrušená:",
+    "zone": "Zóna",
+    "date": "Dátum",
+    "time": "Čas",
+    "duration": "Trvanie",
+    "confirmationCode": "Potvrdzovací kód",
+    "needToCancel": "Potrebujete zrušiť rezerváciu?",
+    "cancelBooking": "Zrušiť rezerváciu",
+    "linkExpires": "Platnosť tohto odkazu vyprší o 14 dní.",
+    "rebookNotice": "Ak ste to neboli vy, alebo si chcete rezervovať znova, jednoducho navštívte aplikáciu.",
+    "footer": "Tento e-mail bol automaticky odoslaný rezervačným systémom klubu {{club}}."
+  },
+  "admin": {
+    "loginTitle": "Prihlásenie pre personál",
+    "invalidCredentials": "Nesprávny e-mail alebo heslo.",
+    "password": "Heslo",
+    "signIn": "Prihlásiť sa",
+    "signingIn": "Prihlasuje sa...",
+    "dashboardTitle": "Administrácia",
+    "signedInAs": "Prihlásený ako {{email}}",
+    "signOut": "Odhlásiť sa",
+    "todaysBookings": "Dnešné rezervácie",
+    "noBookingsToday": "Dnes žiadne rezervácie.",
+    "followUpNote": "Správa zón/hodín a manuálne vytváranie rezervácií budú doplnené neskôr — toto je zatiaľ len na čítanie.",
+    "statusConfirmed": "potvrdené",
+    "statusCancelled": "zrušené"
+  }
+}

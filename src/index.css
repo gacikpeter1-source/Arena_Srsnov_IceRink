@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Club color scheme (HSL, shadcn-compatible) — matches tailwind.config.js.
+       Both are kept in sync so raw Tailwind classes and shadcn variants
+       resolve to the same per-tenant palette. */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 16.5%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 16.5%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 44 98% 53%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 16.5%;
+    --secondary-foreground: 0 0% 88%;
+    --muted: 0 0% 16.5%;
+    --muted-foreground: 0 0% 63%;
+    --accent: 44 98% 53%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 23%;
+    --input: 0 0% 23%;
+    --ring: 44 98% 53%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background-darkest text-text-primary;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.6;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Inter', sans-serif;
+  }
+
+  h1 {
+    font-size: clamp(1.75rem, 4vw, 3rem);
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+  }
+
+  h3 {
+    font-size: clamp(1.25rem, 2.5vw, 1.875rem);
+    font-weight: 600;
+    line-height: 1.4;
+    color: #ffffff;
+  }
+
+  p {
+    max-width: 75ch;
+    line-height: 1.7;
+    letter-spacing: 0.01em;
+    color: #e0e0e0;
+  }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+}
+
+/* Responsive content width */
+.content-container {
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem 1rem;
+  position: relative;
+  z-index: 10;
+}
+
+@media (min-width: 640px) {
+  .content-container {
+    padding: 1.5rem 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .content-container {
+    max-width: 720px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content-container {
+    max-width: 960px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .content-container {
+    max-width: 1080px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .content-container {
+    max-width: 1200px;
+  }
+}
+
+/* Card styles */
+.arena-card {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.arena-card:hover {
+  background: #333333;
+  border-color: #4a4a4a;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(253, 185, 19, 0.1);
+}
+
+/* Zone/slot availability indicators */
+.slot-open {
+  border-left: 4px solid #22c55e;
+}
+
+.slot-full {
+  border-left: 4px solid #ef4444;
+}
+
+.slot-past {
+  border-left: 4px solid #6b7280;
+  opacity: 0.6;
+}
+
+/* Custom scrollbar for calendar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a #1a1a1a;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #FDB913;
+}

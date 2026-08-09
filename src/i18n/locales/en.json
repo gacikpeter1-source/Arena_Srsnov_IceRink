@@ -1,0 +1,81 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "close": "Close",
+    "cancel": "Cancel",
+    "error": "Something went wrong. Please try again.",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "minutes": "{{count}} min",
+    "dateAtTime": "{{date}} at {{startTime}}"
+  },
+  "nav": {
+    "brand": "Ice Rink Booking",
+    "manageBooking": "Manage my booking"
+  },
+  "home": {
+    "subtitle": "Pick a date and time to book the rink.",
+    "closedToday": "Closed on this day.",
+    "noZonesConfigured": "No zones configured",
+    "clubNotFound": "Club not found."
+  },
+  "booking": {
+    "bookZone": "Book {{zone}}",
+    "slotInfo": "{{date}} at {{startTime}} · {{duration}}",
+    "fillAllFields": "Please fill in all fields.",
+    "confirmed": "Booking confirmed",
+    "yourCode": "Your confirmation code",
+    "emailedNotice": "We've emailed a confirmation with a link to manage or cancel this booking to {{email}}.",
+    "confirmBooking": "Confirm booking",
+    "booking": "Booking...",
+    "slotUnavailable": "This zone is no longer available for the selected time."
+  },
+  "manageBooking": {
+    "findTitle": "Find your booking",
+    "manageTitle": "Manage booking",
+    "confirmationCode": "Confirmation code",
+    "findBooking": "Find booking",
+    "searching": "Searching...",
+    "notFound": "No booking found with those details.",
+    "alreadyCancelled": "This booking is already cancelled.",
+    "cancelThisBooking": "Cancel this booking",
+    "cancelled": "Your booking has been cancelled.",
+    "invalidLink": "This link is invalid.",
+    "expiredLink": "This link has expired."
+  },
+  "email": {
+    "bookingConfirmedSubject": "Booking confirmed — {{club}}",
+    "bookingCancelledSubject": "Booking cancelled — {{club}}",
+    "bookingConfirmedTitle": "Booking confirmed",
+    "bookingCancelledTitle": "Booking cancelled",
+    "greeting": "Hi {{name}},",
+    "confirmedIntro": "Your booking is confirmed:",
+    "cancelledIntro": "Your booking has been cancelled:",
+    "zone": "Zone",
+    "date": "Date",
+    "time": "Time",
+    "duration": "Duration",
+    "confirmationCode": "Confirmation code",
+    "needToCancel": "Need to cancel?",
+    "cancelBooking": "Cancel booking",
+    "linkExpires": "This link expires in 14 days.",
+    "rebookNotice": "If this wasn't you, or you'd like to rebook, just visit the app again.",
+    "footer": "This email was sent automatically by {{club}}'s booking system."
+  },
+  "admin": {
+    "loginTitle": "Staff login",
+    "invalidCredentials": "Invalid email or password.",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "dashboardTitle": "Admin dashboard",
+    "signedInAs": "Signed in as {{email}}",
+    "signOut": "Sign out",
+    "todaysBookings": "Today's bookings",
+    "noBookingsToday": "No bookings today.",
+    "followUpNote": "Zone/hours management and manual booking creation are follow-up work — this is a read-only starting point.",
+    "statusConfirmed": "confirmed",
+    "statusCancelled": "cancelled"
+  }
+}
