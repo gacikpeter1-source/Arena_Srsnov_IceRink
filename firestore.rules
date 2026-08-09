@@ -62,11 +62,14 @@ service cloud.firestore {
     match /bookings/{bookingId} {
       allow read: if true;
       allow create: if true;
-      // Only allow flipping status to 'cancelled' (+ timestamp) — never
-      // arbitrary edits to name/zone/time after the booking is made.
+      // Public (customer self-cancel): only allow flipping status to
+      // 'cancelled' (+ timestamp) — never arbitrary edits to name/zone/time.
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
         && resource.data.status == 'confirmed'
         && request.resource.data.status == 'cancelled';
+      // Staff (admin dashboard): full edit rights on their club's
+      // bookings — cancel, correct contact details, etc.
+      allow update: if isStaff(resource.data.clubId);
     }
 
     // Slot locks back the atomic check-and-reserve transaction in

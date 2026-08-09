@@ -8,7 +8,9 @@
     "email": "Email",
     "phone": "Phone",
     "minutes": "{{count}} min",
-    "dateAtTime": "{{date}} at {{startTime}}"
+    "dateAtTime": "{{date}} at {{startTime}}",
+    "save": "Save",
+    "edit": "Edit"
   },
   "nav": {
     "brand": "Ice Rink Booking",
@@ -82,10 +84,26 @@
     "dashboardTitle": "Admin dashboard",
     "signedInAs": "Signed in as {{email}}",
     "signOut": "Sign out",
-    "todaysBookings": "Today's bookings",
-    "noBookingsToday": "No bookings today.",
-    "followUpNote": "Zone/hours management and manual booking creation are follow-up work — this is a read-only starting point.",
     "statusConfirmed": "confirmed",
-    "statusCancelled": "cancelled"
+    "statusCancelled": "cancelled",
+    "reservations": "Reservations",
+    "from": "From",
+    "to": "To",
+    "thisWeek": "This week",
+    "date": "Date",
+    "time": "Time",
+    "zone": "Zone",
+    "status": "Status",
+    "newReservation": "New reservation",
+    "createReservation": "Create reservation",
+    "editReservation": "Edit reservation",
+    "selectTime": "Select a time",
+    "selectZone": "Select a zone",
+    "confirmCancel": "Cancel this reservation?",
+    "noBookingsInRange": "No reservations in this date range.",
+    "exportExcel": "Export to Excel",
+    "importExcel": "Import from Excel",
+    "importing": "Importing...",
+    "importedCount": "Imported {{count}} reservation(s)."
   }
 }
