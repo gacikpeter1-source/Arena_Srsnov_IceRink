@@ -6,6 +6,7 @@ import BookingPage from './pages/BookingPage'
 import CancelLookupPage from './pages/CancelLookupPage'
 import CancelViaTokenPage from './pages/CancelViaTokenPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
+import AdminSignupPage from './pages/admin/AdminSignupPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import { useAuth } from './contexts/AuthContext'
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/my-booking" element={<CancelLookupPage />} />
           <Route path="/my-booking/:bookingId/:token" element={<CancelViaTokenPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/admin/signup" element={<AdminSignupPage />} />
           <Route
             path="/admin"
             element={

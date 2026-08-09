@@ -104,6 +104,25 @@
     "exportExcel": "Exportovať do Excelu",
     "importExcel": "Importovať z Excelu",
     "importing": "Importuje sa...",
-    "importedCount": "Importovaných {{count}} rezervácií."
+    "importedCount": "Importovaných {{count}} rezervácií.",
+    "createAccount": "Vytvoriť účet",
+    "haveAccount": "Už máte účet? Prihláste sa",
+    "signupTitle": "Vytvoriť účet personálu",
+    "signupNotice": "Váš účet musí schváliť majiteľ klubu alebo administrátor, kým budete môcť spravovať rezervácie.",
+    "signUp": "Zaregistrovať sa",
+    "signingUp": "Vytvára sa účet...",
+    "signupError": "Účet sa nepodarilo vytvoriť. E-mail sa možno už používa.",
+    "pendingTitle": "Čaká na schválenie",
+    "pendingNotice": "Váš účet bol vytvorený, ale zatiaľ nemá prístup. Majiteľ klubu alebo administrátor ho musí schváliť — skúste to neskôr.",
+    "staffTab": "Personál",
+    "role": "Rola",
+    "roleSuperadmin": "Super admin",
+    "roleOwner": "Majiteľ klubu",
+    "roleAssistant": "Asistent",
+    "rolePending": "Čaká na schválenie",
+    "grantOwner": "Udeliť rolu Majiteľ klubu",
+    "grantAssistant": "Udeliť rolu Asistent",
+    "revoke": "Odobrať rolu",
+    "you": "vy"
   }
 }

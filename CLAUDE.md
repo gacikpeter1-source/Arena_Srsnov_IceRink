@@ -47,6 +47,22 @@ fresh, independent codebase, only conventions are reused.
   switcher must be easy to find at the top of the app (header) so the 
   user can override it at any time.
 
+## Staff roles & access control
+Customer booking stays login-free (see above); this is about the 
+`/admin` side only. Four-tier role model on the `staff` collection:
+- `superadmin` — full control, only role that can grant/revoke `owner`
+- `owner` ("Club owner") — manages bookings/schedules, can grant/revoke 
+  `assistant`, cannot touch owner/superadmin roles
+- `assistant` — manages bookings/schedules, cannot manage other staff
+- `pending` — self-registered via `/admin/signup` (open to anyone), zero 
+  permissions until an owner/superadmin grants a real role
+First superadmin is bootstrapped outside the app via 
+`scripts/create-superadmin.mjs` (Admin SDK, bypasses rules — same 
+chicken-and-egg reason the original single-admin bootstrap script 
+existed). Each deployment serves one club (see multi-tenant section 
+below), so none of this is scoped by clubId beyond what's already 
+implicit — revisit if a deployment ever needs to serve multiple clubs.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

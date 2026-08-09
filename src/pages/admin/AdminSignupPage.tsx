@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export default function AdminLoginPage() {
+export default function AdminSignupPage() {
   const { t } = useTranslation()
-  const { login } = useAuth()
+  const { signup } = useAuth()
   const navigate = useNavigate()
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -21,11 +22,11 @@ export default function AdminLoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      await login(email, password)
+      await signup(email, password, name)
       navigate('/admin')
     } catch (err) {
-      console.error('Login failed:', err)
-      setError(t('admin.invalidCredentials'))
+      console.error('Sign up failed:', err)
+      setError(t('admin.signupError'))
     } finally {
       setSubmitting(false)
     }
@@ -35,11 +36,22 @@ export default function AdminLoginPage() {
     <div className="content-container py-12 max-w-sm mx-auto">
       <Card className="arena-card">
         <CardHeader>
-          <CardTitle className="text-white">{t('admin.loginTitle')}</CardTitle>
+          <CardTitle className="text-white">{t('admin.signupTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="text-text-secondary text-sm mb-4">{t('admin.signupNotice')}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <p className="text-status-danger text-sm">{error}</p>}
+            <div>
+              <Label htmlFor="name" className="text-white">{t('common.name')}</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-background-dark border-border text-white"
+                required
+              />
+            </div>
             <div>
               <Label htmlFor="email" className="text-white">{t('common.email')}</Label>
               <Input
@@ -59,15 +71,16 @@ export default function AdminLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-background-dark border-border text-white"
+                minLength={6}
                 required
               />
             </div>
             <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
-              {submitting ? t('admin.signingIn') : t('admin.signIn')}
+              {submitting ? t('admin.signingUp') : t('admin.signUp')}
             </Button>
           </form>
           <p className="text-text-muted text-sm text-center mt-4">
-            <Link to="/admin/signup" className="hover:text-primary">{t('admin.createAccount')}</Link>
+            <Link to="/admin/login" className="hover:text-primary">{t('admin.haveAccount')}</Link>
           </p>
         </CardContent>
       </Card>

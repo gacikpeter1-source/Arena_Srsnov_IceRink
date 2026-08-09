@@ -2,51 +2,93 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Role hierarchy (see src/types/index.ts StaffRole for the full
+    // explanation): superadmin > owner ("Club owner") > assistant, plus
+    // 'pending' for a self-registered account awaiting a role grant.
+    // Each deployment serves exactly one club (see CLAUDE.md's
+    // multi-tenant model — new customer = new deployment), so none of
+    // this needs to be scoped by clubId beyond what's already implicit.
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isStaff(clubId) {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/staff/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.clubId == clubId;
+    function hasStaffDoc() {
+      return isSignedIn() && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
     }
 
-    function isAdmin(clubId) {
-      return isStaff(clubId) &&
-        get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'admin';
+    function myRole() {
+      return hasStaffDoc()
+        ? get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isSuperAdmin() {
+      return myRole() == 'superadmin';
+    }
+
+    function isOwner() {
+      return myRole() == 'owner';
+    }
+
+    // Can manage bookings/schedules — day-to-day operations.
+    function isStaffMember() {
+      return myRole() in ['superadmin', 'owner', 'assistant'];
+    }
+
+    // Can manage club config and grant/revoke the 'assistant' role.
+    function isOwnerOrAbove() {
+      return myRole() in ['superadmin', 'owner'];
     }
 
     // Club config — public read (needed to render the booking UI with no
-    // login), writes restricted to that club's admin staff.
+    // login), writes restricted to the club's owner/superadmin.
     match /clubs/{clubId} {
       allow read: if true;
-      allow write: if isAdmin(clubId);
+      allow write: if isOwnerOrAbove();
     }
 
     match /zones/{zoneId} {
       allow read: if true;
-      allow create, update: if isStaff(request.resource.data.clubId);
-      allow delete: if isAdmin(resource.data.clubId);
+      allow create, update: if isStaffMember();
+      allow delete: if isOwnerOrAbove();
     }
 
     match /timeSlotConfig/{configId} {
       allow read: if true;
-      allow write: if isStaff(request.resource.data.clubId);
+      allow write: if isStaffMember();
     }
 
     // Recurring windows where the rink is offered as halves/thirds instead
     // of the default whole-rink booking (see src/lib/divisionRules.ts).
     match /divisionRules/{ruleId} {
       allow read: if true;
-      allow create, update: if isStaff(request.resource.data.clubId);
-      allow delete: if isStaff(resource.data.clubId);
+      allow create, update: if isStaffMember();
+      allow delete: if isStaffMember();
     }
 
     match /staff/{uid} {
+      // Anyone signed in may read their own doc (to see their own role).
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow read: if isAdmin(resource.data.clubId);
-      allow write: if isAdmin(request.resource.data.clubId);
+      // Any active staff member can see the roster.
+      allow read: if isStaffMember();
+
+      // Self-registration: create your OWN doc, but only as 'pending' —
+      // you cannot grant yourself a real role.
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.role == 'pending';
+
+      // Role changes: superadmin can set any role on anyone; an owner can
+      // only move a row between 'pending' and 'assistant' (never touching
+      // owner/superadmin rows), and only the role field.
+      allow update: if isSuperAdmin()
+        || (isOwner()
+            && resource.data.role in ['pending', 'assistant']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+            && request.resource.data.role in ['pending', 'assistant']);
+
+      allow delete: if isSuperAdmin();
     }
 
     // Bookings: publicly creatable (anonymous booking, no login required)
@@ -67,9 +109,9 @@ service cloud.firestore {
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
         && resource.data.status == 'confirmed'
         && request.resource.data.status == 'cancelled';
-      // Staff (admin dashboard): full edit rights on their club's
-      // bookings — cancel, correct contact details, etc.
-      allow update: if isStaff(resource.data.clubId);
+      // Staff (admin dashboard): full edit rights — cancel, create,
+      // correct contact details, etc.
+      allow update: if isStaffMember();
     }
 
     // Slot locks back the atomic check-and-reserve transaction in
