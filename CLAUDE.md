@@ -63,6 +63,26 @@ existed). Each deployment serves one club (see multi-tenant section
 below), so none of this is scoped by clubId beyond what's already 
 implicit — revisit if a deployment ever needs to serve multiple clubs.
 
+## QR codes
+Any active staff role (assistant/owner/superadmin — not `pending`) can
+generate and download QR codes from the admin dashboard's QR panel,
+all pointing at `/book` with different query params so one route
+handles every case:
+- Static app QR — `${origin}/`, always the same, for posters/front desk
+- Per-zone QR — `?zone=<id>`, opens the booking page filtered to just
+  that zone's available times across all days
+- Quick-registration ("open ice") QR — `?zone=<id>&date=&time=`, jumps
+  straight to the registration form for that exact slot, skipping the
+  picker entirely — scan and fill in name/email/phone, nothing else
+Booking confirmation emails also embed a QR (of the same cancel-link
+URL the "Cancel booking" button uses) as an inline data-URI image, so
+a customer can scan their emailed confirmation to reopen their booking.
+`src/lib/schedule.ts` (computeDaySchedule) is the single shared
+implementation of "which zones are open at which times on a given
+day" — reused by the public booking page, admin's manual-create form,
+and the QR panel's time picker; keep it that way rather than
+re-deriving the schedule logic in a fourth place.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

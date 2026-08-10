@@ -123,6 +123,16 @@
     "grantOwner": "Udeliť rolu Majiteľ klubu",
     "grantAssistant": "Udeliť rolu Asistent",
     "revoke": "Odobrať rolu",
-    "you": "vy"
+    "you": "vy",
+    "download": "Stiahnuť",
+    "generateQr": "Vygenerovať QR kód",
+    "qrTab": "QR kódy",
+    "appQrTitle": "QR kód aplikácie",
+    "appQrDesc": "Statický kód, ktorý vždy otvorí domovskú obrazovku aplikácie — vhodný na plagáty, recepciu alebo vizitky.",
+    "appQrLabel": "Otvoriť aplikáciu",
+    "zoneQrTitle": "QR kódy zón",
+    "zoneQrDesc": "Jeden kód pre každú zónu — po naskenovaní sa otvorí rezervačná stránka filtrovaná len na dostupné časy tejto zóny. Vhodné na vyvesenie pri jednotlivých častiach ihriska.",
+    "slotQrTitle": "QR kód rýchlej registrácie",
+    "slotQrDesc": "Vyberte presnú zónu, dátum a čas a vygenerujte kód pre registráciu na jedno naskenovanie — po naskenovaní sa rovno otvorí registračný formulár pre daný termín, bez ďalšieho výberu. Vhodné pre verejné korčuľovanie / voľný vstup."
   }
 }

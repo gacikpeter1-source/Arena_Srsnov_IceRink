@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import AdminCreateBookingModal from '@/components/AdminCreateBookingModal'
 import EditBookingModal from '@/components/EditBookingModal'
 import AdminStaffPanel from '@/components/AdminStaffPanel'
+import AdminQrPanel from '@/components/AdminQrPanel'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -244,6 +245,8 @@ export default function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <AdminQrPanel zones={zones} timeSlotConfig={timeSlotConfig} divisionRules={divisionRules} />
 
       {canManageStaff && staff && club && (
         <AdminStaffPanel clubId={club.id} viewerUid={staff.uid} viewerRole={staff.role} />

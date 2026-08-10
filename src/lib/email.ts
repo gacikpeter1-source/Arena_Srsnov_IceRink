@@ -1,6 +1,7 @@
 import { addDoc, collection } from 'firebase/firestore'
 import { db } from './firebase'
 import i18n, { SupportedLanguage } from '@/i18n'
+import { generateQrDataUrl } from './qrcode'
 import { Club, Zone } from '@/types'
 
 /**
@@ -75,6 +76,9 @@ export async function queueBookingConfirmationEmail(
 ): Promise<void> {
   const t = i18n.getFixedT(lang)
   const cancelUrl = `${cancelBaseUrl}/my-booking/${booking.bookingId}/${booking.cancellationToken}`
+  // Best-effort: if QR generation fails for any reason, the email still
+  // sends fine without it — the text link above still works.
+  const qrDataUrl = await generateQrDataUrl(cancelUrl).catch(() => null)
   const body = `
     <p>${t('email.greeting', { name: booking.name })}</p>
     <p>${t('email.confirmedIntro')}</p>
@@ -88,6 +92,7 @@ export async function queueBookingConfirmationEmail(
       <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
         ${t('email.cancelBooking')}
       </a>
+      ${qrDataUrl ? `<div style="margin-top: 15px;"><img src="${qrDataUrl}" alt="QR" width="140" height="140" style="background: white; padding: 8px; border-radius: 8px;" /></div>` : ''}
       <p style="margin: 15px 0 0; font-size: 12px; color: #999;">${t('email.linkExpires')}</p>
     </div>
   `
