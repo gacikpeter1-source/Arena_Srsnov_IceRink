@@ -31,7 +31,12 @@
     "closedToday": "Closed on this day.",
     "noZonesConfigured": "No zones configured",
     "noRinksConfigured": "No rinks configured",
-    "clubNotFound": "Club not found."
+    "clubNotFound": "Club not found.",
+    "availabilityOpen": "Open",
+    "availabilityBusy": "Partially booked",
+    "availabilityFull": "Fully booked",
+    "viewList": "List",
+    "viewGrid": "Week grid"
   },
   "booking": {
     "bookZone": "Book {{zone}}",
@@ -43,7 +48,17 @@
     "confirmBooking": "Confirm booking",
     "booking": "Booking...",
     "slotUnavailable": "This zone is no longer available for the selected time.",
-    "allRinks": "All rinks"
+    "allRinks": "All rinks",
+    "repeatWeekly": "Repeat this booking weekly",
+    "recurrenceForWeeks": "For a number of weeks",
+    "recurrenceUntilDate": "Until a date",
+    "numberOfWeeks": "Number of weeks",
+    "repeatUntil": "Repeat until",
+    "repeatNotice": "Each week is booked individually — if a date is already taken, we'll skip it and book the rest.",
+    "seriesUnavailable": "None of the selected dates are available anymore.",
+    "seriesConfirmed": "Recurring booking confirmed",
+    "seriesConfirmedCount": "{{count}} session(s) booked.",
+    "seriesSkippedIntro": "These dates were already taken and were skipped:"
   },
   "manageBooking": {
     "findTitle": "Find your booking",
@@ -57,6 +72,16 @@
     "cancelled": "Your booking has been cancelled.",
     "invalidLink": "This link is invalid.",
     "expiredLink": "This link has expired."
+  },
+  "manageSeries": {
+    "title": "Manage recurring booking",
+    "invalidLink": "This link is invalid.",
+    "expiredLink": "This link has expired.",
+    "occurrencesTitle": "Sessions in this series",
+    "cancelSeries": "Cancel entire series",
+    "cancelOccurrence": "Cancel this date",
+    "allCancelled": "This entire series has already been cancelled.",
+    "seriesCancelled": "Cancelled {{count}} remaining session(s)."
   },
   "email": {
     "bookingConfirmedSubject": "Booking confirmed — {{club}}",
@@ -75,7 +100,16 @@
     "cancelBooking": "Cancel booking",
     "linkExpires": "This link expires in 14 days.",
     "rebookNotice": "If this wasn't you, or you'd like to rebook, just visit the app again.",
-    "footer": "This email was sent automatically by {{club}}'s booking system."
+    "footer": "This email was sent automatically by {{club}}'s booking system.",
+    "seriesConfirmedSubject": "Recurring booking confirmed — {{club}}",
+    "seriesConfirmedTitle": "Recurring booking confirmed",
+    "seriesConfirmedIntro": "{{count}} session(s) have been booked:",
+    "seriesDatesLabel": "Dates booked:",
+    "seriesSkippedIntro": "The following dates were already taken and were skipped:",
+    "manageSeries": "Manage / cancel series",
+    "seriesCancelledSubject": "Recurring booking cancelled — {{club}}",
+    "seriesCancelledTitle": "Recurring booking cancelled",
+    "seriesCancelledIntro": "{{count}} remaining session(s) in your recurring booking have been cancelled:"
   },
   "admin": {
     "loginTitle": "Staff login",

@@ -122,6 +122,17 @@ service cloud.firestore {
       allow update: if isStaffMember();
     }
 
+    // A weekly-recurring series' metadata (see src/types/index.ts
+    // BookingSeries) — the occurrences themselves are normal `bookings`
+    // docs tagged with seriesId, covered by the rules above. Same
+    // public-write trade-off as bookings/slotLocks: anyone can create one
+    // (no-login booking), and it's publicly readable so the emailed
+    // "manage series" link works without an account.
+    match /bookingSeries/{seriesId} {
+      allow read: if true;
+      allow create: if true;
+    }
+
     // Slot locks back the atomic check-and-reserve transaction in
     // src/lib/bookings.ts. Same public-write trade-off as bookings above.
     match /slotLocks/{lockId} {

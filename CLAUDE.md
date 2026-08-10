@@ -126,6 +126,47 @@ rink, not club-wide, the admin Excel import/export
 (`src/lib/excel.ts`) includes a "Rink" column and resolves zones by
 rink name + zone name together, not zone name alone.
 
+When both rinks are visible (the default), `BookingPage.tsx` lays them
+out as two columns side by side (`md:grid-cols-2`) — left is whichever
+rink sorts first (`Rink.sortOrder`), right is the other — collapsing to
+one full-width column when filtered to a single rink, and stacking on
+narrow phone widths. The diagram highlight also tracks the last-tapped
+zone per rink (not just live hover/focus), so it stays lit on touch
+devices after the pointer moves away or the booking form closes.
+
+## Recurring bookings
+Both customers (no login required) and staff can create a weekly-
+recurring series instead of a single slot — a "Repeat this booking
+weekly" checkbox on the booking form (customer `BookingModal.tsx` and
+admin `AdminCreateBookingModal.tsx`) reveals a count-or-end-date
+recurrence choice (`SeriesRecurrence` in `src/lib/bookings.ts`).
+`createBookingSeries` books each week's occurrence through the *same*
+atomic `createBooking` transaction used for a one-off booking, one at a
+time in a loop — not one multi-slot transaction — so a date someone else
+already has is skipped rather than failing the whole series; every
+occurrence that *is* created keeps its own confirmationCode/
+cancellationToken exactly like a normal booking, so it can still be
+looked up/cancelled on its own via the existing `/my-booking` flow. A
+`bookingSeries` doc (`BookingSeries` in `src/types/index.ts`) exists only
+to remember the recurrence and give the customer a single link to cancel
+every remaining occurrence at once — emailed via
+`queueSeriesConfirmationEmail`, landing on `SeriesCancelPage`
+(`/my-series/:seriesId/:token`), which can also cancel occurrences
+individually. Hard cap: `MAX_SERIES_OCCURRENCES` = 52 weeks in
+`src/lib/bookings.ts`.
+
+## Availability visibility
+Two ways to see occupancy without opening each day one at a time (both in
+`BookingPage.tsx`):
+- Day-picker dots — a green/amber/red dot per date in the 14-day strip,
+  computed from one ranged `fetchLockedSlotsRange` query combined with
+  each day's `computeDaySchedule`, scoped to whichever rink(s) the rink
+  filter currently shows.
+- Week grid (`src/components/AvailabilityGrid.tsx`) — a times × days
+  heatmap per rink, toggled via List/Grid buttons next to the rink
+  filter; clicking an open cell jumps the day-by-day list to that date so
+  the customer can pick the exact zone.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

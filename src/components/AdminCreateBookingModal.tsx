@@ -4,9 +4,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { createBooking, SlotUnavailableError } from '@/lib/bookings'
+import { createBooking, createBookingSeries, SeriesRecurrence, SlotUnavailableError, type CreatedSeries } from '@/lib/bookings'
 import { computeDaySchedule } from '@/lib/schedule'
-import { formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO } from '@/lib/utils'
 import { Club, DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
@@ -19,6 +19,9 @@ interface AdminCreateBookingModalProps {
   onClose: () => void
   onCreated: () => void
 }
+
+const MIN_SERIES_COUNT = 2
+const MAX_SERIES_COUNT = 52
 
 export default function AdminCreateBookingModal({
   club,
@@ -36,8 +39,13 @@ export default function AdminCreateBookingModal({
   const [startTime, setStartTime] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
+  const [repeat, setRepeat] = useState(false)
+  const [recurrenceType, setRecurrenceType] = useState<'count' | 'until'>('count')
+  const [count, setCount] = useState(4)
+  const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(), 28)))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [seriesResult, setSeriesResult] = useState<CreatedSeries | null>(null)
 
   const rinkZones = useMemo(() => zones.filter((z) => z.rinkId === rinkId), [zones, rinkId])
   const rinkRules = useMemo(() => divisionRules.filter((r) => r.rinkId === rinkId), [divisionRules, rinkId])
@@ -50,13 +58,19 @@ export default function AdminCreateBookingModal({
 
   const zoneOptions = schedule.find((s) => s.time === startTime)?.zones ?? []
 
-  const handleClose = () => {
+  const resetForm = () => {
     setRinkId(rinks[0]?.id ?? '')
     setDate(formatDateISO(new Date()))
     setStartTime('')
     setZoneId('')
     setFormData({ name: '', email: '', phone: '' })
+    setRepeat(false)
     setError(null)
+    setSeriesResult(null)
+  }
+
+  const handleClose = () => {
+    resetForm()
     onClose()
   }
 
@@ -71,24 +85,89 @@ export default function AdminCreateBookingModal({
 
     setSubmitting(true)
     try {
-      await createBooking({
-        clubId: club.id,
-        rinkId,
-        zoneId,
-        date,
-        startTime,
-        durationMinutes: timeSlotConfig.slotDurationMinutes,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone
-      })
-      onCreated()
-      handleClose()
+      if (repeat) {
+        const recurrence: SeriesRecurrence =
+          recurrenceType === 'count' ? { type: 'count', count } : { type: 'until', endDate: untilDate }
+        const series = await createBookingSeries({
+          clubId: club.id,
+          rinkId,
+          zoneId,
+          startDate: date,
+          startTime,
+          durationMinutes: timeSlotConfig.slotDurationMinutes,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          recurrence
+        })
+        setSeriesResult(series)
+        onCreated()
+      } else {
+        await createBooking({
+          clubId: club.id,
+          rinkId,
+          zoneId,
+          date,
+          startTime,
+          durationMinutes: timeSlotConfig.slotDurationMinutes,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone
+        })
+        onCreated()
+        handleClose()
+      }
     } catch (err) {
-      setError(err instanceof SlotUnavailableError ? t('booking.slotUnavailable') : t('common.error'))
+      setError(
+        err instanceof SlotUnavailableError
+          ? repeat
+            ? t('booking.seriesUnavailable')
+            : t('booking.slotUnavailable')
+          : t('common.error')
+      )
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (seriesResult) {
+    return (
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="bg-background-card max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl">{t('booking.seriesConfirmed')}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-text-secondary text-sm">
+              {t('booking.seriesConfirmedCount', { count: seriesResult.created.length })}
+            </p>
+            <ul className="text-sm text-text-secondary space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+              {seriesResult.created.map((o) => (
+                <li key={o.bookingId} className="flex justify-between">
+                  <span>{o.date}</span>
+                  <span className="mono text-primary">{o.confirmationCode}</span>
+                </li>
+              ))}
+            </ul>
+            {seriesResult.skippedDates.length > 0 && (
+              <div className="text-sm text-status-danger">
+                <p>{t('booking.seriesSkippedIntro')}</p>
+                <ul className="list-disc list-inside">
+                  {seriesResult.skippedDates.map((d) => (
+                    <li key={d}>{d}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={handleClose} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
+              {t('common.close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
@@ -209,6 +288,71 @@ export default function AdminCreateBookingModal({
               className="bg-background-dark border-border text-white"
               required
             />
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={repeat}
+                onChange={(e) => setRepeat(e.target.checked)}
+                className="h-4 w-4"
+              />
+              {t('booking.repeatWeekly')}
+            </label>
+
+            {repeat && (
+              <div className="mt-3 space-y-3 pl-6">
+                <div className="flex gap-4 text-sm text-white">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="admin-recurrenceType"
+                      checked={recurrenceType === 'count'}
+                      onChange={() => setRecurrenceType('count')}
+                    />
+                    {t('booking.recurrenceForWeeks')}
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="admin-recurrenceType"
+                      checked={recurrenceType === 'until'}
+                      onChange={() => setRecurrenceType('until')}
+                    />
+                    {t('booking.recurrenceUntilDate')}
+                  </label>
+                </div>
+
+                {recurrenceType === 'count' ? (
+                  <div>
+                    <Label htmlFor="admin-series-count" className="text-white">{t('booking.numberOfWeeks')}</Label>
+                    <Input
+                      id="admin-series-count"
+                      type="number"
+                      min={MIN_SERIES_COUNT}
+                      max={MAX_SERIES_COUNT}
+                      value={count}
+                      onChange={(e) => setCount(Number(e.target.value))}
+                      className="bg-background-dark border-border text-white max-w-[120px]"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="admin-series-until" className="text-white">{t('booking.repeatUntil')}</Label>
+                    <Input
+                      id="admin-series-until"
+                      type="date"
+                      min={date}
+                      value={untilDate}
+                      onChange={(e) => setUntilDate(e.target.value)}
+                      className="bg-background-dark border-border text-white"
+                    />
+                  </div>
+                )}
+                <p className="text-text-muted text-xs">{t('booking.repeatNotice')}</p>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex gap-2 pt-4">

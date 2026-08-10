@@ -106,8 +106,38 @@ export interface Booking {
   status: 'confirmed' | 'cancelled'
   payment?: Payment
 
+  // Set when this occurrence was created as part of a recurring series (see
+  // BookingSeries) — unset for a normal one-off booking. Each occurrence is
+  // still a fully independent Booking (own confirmationCode/
+  // cancellationToken), so it can be looked up or cancelled on its own.
+  seriesId?: string
+
   createdAt: Date
   cancelledAt?: Date
+}
+
+// A weekly-recurring series of bookings (e.g. "every Monday 18:00 for 10
+// weeks"), creatable by a customer or by staff. This doc doesn't hold the
+// bookings themselves — those are normal Booking docs tagged with this
+// series' id — it exists only to remember the recurrence and to let
+// someone cancel every remaining occurrence with a single link.
+export interface BookingSeries {
+  id: string
+  clubId: string
+  rinkId: string
+  zoneId: string
+  dayOfWeek: number // 0=Sun .. 6=Sat, derived from the first occurrence
+  startTime: string
+  durationMinutes: number
+
+  name: string
+  email: string
+  phone: string
+
+  cancellationToken: string
+  tokenExpiresAt: Date
+
+  createdAt: Date
 }
 
 // Role hierarchy:

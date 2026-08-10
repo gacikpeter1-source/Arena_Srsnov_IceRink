@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
-import { fetchLockedSlots } from '@/lib/bookings'
+import { fetchLockedSlots, fetchLockedSlotsRange } from '@/lib/bookings'
 import { computeDaySchedule, ScheduleRow } from '@/lib/schedule'
 import { addDays, formatDateISO } from '@/lib/utils'
 import { Rink, Zone } from '@/types'
@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BookingModal from '@/components/BookingModal'
 import RinkDiagram from '@/components/RinkDiagram'
+import AvailabilityGrid from '@/components/AvailabilityGrid'
 
 function generateDayOptions(count: number) {
   const today = new Date()
@@ -32,6 +33,11 @@ export default function BookingPage() {
     dateParam ? new Date(`${dateParam}T00:00:00`) : new Date()
   )
   const [lockedSlots, setLockedSlots] = useState<Set<string>>(new Set())
+  // Locked slots across the whole visible day range, one Set per date —
+  // powers the day-picker's occupancy dots, separate from lockedSlots
+  // above which is just the currently selected day (used for graying out
+  // individual zone buttons).
+  const [lockedSlotsRange, setLockedSlotsRange] = useState<Map<string, Set<string>>>(new Map())
   const [pendingBooking, setPendingBooking] = useState<{ rink: Rink; zone: Zone; time: string } | null>(null)
   const [autoOpened, setAutoOpened] = useState(false)
   // 'all' shows every rink's schedule at once (the default); otherwise a
@@ -43,14 +49,24 @@ export default function BookingPage() {
   // devices, which have no real hover.
   const [hovered, setHovered] = useState<{ rinkId: string; zone: Zone } | null>(null)
   const [selected, setSelected] = useState<{ rinkId: string; zone: Zone } | null>(null)
+  // 'list' is the normal day-by-day picker; 'grid' is a times x days
+  // heatmap for browsing the whole 14-day range at once.
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
 
   const days = useMemo(() => generateDayOptions(14), [])
   const dateISO = formatDateISO(selectedDate)
+  const rangeStart = formatDateISO(days[0])
+  const rangeEnd = formatDateISO(days[days.length - 1])
 
   useEffect(() => {
     if (!club) return
     fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
   }, [club, dateISO])
+
+  useEffect(() => {
+    if (!club) return
+    fetchLockedSlotsRange(club.id, rangeStart, rangeEnd).then(setLockedSlotsRange)
+  }, [club, rangeStart, rangeEnd])
 
   // A per-zone QR link (?zone=) narrows the calendar to that zone's rink.
   useEffect(() => {
@@ -71,8 +87,15 @@ export default function BookingPage() {
     setAutoOpened(true)
   }, [autoOpened, zoneParam, dateParam, timeParam, zones, rinks])
 
+  const handleSelectGridDate = (dISO: string) => {
+    setSelectedDate(new Date(`${dISO}T00:00:00`))
+    setViewMode('list')
+  }
+
   const refreshLockedSlots = () => {
-    if (club) fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
+    if (!club) return
+    fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
+    fetchLockedSlotsRange(club.id, rangeStart, rangeEnd).then(setLockedSlotsRange)
   }
 
   const visibleRinks = rinkFilter === 'all' ? rinks : rinks.filter((r) => r.id === rinkFilter)
@@ -100,6 +123,35 @@ export default function BookingPage() {
     return map
   }, [visibleRinks, timeSlotConfigs, zones, divisionRules, selectedDate, zoneParam])
 
+  // How full each of the 14 visible days is, across whichever rink(s) are
+  // currently in view — "occupied" counts individually-bookable zone-time
+  // slots, so a day offering thirds counts each third separately. Powers
+  // the day-picker dots below.
+  const occupancyByDay = useMemo(() => {
+    const map = new Map<string, { total: number; occupied: number }>()
+    for (const day of days) {
+      const dISO = formatDateISO(day)
+      const lockedForDay = lockedSlotsRange.get(dISO) ?? new Set<string>()
+      let total = 0
+      let occupied = 0
+      for (const rink of visibleRinks) {
+        const config = timeSlotConfigs.find((c) => c.rinkId === rink.id)
+        if (!config) continue
+        const rinkZones = zones.filter((z) => z.rinkId === rink.id)
+        const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
+        const rows = computeDaySchedule(day, config, rinkRules, rinkZones)
+        for (const row of rows) {
+          for (const zone of row.zones) {
+            total++
+            if (lockedForDay.has(`${zone.id}__${row.time}`)) occupied++
+          }
+        }
+      }
+      map.set(dISO, { total, occupied })
+    }
+    return map
+  }, [days, visibleRinks, timeSlotConfigs, zones, divisionRules, lockedSlotsRange])
+
   if (loading) {
     return <div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>
   }
@@ -119,47 +171,98 @@ export default function BookingPage() {
         <p className="text-text-secondary">{t('home.subtitle')}</p>
       </div>
 
-      {/* Day picker */}
+      {/* Day picker — each day gets a dot showing how booked it is: green
+          (open), amber (partially booked), red (fully booked), no dot for
+          a closed day. */}
       <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
         {days.map((day) => {
-          const isSelected = formatDateISO(day) === dateISO
+          const dISO = formatDateISO(day)
+          const isSelected = dISO === dateISO
+          const occ = occupancyByDay.get(dISO)
+          const dotColor =
+            !occ || occ.total === 0
+              ? null
+              : occ.occupied === 0
+                ? 'bg-status-success'
+                : occ.occupied >= occ.total
+                  ? 'bg-status-danger'
+                  : 'bg-status-warning'
+          const dotLabel =
+            !occ || occ.total === 0
+              ? undefined
+              : occ.occupied === 0
+                ? t('home.availabilityOpen')
+                : occ.occupied >= occ.total
+                  ? t('home.availabilityFull')
+                  : t('home.availabilityBusy')
           return (
             <button
               key={day.toISOString()}
               onClick={() => setSelectedDate(day)}
-              className={`flex-shrink-0 px-4 py-2 rounded-md text-center transition-colors ${
+              title={dotLabel}
+              className={`relative flex-shrink-0 px-4 py-2 rounded-md text-center transition-colors ${
                 isSelected ? 'bg-primary text-primary-foreground' : 'bg-background-card text-text-secondary hover:bg-background-cardHover'
               }`}
             >
               <div className="text-xs">{day.toLocaleDateString(i18n.language, { weekday: 'short' })}</div>
               <div className="font-semibold">{day.getDate()}</div>
+              {dotColor && (
+                <span
+                  className={`absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full ${dotColor}`}
+                  aria-label={dotLabel}
+                />
+              )}
             </button>
           )
         })}
       </div>
 
-      {/* Rink filter — defaults to showing every rink's schedule at once */}
-      {rinks.length > 1 && (
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            variant={rinkFilter === 'all' ? 'default' : 'outline'}
-            onClick={() => setRinkFilter('all')}
-            className={rinkFilter === 'all' ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
-          >
-            {t('booking.allRinks')}
-          </Button>
-          {rinks.map((rink) => (
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        {/* Rink filter — defaults to showing every rink's schedule at once */}
+        {rinks.length > 1 ? (
+          <div className="flex gap-2 flex-wrap">
             <Button
-              key={rink.id}
-              variant={rinkFilter === rink.id ? 'default' : 'outline'}
-              onClick={() => setRinkFilter(rink.id)}
-              className={rinkFilter === rink.id ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
+              variant={rinkFilter === 'all' ? 'default' : 'outline'}
+              onClick={() => setRinkFilter('all')}
+              className={rinkFilter === 'all' ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
             >
-              {rink.name}
+              {t('booking.allRinks')}
             </Button>
-          ))}
+            {rinks.map((rink) => (
+              <Button
+                key={rink.id}
+                variant={rinkFilter === rink.id ? 'default' : 'outline'}
+                onClick={() => setRinkFilter(rink.id)}
+                className={rinkFilter === rink.id ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
+              >
+                {rink.name}
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <div />
+        )}
+
+        {/* List vs full-week grid view toggle */}
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            onClick={() => setViewMode('list')}
+            className={viewMode === 'list' ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
+          >
+            {t('home.viewList')}
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            onClick={() => setViewMode('grid')}
+            className={viewMode === 'grid' ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
+          >
+            {t('home.viewGrid')}
+          </Button>
         </div>
-      )}
+      </div>
 
       {visibleRinks.length === 0 ? (
         <Card className="arena-card p-8 text-center text-text-secondary">{t('home.noRinksConfigured')}</Card>
@@ -171,6 +274,9 @@ export default function BookingPage() {
         >
           {visibleRinks.map((rink) => {
             const schedule = schedulesByRink.get(rink.id) ?? []
+            const rinkConfig = timeSlotConfigs.find((c) => c.rinkId === rink.id)
+            const rinkZones = zones.filter((z) => z.rinkId === rink.id)
+            const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
             // Live hover/focus preview wins; otherwise fall back to the
             // last zone actually tapped on this rink, if any.
             const rinkActiveZone =
@@ -187,7 +293,20 @@ export default function BookingPage() {
                   className="max-w-md"
                 />
 
-                {schedule.length === 0 ? (
+                {viewMode === 'grid' ? (
+                  rinkConfig ? (
+                    <AvailabilityGrid
+                      days={days}
+                      timeSlotConfig={rinkConfig}
+                      divisionRules={rinkRules}
+                      zones={rinkZones}
+                      lockedSlotsByDate={lockedSlotsRange}
+                      onSelectDate={handleSelectGridDate}
+                    />
+                  ) : (
+                    <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
+                  )
+                ) : schedule.length === 0 ? (
                   <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
                 ) : (
                   <div className="space-y-2">
