@@ -5,16 +5,19 @@ import { generateQrDataUrl } from './qrcode'
 import { Club, Zone } from '@/types'
 
 /**
- * Queues an email by writing to the `mail` collection, which the Firebase
- * "Trigger Email from Firestore" extension watches and sends via SMTP —
- * same mechanism as the Arena-Srsnov reference app (see EMAIL_SETUP_GUIDE.md).
- * Failures are swallowed: email is a notification, not a booking precondition.
+ * Queues an email by writing to the `mail` collection. Delivery is handled
+ * by the sendQueuedMail Cloud Function (functions/src/index.ts) — a
+ * self-hosted stand-in for the Firebase "Trigger Email from Firestore"
+ * extension, which hit a Google Deployment Manager bug on install for this
+ * project. Same document shape either would expect, so this queueing side
+ * never had to change. Failures are swallowed: email is a notification,
+ * not a booking precondition.
  */
 async function queueEmail(to: string, subject: string, html: string): Promise<void> {
   try {
     await addDoc(collection(db, 'mail'), { to, message: { subject, html } })
   } catch (err) {
-    console.warn('Could not queue email (Extension may not be installed):', err)
+    console.warn('Could not queue email:', err)
   }
 }
 

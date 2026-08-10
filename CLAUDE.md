@@ -63,6 +63,22 @@ existed). Each deployment serves one club (see multi-tenant section
 below), so none of this is scoped by clubId beyond what's already 
 implicit — revisit if a deployment ever needs to serve multiple clubs.
 
+## Email delivery
+Client code queues emails by writing `{to, message:{subject, html}}` to
+the `mail` collection (src/lib/email.ts) — this part was always meant
+to reuse Arena-Srsnov's "Firebase Trigger Email from Firestore"
+extension, but that extension hit a Google Deployment Manager bug on
+install for this project (a stale/inconsistent deployment record,
+not fixable by retrying). Replaced with a self-hosted equivalent:
+`sendQueuedMail` in `functions/src/index.ts`, an `onDocumentCreated`
+trigger on `mail/{id}` that sends via nodemailer + SMTP. Same document
+shape either approach expects, so nothing on the queueing side had to
+change — only who's watching the collection. Requires two secrets set
+via `firebase functions:secrets:set SMTP_URI` / `MAIL_FROM` before
+`firebase deploy --only functions`. If a future deployment's extension
+install works fine, either approach is interchangeable — don't run
+both at once (double-send).
+
 ## QR codes
 Any active staff role (assistant/owner/superadmin — not `pending`) can
 generate and download QR codes from the admin dashboard's QR panel,
