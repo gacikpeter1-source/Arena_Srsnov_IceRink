@@ -34,17 +34,17 @@ export default function RinkDiagram({ mode, highlightedSlotIndex, className }: R
       style={{ aspectRatio: RINK_ASPECT_RATIO }}
     >
       <img src="/rink-diagram.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" />
-      {highlightedSlotIndex != null &&
-        segments.map(
-          (seg) =>
-            seg.slotIndex !== highlightedSlotIndex && (
-              <div
-                key={seg.slotIndex}
-                className="absolute inset-y-0 bg-black/65 transition-opacity"
-                style={{ left: `${seg.start}%`, width: `${seg.end - seg.start}%` }}
-              />
-            )
-        )}
+      {segments.map((seg) => (
+        <div
+          key={seg.slotIndex}
+          className="absolute inset-y-0 bg-black/65 transition-opacity duration-300 ease-out"
+          style={{
+            left: `${seg.start}%`,
+            width: `${seg.end - seg.start}%`,
+            opacity: highlightedSlotIndex != null && seg.slotIndex !== highlightedSlotIndex ? 1 : 0
+          }}
+        />
+      ))}
     </div>
   )
 }
