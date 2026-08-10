@@ -4,10 +4,17 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { createBooking, createBookingSeries, SeriesRecurrence, SlotUnavailableError, type CreatedSeries } from '@/lib/bookings'
+import {
+  createBooking,
+  createBookingSeries,
+  SeriesRecurrence,
+  SERIES_MAX_OCCURRENCES,
+  SlotUnavailableError,
+  type CreatedSeries
+} from '@/lib/bookings'
 import { computeDaySchedule } from '@/lib/schedule'
 import { addDays, formatDateISO } from '@/lib/utils'
-import { Club, DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
+import { Club, DivisionRule, Rink, SeriesFrequency, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
   club: Club
@@ -21,7 +28,6 @@ interface AdminCreateBookingModalProps {
 }
 
 const MIN_SERIES_COUNT = 2
-const MAX_SERIES_COUNT = 52
 
 export default function AdminCreateBookingModal({
   club,
@@ -40,12 +46,18 @@ export default function AdminCreateBookingModal({
   const [zoneId, setZoneId] = useState('')
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
   const [repeat, setRepeat] = useState(false)
+  const [frequency, setFrequency] = useState<SeriesFrequency>('weekly')
   const [recurrenceType, setRecurrenceType] = useState<'count' | 'until'>('count')
   const [count, setCount] = useState(4)
   const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(), 28)))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [seriesResult, setSeriesResult] = useState<CreatedSeries | null>(null)
+
+  const handleFrequencyChange = (next: SeriesFrequency) => {
+    setFrequency(next)
+    setCount((c) => Math.min(c, SERIES_MAX_OCCURRENCES[next]))
+  }
 
   const rinkZones = useMemo(() => zones.filter((z) => z.rinkId === rinkId), [zones, rinkId])
   const rinkRules = useMemo(() => divisionRules.filter((r) => r.rinkId === rinkId), [divisionRules, rinkId])
@@ -65,6 +77,7 @@ export default function AdminCreateBookingModal({
     setZoneId('')
     setFormData({ name: '', email: '', phone: '' })
     setRepeat(false)
+    setFrequency('weekly')
     setError(null)
     setSeriesResult(null)
   }
@@ -87,7 +100,9 @@ export default function AdminCreateBookingModal({
     try {
       if (repeat) {
         const recurrence: SeriesRecurrence =
-          recurrenceType === 'count' ? { type: 'count', count } : { type: 'until', endDate: untilDate }
+          recurrenceType === 'count'
+            ? { type: 'count', frequency, count }
+            : { type: 'until', frequency, endDate: untilDate }
         const series = await createBookingSeries({
           clubId: club.id,
           rinkId,
@@ -298,7 +313,7 @@ export default function AdminCreateBookingModal({
                 onChange={(e) => setRepeat(e.target.checked)}
                 className="h-4 w-4"
               />
-              {t('booking.repeatWeekly')}
+              {t('booking.repeatBooking')}
             </label>
 
             {repeat && (
@@ -307,11 +322,32 @@ export default function AdminCreateBookingModal({
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
+                      name="admin-frequency"
+                      checked={frequency === 'daily'}
+                      onChange={() => handleFrequencyChange('daily')}
+                    />
+                    {t('booking.frequencyDaily')}
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="admin-frequency"
+                      checked={frequency === 'weekly'}
+                      onChange={() => handleFrequencyChange('weekly')}
+                    />
+                    {t('booking.frequencyWeekly')}
+                  </label>
+                </div>
+
+                <div className="flex gap-4 text-sm text-white">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
                       name="admin-recurrenceType"
                       checked={recurrenceType === 'count'}
                       onChange={() => setRecurrenceType('count')}
                     />
-                    {t('booking.recurrenceForWeeks')}
+                    {t('booking.recurrenceForCount')}
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -326,12 +362,12 @@ export default function AdminCreateBookingModal({
 
                 {recurrenceType === 'count' ? (
                   <div>
-                    <Label htmlFor="admin-series-count" className="text-white">{t('booking.numberOfWeeks')}</Label>
+                    <Label htmlFor="admin-series-count" className="text-white">{t('booking.numberOfOccurrences')}</Label>
                     <Input
                       id="admin-series-count"
                       type="number"
                       min={MIN_SERIES_COUNT}
-                      max={MAX_SERIES_COUNT}
+                      max={SERIES_MAX_OCCURRENCES[frequency]}
                       value={count}
                       onChange={(e) => setCount(Number(e.target.value))}
                       className="bg-background-dark border-border text-white max-w-[120px]"
@@ -344,6 +380,9 @@ export default function AdminCreateBookingModal({
                       id="admin-series-until"
                       type="date"
                       min={date}
+                      max={formatDateISO(
+                        addDays(new Date(`${date}T00:00:00`), (SERIES_MAX_OCCURRENCES[frequency] - 1) * (frequency === 'daily' ? 1 : 7))
+                      )}
                       value={untilDate}
                       onChange={(e) => setUntilDate(e.target.value)}
                       className="bg-background-dark border-border text-white"

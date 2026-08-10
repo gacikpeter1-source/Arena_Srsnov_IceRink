@@ -130,7 +130,10 @@ export default function SeriesCancelPage() {
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
                 <p><strong className="text-white">{zone.name}</strong></p>
-                <p>{series.startTime} · {t('common.minutes', { count: series.durationMinutes })}</p>
+                <p>
+                  {series.startTime} · {t('common.minutes', { count: series.durationMinutes })} ·{' '}
+                  {t(series.frequency === 'daily' ? 'booking.frequencyDaily' : 'booking.frequencyWeekly')}
+                </p>
               </div>
 
               <div>

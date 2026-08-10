@@ -8,13 +8,14 @@ import {
   createBooking,
   createBookingSeries,
   SeriesRecurrence,
+  SERIES_MAX_OCCURRENCES,
   SlotUnavailableError,
   type CreatedSeries
 } from '@/lib/bookings'
 import { queueBookingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { addDays, formatDateISO } from '@/lib/utils'
-import { Club, Zone } from '@/types'
+import { Club, SeriesFrequency, Zone } from '@/types'
 
 interface BookingModalProps {
   club: Club
@@ -29,7 +30,6 @@ interface BookingModalProps {
 }
 
 const MIN_SERIES_COUNT = 2
-const MAX_SERIES_COUNT = 52
 
 export default function BookingModal({
   club,
@@ -45,9 +45,15 @@ export default function BookingModal({
   const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
   const [repeat, setRepeat] = useState(false)
+  const [frequency, setFrequency] = useState<SeriesFrequency>('weekly')
   const [recurrenceType, setRecurrenceType] = useState<'count' | 'until'>('count')
   const [count, setCount] = useState(4)
   const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(`${date}T00:00:00`), 28)))
+
+  const handleFrequencyChange = (next: SeriesFrequency) => {
+    setFrequency(next)
+    setCount((c) => Math.min(c, SERIES_MAX_OCCURRENCES[next]))
+  }
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ confirmationCode: string; cancellationToken: string } | null>(null)
@@ -68,7 +74,9 @@ export default function BookingModal({
 
       if (repeat) {
         const recurrence: SeriesRecurrence =
-          recurrenceType === 'count' ? { type: 'count', count } : { type: 'until', endDate: untilDate }
+          recurrenceType === 'count'
+            ? { type: 'count', frequency, count }
+            : { type: 'until', frequency, endDate: untilDate }
         const series = await createBookingSeries({
           clubId: club.id,
           rinkId,
@@ -149,6 +157,7 @@ export default function BookingModal({
     setSeriesResult(null)
     setFormData({ name: '', email: '', phone: '' })
     setRepeat(false)
+    setFrequency('weekly')
     setError(null)
     onClose()
   }
@@ -280,7 +289,7 @@ export default function BookingModal({
                 onChange={(e) => setRepeat(e.target.checked)}
                 className="h-4 w-4"
               />
-              {t('booking.repeatWeekly')}
+              {t('booking.repeatBooking')}
             </label>
 
             {repeat && (
@@ -289,11 +298,32 @@ export default function BookingModal({
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
+                      name="frequency"
+                      checked={frequency === 'daily'}
+                      onChange={() => handleFrequencyChange('daily')}
+                    />
+                    {t('booking.frequencyDaily')}
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="frequency"
+                      checked={frequency === 'weekly'}
+                      onChange={() => handleFrequencyChange('weekly')}
+                    />
+                    {t('booking.frequencyWeekly')}
+                  </label>
+                </div>
+
+                <div className="flex gap-4 text-sm text-white">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
                       name="recurrenceType"
                       checked={recurrenceType === 'count'}
                       onChange={() => setRecurrenceType('count')}
                     />
-                    {t('booking.recurrenceForWeeks')}
+                    {t('booking.recurrenceForCount')}
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -308,12 +338,12 @@ export default function BookingModal({
 
                 {recurrenceType === 'count' ? (
                   <div>
-                    <Label htmlFor="series-count" className="text-white">{t('booking.numberOfWeeks')}</Label>
+                    <Label htmlFor="series-count" className="text-white">{t('booking.numberOfOccurrences')}</Label>
                     <Input
                       id="series-count"
                       type="number"
                       min={MIN_SERIES_COUNT}
-                      max={MAX_SERIES_COUNT}
+                      max={SERIES_MAX_OCCURRENCES[frequency]}
                       value={count}
                       onChange={(e) => setCount(Number(e.target.value))}
                       className="bg-background-dark border-border text-white max-w-[120px]"
@@ -326,6 +356,9 @@ export default function BookingModal({
                       id="series-until"
                       type="date"
                       min={date}
+                      max={formatDateISO(
+                        addDays(new Date(`${date}T00:00:00`), (SERIES_MAX_OCCURRENCES[frequency] - 1) * (frequency === 'daily' ? 1 : 7))
+                      )}
                       value={untilDate}
                       onChange={(e) => setUntilDate(e.target.value)}
                       className="bg-background-dark border-border text-white"

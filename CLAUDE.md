@@ -135,25 +135,27 @@ zone per rink (not just live hover/focus), so it stays lit on touch
 devices after the pointer moves away or the booking form closes.
 
 ## Recurring bookings
-Both customers (no login required) and staff can create a weekly-
-recurring series instead of a single slot — a "Repeat this booking
-weekly" checkbox on the booking form (customer `BookingModal.tsx` and
-admin `AdminCreateBookingModal.tsx`) reveals a count-or-end-date
-recurrence choice (`SeriesRecurrence` in `src/lib/bookings.ts`).
-`createBookingSeries` books each week's occurrence through the *same*
-atomic `createBooking` transaction used for a one-off booking, one at a
-time in a loop — not one multi-slot transaction — so a date someone else
-already has is skipped rather than failing the whole series; every
-occurrence that *is* created keeps its own confirmationCode/
-cancellationToken exactly like a normal booking, so it can still be
-looked up/cancelled on its own via the existing `/my-booking` flow. A
-`bookingSeries` doc (`BookingSeries` in `src/types/index.ts`) exists only
-to remember the recurrence and give the customer a single link to cancel
-every remaining occurrence at once — emailed via
-`queueSeriesConfirmationEmail`, landing on `SeriesCancelPage`
+Both customers (no login required) and staff can create a daily- or
+weekly-recurring series instead of a single slot — a "Repeat this
+booking" checkbox on the booking form (customer `BookingModal.tsx` and
+admin `AdminCreateBookingModal.tsx`) reveals a Daily/Weekly frequency
+choice plus a count-or-end-date recurrence choice (`SeriesRecurrence` /
+`SeriesFrequency` in `src/lib/bookings.ts` / `src/types/index.ts`).
+`createBookingSeries` books each occurrence through the *same* atomic
+`createBooking` transaction used for a one-off booking, one at a time in
+a loop — not one multi-slot transaction — so a date someone else already
+has is skipped rather than failing the whole series; every occurrence
+that *is* created keeps its own confirmationCode/cancellationToken
+exactly like a normal booking, so it can still be looked up/cancelled on
+its own via the existing `/my-booking` flow. Occurrence caps
+(`SERIES_MAX_OCCURRENCES`) differ per frequency — 180 for daily (~6
+months), 52 for weekly (~1 year) — the UI bounds its count/date inputs to
+the same limits. A `bookingSeries` doc (`BookingSeries` in
+`src/types/index.ts`) exists only to remember the recurrence and give the
+customer a single link to cancel every remaining occurrence at once —
+emailed via `queueSeriesConfirmationEmail`, landing on `SeriesCancelPage`
 (`/my-series/:seriesId/:token`), which can also cancel occurrences
-individually. Hard cap: `MAX_SERIES_OCCURRENCES` = 52 weeks in
-`src/lib/bookings.ts`.
+individually.
 
 ## Availability visibility
 Two ways to see occupancy without opening each day one at a time (both in
