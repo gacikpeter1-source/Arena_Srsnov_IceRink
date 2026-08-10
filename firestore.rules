@@ -48,6 +48,14 @@ service cloud.firestore {
       allow write: if isOwnerOrAbove();
     }
 
+    // A club's physical ice surfaces (e.g. "Main Hall", "Small Hall").
+    // Public read (needed to render the booking calendar with no login).
+    match /rinks/{rinkId} {
+      allow read: if true;
+      allow create, update: if isStaffMember();
+      allow delete: if isOwnerOrAbove();
+    }
+
     match /zones/{zoneId} {
       allow read: if true;
       allow create, update: if isStaffMember();

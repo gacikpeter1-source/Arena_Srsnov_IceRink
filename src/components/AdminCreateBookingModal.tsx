@@ -7,12 +7,13 @@ import { Label } from './ui/label'
 import { createBooking, SlotUnavailableError } from '@/lib/bookings'
 import { computeDaySchedule } from '@/lib/schedule'
 import { formatDateISO } from '@/lib/utils'
-import { Club, DivisionRule, TimeSlotConfig, Zone } from '@/types'
+import { Club, DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
   club: Club
+  rinks: Rink[]
   zones: Zone[]
-  timeSlotConfig: TimeSlotConfig
+  timeSlotConfigs: TimeSlotConfig[]
   divisionRules: DivisionRule[]
   isOpen: boolean
   onClose: () => void
@@ -21,14 +22,16 @@ interface AdminCreateBookingModalProps {
 
 export default function AdminCreateBookingModal({
   club,
+  rinks,
   zones,
-  timeSlotConfig,
+  timeSlotConfigs,
   divisionRules,
   isOpen,
   onClose,
   onCreated
 }: AdminCreateBookingModalProps) {
   const { t } = useTranslation()
+  const [rinkId, setRinkId] = useState(() => rinks[0]?.id ?? '')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('')
   const [zoneId, setZoneId] = useState('')
@@ -36,14 +39,19 @@ export default function AdminCreateBookingModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const rinkZones = useMemo(() => zones.filter((z) => z.rinkId === rinkId), [zones, rinkId])
+  const rinkRules = useMemo(() => divisionRules.filter((r) => r.rinkId === rinkId), [divisionRules, rinkId])
+  const timeSlotConfig = timeSlotConfigs.find((c) => c.rinkId === rinkId) ?? null
+
   const schedule = useMemo(
-    () => computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, divisionRules, zones),
-    [date, timeSlotConfig, divisionRules, zones]
+    () => (timeSlotConfig ? computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, rinkRules, rinkZones) : []),
+    [date, timeSlotConfig, rinkRules, rinkZones]
   )
 
   const zoneOptions = schedule.find((s) => s.time === startTime)?.zones ?? []
 
   const handleClose = () => {
+    setRinkId(rinks[0]?.id ?? '')
     setDate(formatDateISO(new Date()))
     setStartTime('')
     setZoneId('')
@@ -56,7 +64,7 @@ export default function AdminCreateBookingModal({
     e.preventDefault()
     setError(null)
 
-    if (!startTime || !zoneId || !formData.name || !formData.email || !formData.phone) {
+    if (!rinkId || !startTime || !zoneId || !formData.name || !formData.email || !formData.phone || !timeSlotConfig) {
       setError(t('booking.fillAllFields'))
       return
     }
@@ -65,6 +73,7 @@ export default function AdminCreateBookingModal({
     try {
       await createBooking({
         clubId: club.id,
+        rinkId,
         zoneId,
         date,
         startTime,
@@ -91,6 +100,28 @@ export default function AdminCreateBookingModal({
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           {error && <div className="text-status-danger text-sm">{error}</div>}
+
+          {rinks.length > 1 && (
+            <div>
+              <Label htmlFor="admin-rink" className="text-white">{t('admin.rink')}</Label>
+              <select
+                id="admin-rink"
+                value={rinkId}
+                onChange={(e) => {
+                  setRinkId(e.target.value)
+                  setStartTime('')
+                  setZoneId('')
+                }}
+                className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
+                required
+              >
+                <option value="">{t('admin.selectRink')}</option>
+                {rinks.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="admin-date" className="text-white">{t('admin.date')}</Label>
@@ -119,6 +150,7 @@ export default function AdminCreateBookingModal({
               }}
               className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
               required
+              disabled={!rinkId}
             >
               <option value="">{t('admin.selectTime')}</option>
               {schedule.map((s) => (

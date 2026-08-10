@@ -27,6 +27,14 @@
       ]
     },
     {
+      "collectionGroup": "rinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clubId", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "slotLocks",
       "queryScope": "COLLECTION",
       "fields": [

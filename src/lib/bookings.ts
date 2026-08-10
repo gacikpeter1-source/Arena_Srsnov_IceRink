@@ -29,6 +29,7 @@ export async function fetchLockedSlots(clubId: string, date: string): Promise<Se
 
 export interface CreateBookingInput {
   clubId: string
+  rinkId: string
   zoneId: string
   date: string // "2026-08-07"
   startTime: string // "18:00"
@@ -79,6 +80,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
 
     tx.set(bookingRef, {
       clubId: input.clubId,
+      rinkId: input.rinkId,
       zoneId: input.zoneId,
       date: input.date,
       startTime: input.startTime,

@@ -23,11 +23,23 @@ export interface Club {
   createdAt: Date
 }
 
+// A club can run more than one physical ice surface (e.g. "Main Hall" +
+// "Small Hall"). Each rink has its own zones/hours/division rules — a zone,
+// TimeSlotConfig, or DivisionRule always belongs to exactly one rink.
+export interface Rink {
+  id: string
+  clubId: string
+  name: string // "Main Hall" | "Small Hall"
+  sortOrder: number
+  active: boolean
+}
+
 export type DivisionMode = 'full' | 'half' | 'third'
 
 export interface Zone {
   id: string
   clubId: string
+  rinkId: string
   name: string // "Full Rink" | "Half A" | "Third 1" ...
   mode: DivisionMode
   // Position within its mode (0 for full; 0/1 for half; 0/1/2 for third).
@@ -48,6 +60,7 @@ export interface DayHours {
 export interface TimeSlotConfig {
   id: string
   clubId: string
+  rinkId: string
   slotDurationMinutes: number
   hours: DayHours[]
 }
@@ -58,6 +71,7 @@ export interface TimeSlotConfig {
 export interface DivisionRule {
   id: string
   clubId: string
+  rinkId: string
   dayOfWeek: number // 0=Sun .. 6=Sat
   startTime: string // "18:00", inclusive
   endTime: string // "20:00", exclusive
@@ -75,6 +89,7 @@ export interface Payment {
 export interface Booking {
   id: string
   clubId: string
+  rinkId: string
   zoneId: string
   date: string // "2026-08-07"
   startTime: string // "18:00"

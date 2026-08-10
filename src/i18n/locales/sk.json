@@ -30,6 +30,7 @@
     "subtitle": "Vyberte dátum a čas rezervácie ľadovej plochy.",
     "closedToday": "V tento deň je zatvorené.",
     "noZonesConfigured": "Nie sú nastavené žiadne zóny",
+    "noRinksConfigured": "Nie sú nastavené žiadne ľadové plochy",
     "clubNotFound": "Klub sa nenašiel."
   },
   "booking": {
@@ -41,7 +42,8 @@
     "emailedNotice": "Potvrdenie s odkazom na správu alebo zrušenie tejto rezervácie sme poslali na {{email}}.",
     "confirmBooking": "Potvrdiť rezerváciu",
     "booking": "Rezervuje sa...",
-    "slotUnavailable": "Táto zóna už nie je pre vybraný čas dostupná."
+    "slotUnavailable": "Táto zóna už nie je pre vybraný čas dostupná.",
+    "allRinks": "Všetky plochy"
   },
   "manageBooking": {
     "findTitle": "Nájsť moju rezerváciu",
@@ -92,12 +94,14 @@
     "thisWeek": "Tento týždeň",
     "date": "Dátum",
     "time": "Čas",
+    "rink": "Ľadová plocha",
     "zone": "Zóna",
     "status": "Stav",
     "newReservation": "Nová rezervácia",
     "createReservation": "Vytvoriť rezerváciu",
     "editReservation": "Upraviť rezerváciu",
     "selectTime": "Vyberte čas",
+    "selectRink": "Vyberte ľadovú plochu",
     "selectZone": "Vyberte zónu",
     "confirmCancel": "Zrušiť túto rezerváciu?",
     "noBookingsInRange": "V tomto období nie sú žiadne rezervácie.",

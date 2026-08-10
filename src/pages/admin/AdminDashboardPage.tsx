@@ -18,7 +18,7 @@ import AdminQrPanel from '@/components/AdminQrPanel'
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
   const { staff, logout } = useAuth()
-  const { club, zones, timeSlotConfig, divisionRules } = useClubData()
+  const { club, rinks, zones, timeSlotConfigs, divisionRules } = useClubData()
 
   const [dateFrom, setDateFrom] = useState(formatDateISO(new Date()))
   const [dateTo, setDateTo] = useState(formatDateISO(new Date()))
@@ -31,6 +31,7 @@ export default function AdminDashboardPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const zoneNameById = new Map(zones.map((z) => [z.id, z.name]))
+  const rinkNameById = new Map(rinks.map((r) => [r.id, r.name]))
 
   const refreshBookings = () => {
     if (!club) return
@@ -69,32 +70,41 @@ export default function AdminDashboardPage() {
   }
 
   const handleExport = () => {
-    exportBookingsToExcel(bookings, zones, `bookings_${dateFrom}_to_${dateTo}.xlsx`)
+    exportBookingsToExcel(bookings, rinks, zones, `bookings_${dateFrom}_to_${dateTo}.xlsx`)
   }
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file || !club || !timeSlotConfig) return
+    if (!file || !club) return
 
     setImporting(true)
     setImportResult(null)
     try {
       const buffer = await file.arrayBuffer()
-      const { rows, errors } = parseBookingsWorkbook(buffer, timeSlotConfig.slotDurationMinutes)
-      const zoneByName = new Map(zones.map((z) => [z.name.trim().toLowerCase(), z]))
+      const { rows, errors } = parseBookingsWorkbook(buffer)
+      // Zone names (e.g. "Full Rink") are only unique within a rink, so
+      // lookups are keyed by rink name + zone name together.
+      const rinkByName = new Map(rinks.map((r) => [r.name.trim().toLowerCase(), r]))
+      const zoneByKey = new Map(zones.map((z) => [`${z.rinkId}::${z.name.trim().toLowerCase()}`, z]))
       const failed: string[] = errors.map((err) => `Row ${err.rowNumber}: ${err.message}`)
       let imported = 0
 
       for (const row of rows) {
-        const zone = zoneByName.get(row.zoneName.trim().toLowerCase())
+        const rink = rinkByName.get(row.rinkName.trim().toLowerCase())
+        if (!rink) {
+          failed.push(`${row.date} ${row.startTime}: unknown rink "${row.rinkName}"`)
+          continue
+        }
+        const zone = zoneByKey.get(`${rink.id}::${row.zoneName.trim().toLowerCase()}`)
         if (!zone) {
-          failed.push(`${row.date} ${row.startTime}: unknown zone "${row.zoneName}"`)
+          failed.push(`${row.date} ${row.startTime}: unknown zone "${row.zoneName}" on rink "${row.rinkName}"`)
           continue
         }
         try {
           const created = await createBooking({
             clubId: club.id,
+            rinkId: rink.id,
             zoneId: zone.id,
             date: row.date,
             startTime: row.startTime,
@@ -109,7 +119,7 @@ export default function AdminDashboardPage() {
           imported++
         } catch (err) {
           const reason = err instanceof SlotUnavailableError ? t('booking.slotUnavailable') : t('common.error')
-          failed.push(`${row.date} ${row.startTime} (${zone.name}): ${reason}`)
+          failed.push(`${row.date} ${row.startTime} (${rink.name} · ${zone.name}): ${reason}`)
         }
       }
 
@@ -205,6 +215,7 @@ export default function AdminDashboardPage() {
                   <tr className="text-left text-text-muted border-b border-border">
                     <th className="py-2 pr-3">{t('admin.date')}</th>
                     <th className="py-2 pr-3">{t('admin.time')}</th>
+                    <th className="py-2 pr-3">{t('admin.rink')}</th>
                     <th className="py-2 pr-3">{t('admin.zone')}</th>
                     <th className="py-2 pr-3">{t('common.name')}</th>
                     <th className="py-2 pr-3">{t('common.email')}</th>
@@ -218,6 +229,7 @@ export default function AdminDashboardPage() {
                     <tr key={b.id} className="border-b border-border">
                       <td className="py-2 pr-3 mono">{b.date}</td>
                       <td className="py-2 pr-3 mono text-primary">{b.startTime}</td>
+                      <td className="py-2 pr-3">{rinkNameById.get(b.rinkId) ?? b.rinkId}</td>
                       <td className="py-2 pr-3">{zoneNameById.get(b.zoneId) ?? b.zoneId}</td>
                       <td className="py-2 pr-3 text-white">{b.name}</td>
                       <td className="py-2 pr-3 text-text-secondary">{b.email}</td>
@@ -246,17 +258,18 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      <AdminQrPanel zones={zones} timeSlotConfig={timeSlotConfig} divisionRules={divisionRules} />
+      <AdminQrPanel rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} divisionRules={divisionRules} />
 
       {canManageStaff && staff && club && (
         <AdminStaffPanel clubId={club.id} viewerUid={staff.uid} viewerRole={staff.role} />
       )}
 
-      {club && timeSlotConfig && (
+      {club && rinks.length > 0 && (
         <AdminCreateBookingModal
           club={club}
+          rinks={rinks}
           zones={zones}
-          timeSlotConfig={timeSlotConfig}
+          timeSlotConfigs={timeSlotConfigs}
           divisionRules={divisionRules}
           isOpen={showCreate}
           onClose={() => setShowCreate(false)}
