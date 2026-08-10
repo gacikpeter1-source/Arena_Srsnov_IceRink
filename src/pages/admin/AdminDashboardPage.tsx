@@ -24,6 +24,7 @@ export default function AdminDashboardPage() {
   const [dateTo, setDateTo] = useState(formatDateISO(new Date()))
   const [bookings, setBookings] = useState<(Booking & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
+  const [bookingsError, setBookingsError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [editingBooking, setEditingBooking] = useState<(Booking & { id: string }) | null>(null)
   const [importing, setImporting] = useState(false)
@@ -36,8 +37,13 @@ export default function AdminDashboardPage() {
   const refreshBookings = () => {
     if (!club) return
     setLoading(true)
+    setBookingsError(null)
     fetchBookingsInRange(club.id, dateFrom, dateTo)
       .then(setBookings)
+      .catch((err) => {
+        console.error('Error fetching bookings:', err)
+        setBookingsError(t('common.error'))
+      })
       .finally(() => setLoading(false))
   }
 
@@ -206,6 +212,8 @@ export default function AdminDashboardPage() {
 
           {loading ? (
             <p className="text-text-muted">{t('common.loading')}</p>
+          ) : bookingsError ? (
+            <p className="text-status-danger">{bookingsError}</p>
           ) : bookings.length === 0 ? (
             <p className="text-text-muted">{t('admin.noBookingsInRange')}</p>
           ) : (
