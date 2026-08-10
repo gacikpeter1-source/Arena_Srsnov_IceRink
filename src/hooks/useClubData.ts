@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Club, DivisionRule, TimeSlotConfig, Zone } from '@/types'
+import { Club, DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
 
 const CLUB_ID = import.meta.env.VITE_CLUB_ID
 
 interface ClubData {
   club: Club | null
+  rinks: Rink[]
   zones: Zone[]
-  timeSlotConfig: TimeSlotConfig | null
+  // One config per rink — index by rinkId, not a single shared config.
+  timeSlotConfigs: TimeSlotConfig[]
   divisionRules: DivisionRule[]
   loading: boolean
   error: string | null
@@ -16,8 +18,9 @@ interface ClubData {
 
 export function useClubData(): ClubData {
   const [club, setClub] = useState<Club | null>(null)
+  const [rinks, setRinks] = useState<Rink[]>([])
   const [zones, setZones] = useState<Zone[]>([])
-  const [timeSlotConfig, setTimeSlotConfig] = useState<TimeSlotConfig | null>(null)
+  const [timeSlotConfigs, setTimeSlotConfigs] = useState<TimeSlotConfig[]>([])
   const [divisionRules, setDivisionRules] = useState<DivisionRule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +36,15 @@ export function useClubData(): ClubData {
         }
         setClub({ id: clubSnap.id, ...clubSnap.data() } as Club)
 
+        const rinksSnap = await getDocs(
+          query(collection(db, 'rinks'), where('clubId', '==', CLUB_ID), where('active', '==', true))
+        )
+        setRinks(
+          rinksSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }) as Rink)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+        )
+
         const zonesSnap = await getDocs(
           query(collection(db, 'zones'), where('clubId', '==', CLUB_ID), where('active', '==', true))
         )
@@ -45,10 +57,7 @@ export function useClubData(): ClubData {
         const configSnap = await getDocs(
           query(collection(db, 'timeSlotConfig'), where('clubId', '==', CLUB_ID))
         )
-        if (!configSnap.empty) {
-          const d = configSnap.docs[0]
-          setTimeSlotConfig({ id: d.id, ...d.data() } as TimeSlotConfig)
-        }
+        setTimeSlotConfigs(configSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as TimeSlotConfig))
 
         const rulesSnap = await getDocs(
           query(collection(db, 'divisionRules'), where('clubId', '==', CLUB_ID))
@@ -64,5 +73,5 @@ export function useClubData(): ClubData {
     load()
   }, [])
 
-  return { club, zones, timeSlotConfig, divisionRules, loading, error }
+  return { club, rinks, zones, timeSlotConfigs, divisionRules, loading, error }
 }

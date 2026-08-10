@@ -11,6 +11,7 @@ import { Club, Zone } from '@/types'
 
 interface BookingModalProps {
   club: Club
+  rinkId: string
   zone: Zone
   date: string
   startTime: string
@@ -22,6 +23,7 @@ interface BookingModalProps {
 
 export default function BookingModal({
   club,
+  rinkId,
   zone,
   date,
   startTime,
@@ -49,6 +51,7 @@ export default function BookingModal({
     try {
       const booking = await createBooking({
         clubId: club.id,
+        rinkId,
         zoneId: zone.id,
         date,
         startTime,

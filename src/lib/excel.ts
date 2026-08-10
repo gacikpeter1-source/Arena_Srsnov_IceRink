@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { Booking, Zone } from '@/types'
+import { Booking, Rink, Zone } from '@/types'
 import { formatDateISO } from './utils'
 
 // Fixed English headers regardless of UI language — keeps the import/export
@@ -8,6 +8,7 @@ const HEADERS = {
   date: 'Date',
   time: 'Time',
   duration: 'Duration (min)',
+  rink: 'Rink',
   zone: 'Zone',
   name: 'Name',
   email: 'Email',
@@ -27,15 +28,18 @@ function toDateSafe(value: unknown): Date | null {
 
 export function exportBookingsToExcel(
   bookings: (Booking & { id: string })[],
+  rinks: Rink[],
   zones: Zone[],
   filename: string
 ): void {
+  const rinkNameById = new Map(rinks.map((r) => [r.id, r.name]))
   const zoneNameById = new Map(zones.map((z) => [z.id, z.name]))
 
   const rows = bookings.map((b) => ({
     [HEADERS.date]: b.date,
     [HEADERS.time]: b.startTime,
     [HEADERS.duration]: b.durationMinutes,
+    [HEADERS.rink]: rinkNameById.get(b.rinkId) ?? b.rinkId,
     [HEADERS.zone]: zoneNameById.get(b.zoneId) ?? b.zoneId,
     [HEADERS.name]: b.name,
     [HEADERS.email]: b.email,
@@ -55,6 +59,7 @@ export interface ImportRow {
   date: string
   startTime: string
   durationMinutes: number
+  rinkName: string
   zoneName: string
   name: string
   email: string
@@ -112,12 +117,14 @@ function excelValueToTimeString(value: unknown): string | null {
 
 /**
  * Parses an uploaded .xlsx into candidate booking rows. Doesn't touch
- * Firestore — the caller resolves zone names to zoneIds and runs each row
- * through the normal createBooking transaction (see AdminDashboardPage),
- * so import gets the same atomic double-booking protection as a live
- * customer booking.
+ * Firestore — the caller resolves rink+zone names to rinkId/zoneId and runs
+ * each row through the normal createBooking transaction (see
+ * AdminDashboardPage), so import gets the same atomic double-booking
+ * protection as a live customer booking. Rink name is required because
+ * zone names (e.g. "Full Rink") are only unique within a rink, not
+ * club-wide.
  */
-export function parseBookingsWorkbook(buffer: ArrayBuffer, defaultDurationMinutes: number): ParsedImport {
+export function parseBookingsWorkbook(buffer: ArrayBuffer): ParsedImport {
   const wb = XLSX.read(buffer)
   const ws = wb.Sheets[wb.SheetNames[0]]
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
@@ -130,12 +137,12 @@ export function parseBookingsWorkbook(buffer: ArrayBuffer, defaultDurationMinute
 
     const date = excelValueToDateString(r[HEADERS.date])
     const startTime = excelValueToTimeString(r[HEADERS.time])
+    const rinkName = String(r[HEADERS.rink] ?? '').trim()
     const zoneName = String(r[HEADERS.zone] ?? '').trim()
     const name = String(r[HEADERS.name] ?? '').trim()
     const email = String(r[HEADERS.email] ?? '').trim()
     const phone = String(r[HEADERS.phone] ?? '').trim()
-    const durationRaw = r[HEADERS.duration]
-    const durationMinutes = durationRaw ? Number(durationRaw) : defaultDurationMinutes
+    const durationMinutes = Number(r[HEADERS.duration])
     const statusRaw = String(r[HEADERS.status] ?? 'confirmed').trim().toLowerCase()
     const status: ImportRow['status'] = statusRaw === 'cancelled' ? 'cancelled' : 'confirmed'
 
@@ -147,6 +154,10 @@ export function parseBookingsWorkbook(buffer: ArrayBuffer, defaultDurationMinute
       errors.push({ rowNumber, message: `Invalid or missing "${HEADERS.time}"` })
       return
     }
+    if (!rinkName) {
+      errors.push({ rowNumber, message: `Missing "${HEADERS.rink}"` })
+      return
+    }
     if (!zoneName) {
       errors.push({ rowNumber, message: `Missing "${HEADERS.zone}"` })
       return
@@ -156,11 +167,11 @@ export function parseBookingsWorkbook(buffer: ArrayBuffer, defaultDurationMinute
       return
     }
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-      errors.push({ rowNumber, message: `Invalid "${HEADERS.duration}"` })
+      errors.push({ rowNumber, message: `Invalid or missing "${HEADERS.duration}"` })
       return
     }
 
-    rows.push({ date, startTime, durationMinutes, zoneName, name, email, phone, status })
+    rows.push({ date, startTime, durationMinutes, rinkName, zoneName, name, email, phone, status })
   })
 
   return { rows, errors }

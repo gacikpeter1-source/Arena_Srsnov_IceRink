@@ -30,6 +30,7 @@
     "subtitle": "Pick a date and time to book the rink.",
     "closedToday": "Closed on this day.",
     "noZonesConfigured": "No zones configured",
+    "noRinksConfigured": "No rinks configured",
     "clubNotFound": "Club not found."
   },
   "booking": {
@@ -41,7 +42,8 @@
     "emailedNotice": "We've emailed a confirmation with a link to manage or cancel this booking to {{email}}.",
     "confirmBooking": "Confirm booking",
     "booking": "Booking...",
-    "slotUnavailable": "This zone is no longer available for the selected time."
+    "slotUnavailable": "This zone is no longer available for the selected time.",
+    "allRinks": "All rinks"
   },
   "manageBooking": {
     "findTitle": "Find your booking",
@@ -92,12 +94,14 @@
     "thisWeek": "This week",
     "date": "Date",
     "time": "Time",
+    "rink": "Rink",
     "zone": "Zone",
     "status": "Status",
     "newReservation": "New reservation",
     "createReservation": "Create reservation",
     "editReservation": "Edit reservation",
     "selectTime": "Select a time",
+    "selectRink": "Select a rink",
     "selectZone": "Select a zone",
     "confirmCancel": "Cancel this reservation?",
     "noBookingsInRange": "No reservations in this date range.",

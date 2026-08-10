@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { computeDaySchedule } from '@/lib/schedule'
 import { formatDateISO } from '@/lib/utils'
-import { DivisionRule, TimeSlotConfig, Zone } from '@/types'
+import { DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Label } from './ui/label'
@@ -10,25 +10,31 @@ import { Input } from './ui/input'
 import QrCodeDisplay from './QrCodeDisplay'
 
 interface AdminQrPanelProps {
+  rinks: Rink[]
   zones: Zone[]
-  timeSlotConfig: TimeSlotConfig | null
+  timeSlotConfigs: TimeSlotConfig[]
   divisionRules: DivisionRule[]
 }
 
-export default function AdminQrPanel({ zones, timeSlotConfig, divisionRules }: AdminQrPanelProps) {
+export default function AdminQrPanel({ rinks, zones, timeSlotConfigs, divisionRules }: AdminQrPanelProps) {
   const { t } = useTranslation()
   const origin = window.location.origin
 
+  const [zoneRinkId, setZoneRinkId] = useState(() => rinks[0]?.id ?? '')
   const [qrZoneId, setQrZoneId] = useState('')
   const [qrDate, setQrDate] = useState(formatDateISO(new Date()))
   const [qrTime, setQrTime] = useState('')
   const [generatedSlotUrl, setGeneratedSlotUrl] = useState<string | null>(null)
 
+  const zonesForRink = zones.filter((z) => z.rinkId === zoneRinkId)
   const qrZone = zones.find((z) => z.id === qrZoneId)
+  const timeSlotConfig = timeSlotConfigs.find((c) => c.rinkId === qrZone?.rinkId) ?? null
 
   const availableTimes = useMemo(() => {
     if (!timeSlotConfig || !qrZone) return []
-    return computeDaySchedule(new Date(`${qrDate}T00:00:00`), timeSlotConfig, divisionRules, zones)
+    const rinkZones = zones.filter((z) => z.rinkId === qrZone.rinkId)
+    const rinkRules = divisionRules.filter((r) => r.rinkId === qrZone.rinkId)
+    return computeDaySchedule(new Date(`${qrDate}T00:00:00`), timeSlotConfig, rinkRules, rinkZones)
       .filter((row) => row.zones.some((z) => z.id === qrZone.id))
       .map((row) => row.time)
   }, [timeSlotConfig, divisionRules, zones, qrDate, qrZone])
@@ -56,11 +62,28 @@ export default function AdminQrPanel({ zones, timeSlotConfig, divisionRules }: A
         <div>
           <h3 className="text-white text-sm font-semibold mb-2">{t('admin.zoneQrTitle')}</h3>
           <p className="text-text-secondary text-sm mb-3">{t('admin.zoneQrDesc')}</p>
-          {zones.length === 0 ? (
+
+          {rinks.length > 1 && (
+            <div className="mb-3 max-w-xs">
+              <Label htmlFor="zone-qr-rink" className="text-white">{t('admin.rink')}</Label>
+              <select
+                id="zone-qr-rink"
+                value={zoneRinkId}
+                onChange={(e) => setZoneRinkId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
+              >
+                {rinks.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {zonesForRink.length === 0 ? (
             <p className="text-text-muted text-sm">{t('home.noZonesConfigured')}</p>
           ) : (
             <div className="flex flex-wrap gap-3">
-              {zones.map((zone) => (
+              {zonesForRink.map((zone) => (
                 <QrCodeDisplay
                   key={zone.id}
                   value={`${origin}/book?zone=${encodeURIComponent(zone.id)}`}
@@ -87,8 +110,12 @@ export default function AdminQrPanel({ zones, timeSlotConfig, divisionRules }: A
                 className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
               >
                 <option value="">{t('admin.selectZone')}</option>
-                {zones.map((z) => (
-                  <option key={z.id} value={z.id}>{z.name}</option>
+                {rinks.map((rink) => (
+                  <optgroup key={rink.id} label={rink.name}>
+                    {zones.filter((z) => z.rinkId === rink.id).map((z) => (
+                      <option key={z.id} value={z.id}>{z.name}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

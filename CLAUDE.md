@@ -99,6 +99,33 @@ day" — reused by the public booking page, admin's manual-create form,
 and the QR panel's time picker; keep it that way rather than
 re-deriving the schedule logic in a fourth place.
 
+## Multiple rinks
+A club can run more than one physical ice surface — this club has two:
+"Main Hall" and "Small Hall". Modeled as a `rinks` collection (see `Rink`
+in `src/types/index.ts`); `Zone`, `TimeSlotConfig`, and `DivisionRule` each
+carry a `rinkId` since hours/division-mode schedules are set per rink, not
+club-wide. `Booking` also carries `rinkId` (denormalized from its zone) for
+display/export convenience. `src/hooks/useClubData.ts` exposes
+`timeSlotConfigs: TimeSlotConfig[]` (one per rink) instead of a single
+config — callers filter by `rinkId` for the rink they're working with.
+
+The public booking calendar (`/book`) shows every rink's schedule at once
+by default, with a filter to narrow to a single rink (`BookingPage.tsx`).
+Each rink section renders a `RinkDiagram` (`src/components/RinkDiagram.tsx`)
+using `public/rink-diagram.jpg` as a background image with the club's
+actual painted rink lines; when a zone is hovered/focused, the diagram
+highlights that zone's slice of the ice and dims the rest — so a customer
+booking e.g. "Third 2 of 3" can see exactly which physical part of the rink
+they're reserving. The dividing-line positions are hardcoded as measured
+percentages of image width in `RinkDiagram.tsx` (`BOUNDS`) — if the diagram
+image is ever replaced, re-measure and update those percentages, they
+won't self-derive from a new image.
+
+Since zone names (e.g. "Full Rink", "Half A") are only unique within a
+rink, not club-wide, the admin Excel import/export
+(`src/lib/excel.ts`) includes a "Rink" column and resolves zones by
+rink name + zone name together, not zone name alone.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
