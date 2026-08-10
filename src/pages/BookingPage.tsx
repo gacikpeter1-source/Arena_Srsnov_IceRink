@@ -164,7 +164,11 @@ export default function BookingPage() {
       {visibleRinks.length === 0 ? (
         <Card className="arena-card p-8 text-center text-text-secondary">{t('home.noRinksConfigured')}</Card>
       ) : (
-        <div className="space-y-10">
+        <div
+          className={`grid gap-8 ${
+            visibleRinks.length > 1 ? 'md:grid-cols-2' : ''
+          }`}
+        >
           {visibleRinks.map((rink) => {
             const schedule = schedulesByRink.get(rink.id) ?? []
             // Live hover/focus preview wins; otherwise fall back to the
