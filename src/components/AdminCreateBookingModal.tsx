@@ -5,8 +5,8 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { createBooking, SlotUnavailableError } from '@/lib/bookings'
-import { resolveDivisionMode } from '@/lib/divisionRules'
-import { formatDateISO, minutesToTime, timeToMinutes } from '@/lib/utils'
+import { computeDaySchedule } from '@/lib/schedule'
+import { formatDateISO } from '@/lib/utils'
 import { Club, DivisionRule, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
@@ -36,21 +36,10 @@ export default function AdminCreateBookingModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const schedule = useMemo(() => {
-    const dayOfWeek = new Date(`${date}T00:00:00`).getDay()
-    const dayHours = timeSlotConfig.hours.find((h) => h.dayOfWeek === dayOfWeek)
-    if (!dayHours) return []
-
-    const openMin = timeToMinutes(dayHours.openTime)
-    const closeMin = timeToMinutes(dayHours.closeTime)
-    const rows: { time: string; zones: Zone[] }[] = []
-    for (let m = openMin; m + timeSlotConfig.slotDurationMinutes <= closeMin; m += timeSlotConfig.slotDurationMinutes) {
-      const time = minutesToTime(m)
-      const mode = resolveDivisionMode(divisionRules, dayOfWeek, time)
-      rows.push({ time, zones: zones.filter((z) => z.mode === mode) })
-    }
-    return rows
-  }, [date, timeSlotConfig, divisionRules, zones])
+  const schedule = useMemo(
+    () => computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, divisionRules, zones),
+    [date, timeSlotConfig, divisionRules, zones]
+  )
 
   const zoneOptions = schedule.find((s) => s.time === startTime)?.zones ?? []
 

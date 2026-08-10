@@ -123,6 +123,16 @@
     "grantOwner": "Grant Club owner",
     "grantAssistant": "Grant Assistant",
     "revoke": "Revoke",
-    "you": "you"
+    "you": "you",
+    "download": "Download",
+    "generateQr": "Generate QR code",
+    "qrTab": "QR codes",
+    "appQrTitle": "App QR code",
+    "appQrDesc": "A static code that always opens the app's home screen — good for posters, the front desk, or business cards.",
+    "appQrLabel": "Open app",
+    "zoneQrTitle": "Zone QR codes",
+    "zoneQrDesc": "One code per zone — scanning it opens the booking page filtered to just that zone's available times. Good for posting at each part of the rink.",
+    "slotQrTitle": "Quick-registration QR code",
+    "slotQrDesc": "Pick an exact zone, date, and time to generate a one-tap registration code — scanning it opens the sign-up form directly for that slot, with nothing else to pick. Good for open-ice / walk-in sessions."
   }
 }
