@@ -37,7 +37,12 @@ export default function BookingPage() {
   // 'all' shows every rink's schedule at once (the default); otherwise a
   // single rink id narrows the calendar to just that rink.
   const [rinkFilter, setRinkFilter] = useState<string>('all')
+  // Hover/focus gives an immediate live preview on the diagram; selected is
+  // the last-tapped zone and keeps the diagram highlighted after the
+  // pointer moves away or the booking form closes — matters most on touch
+  // devices, which have no real hover.
   const [hovered, setHovered] = useState<{ rinkId: string; zone: Zone } | null>(null)
+  const [selected, setSelected] = useState<{ rinkId: string; zone: Zone } | null>(null)
 
   const days = useMemo(() => generateDayOptions(14), [])
   const dateISO = formatDateISO(selectedDate)
@@ -162,15 +167,19 @@ export default function BookingPage() {
         <div className="space-y-10">
           {visibleRinks.map((rink) => {
             const schedule = schedulesByRink.get(rink.id) ?? []
-            const rinkHover = hovered?.rinkId === rink.id ? hovered.zone : null
+            // Live hover/focus preview wins; otherwise fall back to the
+            // last zone actually tapped on this rink, if any.
+            const rinkActiveZone =
+              (hovered?.rinkId === rink.id ? hovered.zone : null) ??
+              (selected?.rinkId === rink.id ? selected.zone : null)
 
             return (
               <div key={rink.id} className="space-y-3">
                 {rinks.length > 1 && <h2 className="text-white text-lg font-semibold">{rink.name}</h2>}
 
                 <RinkDiagram
-                  mode={rinkHover?.mode ?? 'full'}
-                  highlightedSlotIndex={rinkHover?.slotIndex ?? null}
+                  mode={rinkActiveZone?.mode ?? 'full'}
+                  highlightedSlotIndex={rinkActiveZone?.slotIndex ?? null}
                   className="max-w-md"
                 />
 
@@ -187,16 +196,21 @@ export default function BookingPage() {
                           ) : (
                             slotZones.map((zone) => {
                               const isTaken = lockedSlots.has(`${zone.id}__${time}`)
+                              const isSelected = selected?.rinkId === rink.id && selected.zone.id === zone.id
                               return (
                                 <Button
                                   key={zone.id}
                                   variant={isTaken ? 'secondary' : 'outline'}
                                   disabled={isTaken}
+                                  className={isSelected ? 'ring-2 ring-primary' : ''}
                                   onMouseEnter={() => setHovered({ rinkId: rink.id, zone })}
                                   onMouseLeave={() => setHovered(null)}
                                   onFocus={() => setHovered({ rinkId: rink.id, zone })}
                                   onBlur={() => setHovered(null)}
-                                  onClick={() => setPendingBooking({ rink, zone, time })}
+                                  onClick={() => {
+                                    setSelected({ rinkId: rink.id, zone })
+                                    setPendingBooking({ rink, zone, time })
+                                  }}
                                 >
                                   {zone.name}
                                 </Button>
