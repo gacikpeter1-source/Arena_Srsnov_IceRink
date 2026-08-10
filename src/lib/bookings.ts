@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
-import { Booking } from '@/types'
+import { Booking, SeriesFrequency } from '@/types'
 import { addDays, formatDateISO, generateConfirmationCode, generateToken } from './utils'
 
 export class SlotUnavailableError extends Error {
@@ -160,7 +160,9 @@ export async function cancelBooking(bookingId: string): Promise<void> {
   })
 }
 
-export type SeriesRecurrence = { type: 'count'; count: number } | { type: 'until'; endDate: string }
+export type SeriesRecurrence =
+  | { type: 'count'; frequency: SeriesFrequency; count: number }
+  | { type: 'until'; frequency: SeriesFrequency; endDate: string }
 
 export interface CreateSeriesInput {
   clubId: string
@@ -188,31 +190,38 @@ export interface CreatedSeries {
   skippedDates: string[]
 }
 
-// A weekly series realistically never needs to run longer than a year —
-// caps a malformed end date (or fat-fingered count) from looping forever.
-const MAX_SERIES_OCCURRENCES = 52
+// A daily series realistically never needs to run longer than half a
+// year, a weekly one longer than a year — caps a malformed end date (or
+// fat-fingered count) from looping forever. Exported so the UI can bound
+// its count/date inputs to the same limits instead of only finding out
+// after submitting.
+export const SERIES_MAX_OCCURRENCES: Record<SeriesFrequency, number> = {
+  daily: 180,
+  weekly: 52
+}
 
 function computeSeriesDates(startDate: string, recurrence: SeriesRecurrence): string[] {
+  const stepDays = recurrence.frequency === 'daily' ? 1 : 7
   const dates: string[] = []
   let d = new Date(`${startDate}T00:00:00`)
   if (recurrence.type === 'count') {
     for (let i = 0; i < recurrence.count; i++) {
       dates.push(formatDateISO(d))
-      d = addDays(d, 7)
+      d = addDays(d, stepDays)
     }
   } else {
     const end = new Date(`${recurrence.endDate}T00:00:00`)
     while (d <= end) {
       dates.push(formatDateISO(d))
-      d = addDays(d, 7)
+      d = addDays(d, stepDays)
     }
   }
   return dates
 }
 
 /**
- * Creates a weekly-recurring series of bookings, same day-of-week/time
- * every week. Each occurrence goes through the normal atomic createBooking
+ * Creates a daily- or weekly-recurring series of bookings, same time every
+ * day/week. Each occurrence goes through the normal atomic createBooking
  * transaction one at a time — a date that's already taken by someone else
  * is skipped rather than failing the whole series, and every occurrence
  * that IS created keeps its own confirmationCode/cancellationToken so it
@@ -223,11 +232,12 @@ function computeSeriesDates(startDate: string, recurrence: SeriesRecurrence): st
  */
 export async function createBookingSeries(input: CreateSeriesInput): Promise<CreatedSeries> {
   const dates = computeSeriesDates(input.startDate, input.recurrence)
+  const maxOccurrences = SERIES_MAX_OCCURRENCES[input.recurrence.frequency]
   if (dates.length === 0) {
     throw new Error('A recurring booking needs at least one occurrence')
   }
-  if (dates.length > MAX_SERIES_OCCURRENCES) {
-    throw new Error(`A recurring booking can span at most ${MAX_SERIES_OCCURRENCES} weeks`)
+  if (dates.length > maxOccurrences) {
+    throw new Error(`A ${input.recurrence.frequency} recurring booking can span at most ${maxOccurrences} occurrences`)
   }
 
   const seriesRef = doc(collection(db, 'bookingSeries'))
@@ -269,6 +279,7 @@ export async function createBookingSeries(input: CreateSeriesInput): Promise<Cre
     clubId: input.clubId,
     rinkId: input.rinkId,
     zoneId: input.zoneId,
+    frequency: input.recurrence.frequency,
     dayOfWeek: new Date(`${input.startDate}T00:00:00`).getDay(),
     startTime: input.startTime,
     durationMinutes: input.durationMinutes,

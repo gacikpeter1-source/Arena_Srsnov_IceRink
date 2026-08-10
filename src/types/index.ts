@@ -116,16 +116,20 @@ export interface Booking {
   cancelledAt?: Date
 }
 
-// A weekly-recurring series of bookings (e.g. "every Monday 18:00 for 10
-// weeks"), creatable by a customer or by staff. This doc doesn't hold the
-// bookings themselves — those are normal Booking docs tagged with this
-// series' id — it exists only to remember the recurrence and to let
-// someone cancel every remaining occurrence with a single link.
+export type SeriesFrequency = 'daily' | 'weekly'
+
+// A recurring series of bookings — either daily or weekly (e.g. "every
+// Monday 18:00 for 10 weeks", or "every day 07:00 for the next 14 days"),
+// creatable by a customer or by staff. This doc doesn't hold the bookings
+// themselves — those are normal Booking docs tagged with this series' id
+// — it exists only to remember the recurrence and to let someone cancel
+// every remaining occurrence with a single link.
 export interface BookingSeries {
   id: string
   clubId: string
   rinkId: string
   zoneId: string
+  frequency: SeriesFrequency
   dayOfWeek: number // 0=Sun .. 6=Sat, derived from the first occurrence
   startTime: string
   durationMinutes: number
