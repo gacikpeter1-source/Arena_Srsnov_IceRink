@@ -31,7 +31,12 @@
     "closedToday": "V tento deň je zatvorené.",
     "noZonesConfigured": "Nie sú nastavené žiadne zóny",
     "noRinksConfigured": "Nie sú nastavené žiadne ľadové plochy",
-    "clubNotFound": "Klub sa nenašiel."
+    "clubNotFound": "Klub sa nenašiel.",
+    "availabilityOpen": "Voľné",
+    "availabilityBusy": "Čiastočne obsadené",
+    "availabilityFull": "Plne obsadené",
+    "viewList": "Zoznam",
+    "viewGrid": "Týždenná mriežka"
   },
   "booking": {
     "bookZone": "Rezervovať {{zone}}",
@@ -43,7 +48,17 @@
     "confirmBooking": "Potvrdiť rezerváciu",
     "booking": "Rezervuje sa...",
     "slotUnavailable": "Táto zóna už nie je pre vybraný čas dostupná.",
-    "allRinks": "Všetky plochy"
+    "allRinks": "Všetky plochy",
+    "repeatWeekly": "Opakovať túto rezerváciu každý týždeň",
+    "recurrenceForWeeks": "Počet týždňov",
+    "recurrenceUntilDate": "Do dátumu",
+    "numberOfWeeks": "Počet týždňov",
+    "repeatUntil": "Opakovať do",
+    "repeatNotice": "Každý týždeň sa rezervuje samostatne — ak je dátum už obsadený, preskočíme ho a zarezervujeme zvyšné.",
+    "seriesUnavailable": "Žiadny z vybraných dátumov už nie je dostupný.",
+    "seriesConfirmed": "Opakovaná rezervácia potvrdená",
+    "seriesConfirmedCount": "Zarezervovaných {{count}} termínov.",
+    "seriesSkippedIntro": "Tieto dátumy boli už obsadené a boli preskočené:"
   },
   "manageBooking": {
     "findTitle": "Nájsť moju rezerváciu",
@@ -57,6 +72,16 @@
     "cancelled": "Vaša rezervácia bola zrušená.",
     "invalidLink": "Tento odkaz je neplatný.",
     "expiredLink": "Platnosť tohto odkazu vypršala."
+  },
+  "manageSeries": {
+    "title": "Správa opakovanej rezervácie",
+    "invalidLink": "Tento odkaz je neplatný.",
+    "expiredLink": "Platnosť tohto odkazu vypršala.",
+    "occurrencesTitle": "Termíny v tejto sérii",
+    "cancelSeries": "Zrušiť celú sériu",
+    "cancelOccurrence": "Zrušiť tento termín",
+    "allCancelled": "Celá táto séria už bola zrušená.",
+    "seriesCancelled": "Zrušených {{count}} zostávajúcich termínov."
   },
   "email": {
     "bookingConfirmedSubject": "Rezervácia potvrdená — {{club}}",
@@ -75,7 +100,16 @@
     "cancelBooking": "Zrušiť rezerváciu",
     "linkExpires": "Platnosť tohto odkazu vyprší o 14 dní.",
     "rebookNotice": "Ak ste to neboli vy, alebo si chcete rezervovať znova, jednoducho navštívte aplikáciu.",
-    "footer": "Tento e-mail bol automaticky odoslaný rezervačným systémom klubu {{club}}."
+    "footer": "Tento e-mail bol automaticky odoslaný rezervačným systémom klubu {{club}}.",
+    "seriesConfirmedSubject": "Opakovaná rezervácia potvrdená — {{club}}",
+    "seriesConfirmedTitle": "Opakovaná rezervácia potvrdená",
+    "seriesConfirmedIntro": "Bolo zarezervovaných {{count}} termínov:",
+    "seriesDatesLabel": "Zarezervované dátumy:",
+    "seriesSkippedIntro": "Tieto dátumy boli už obsadené a boli preskočené:",
+    "manageSeries": "Spravovať / zrušiť sériu",
+    "seriesCancelledSubject": "Opakovaná rezervácia zrušená — {{club}}",
+    "seriesCancelledTitle": "Opakovaná rezervácia zrušená",
+    "seriesCancelledIntro": "Bolo zrušených {{count}} zostávajúcich termínov vo vašej opakovanej rezervácii:"
   },
   "admin": {
     "loginTitle": "Prihlásenie pre personál",

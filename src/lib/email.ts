@@ -106,6 +106,108 @@ export async function queueBookingConfirmationEmail(
   )
 }
 
+interface SeriesEmailInfo {
+  seriesId: string
+  cancellationToken: string
+  startTime: string
+  durationMinutes: number
+  name: string
+  email: string
+  created: { date: string; confirmationCode: string }[]
+  skippedDates: string[]
+}
+
+/**
+ * Sent once per recurring series (not once per occurrence, which would
+ * spam a customer booking e.g. 10 weeks at once). Lists every date that
+ * was actually booked (with its own confirmation code, in case they want
+ * to cancel just that one date via the normal lookup flow) plus any dates
+ * skipped because someone else already had that slot, and a single link
+ * to cancel the whole remaining series (SeriesCancelPage).
+ */
+export async function queueSeriesConfirmationEmail(
+  club: Club,
+  zone: Zone,
+  series: SeriesEmailInfo,
+  cancelBaseUrl: string,
+  lang: SupportedLanguage
+): Promise<void> {
+  const t = i18n.getFixedT(lang)
+  const manageUrl = `${cancelBaseUrl}/my-series/${series.seriesId}/${series.cancellationToken}`
+  const qrDataUrl = await generateQrDataUrl(manageUrl).catch(() => null)
+
+  const datesList = series.created
+    .map((o) => `<li>${o.date} — <span style="font-family: monospace;">${o.confirmationCode}</span></li>`)
+    .join('')
+  const skippedBlock =
+    series.skippedDates.length > 0
+      ? `<p style="margin-top: 16px;">${t('email.seriesSkippedIntro')}</p>
+         <ul>${series.skippedDates.map((d) => `<li>${d}</li>`).join('')}</ul>`
+      : ''
+
+  const body = `
+    <p>${t('email.greeting', { name: series.name })}</p>
+    <p>${t('email.seriesConfirmedIntro', { count: series.created.length })}</p>
+    ${infoRow(t('email.zone'), zone.name)}
+    ${infoRow(t('email.time'), series.startTime)}
+    ${infoRow(t('email.duration'), t('common.minutes', { count: series.durationMinutes }))}
+    <div style="margin: 16px 0; padding: 10px; background: white; border-left: 4px solid #FDB913;">
+      <p style="font-weight: bold; color: #666; margin: 0 0 8px;">${t('email.seriesDatesLabel')}</p>
+      <ul style="margin: 0; padding-left: 20px;">${datesList}</ul>
+    </div>
+    ${skippedBlock}
+    <div style="margin-top: 20px; padding: 15px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
+      <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${t('email.needToCancel')}</p>
+      <a href="${manageUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+        ${t('email.manageSeries')}
+      </a>
+      ${qrDataUrl ? `<div style="margin-top: 15px;"><img src="${qrDataUrl}" alt="QR" width="140" height="140" style="background: white; padding: 8px; border-radius: 8px;" /></div>` : ''}
+      <p style="margin: 15px 0 0; font-size: 12px; color: #999;">${t('email.linkExpires')}</p>
+    </div>
+  `
+  await queueEmail(
+    series.email,
+    t('email.seriesConfirmedSubject', { club: club.name }),
+    emailShell(club, t('email.seriesConfirmedTitle'), body, t('email.footer', { club: club.name }))
+  )
+}
+
+interface SeriesCancellationInfo {
+  name: string
+  email: string
+  startTime: string
+  durationMinutes: number
+  cancelledCount: number
+}
+
+/**
+ * Sent once when a customer/staff cancels a whole series via
+ * SeriesCancelPage's "cancel entire series" button — not once per
+ * occurrence, which would spam. Cancelling a single occurrence from that
+ * same page instead reuses the normal queueCancellationEmail below.
+ */
+export async function queueSeriesCancellationEmail(
+  club: Club,
+  zone: Zone,
+  info: SeriesCancellationInfo,
+  lang: SupportedLanguage
+): Promise<void> {
+  const t = i18n.getFixedT(lang)
+  const body = `
+    <p>${t('email.greeting', { name: info.name })}</p>
+    <p>${t('email.seriesCancelledIntro', { count: info.cancelledCount })}</p>
+    ${infoRow(t('email.zone'), zone.name, '#dc2626')}
+    ${infoRow(t('email.time'), info.startTime, '#dc2626')}
+    ${infoRow(t('email.duration'), t('common.minutes', { count: info.durationMinutes }), '#dc2626')}
+    <p style="margin-top: 20px;">${t('email.rebookNotice')}</p>
+  `
+  await queueEmail(
+    info.email,
+    t('email.seriesCancelledSubject', { club: club.name }),
+    emailShell(club, t('email.seriesCancelledTitle'), body, t('email.footer', { club: club.name }))
+  )
+}
+
 export async function queueCancellationEmail(
   club: Club,
   zone: Zone,

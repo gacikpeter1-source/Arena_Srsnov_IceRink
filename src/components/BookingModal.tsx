@@ -4,9 +4,16 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { createBooking, SlotUnavailableError } from '@/lib/bookings'
-import { queueBookingConfirmationEmail } from '@/lib/email'
+import {
+  createBooking,
+  createBookingSeries,
+  SeriesRecurrence,
+  SlotUnavailableError,
+  type CreatedSeries
+} from '@/lib/bookings'
+import { queueBookingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
+import { addDays, formatDateISO } from '@/lib/utils'
 import { Club, Zone } from '@/types'
 
 interface BookingModalProps {
@@ -21,6 +28,9 @@ interface BookingModalProps {
   onBooked: () => void
 }
 
+const MIN_SERIES_COUNT = 2
+const MAX_SERIES_COUNT = 52
+
 export default function BookingModal({
   club,
   rinkId,
@@ -34,9 +44,14 @@ export default function BookingModal({
 }: BookingModalProps) {
   const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
+  const [repeat, setRepeat] = useState(false)
+  const [recurrenceType, setRecurrenceType] = useState<'count' | 'until'>('count')
+  const [count, setCount] = useState(4)
+  const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(`${date}T00:00:00`), 28)))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ confirmationCode: string; bookingId: string; cancellationToken: string } | null>(null)
+  const [result, setResult] = useState<{ confirmationCode: string; cancellationToken: string } | null>(null)
+  const [seriesResult, setSeriesResult] = useState<CreatedSeries | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,42 +64,77 @@ export default function BookingModal({
 
     setSubmitting(true)
     try {
-      const booking = await createBooking({
-        clubId: club.id,
-        rinkId,
-        zoneId: zone.id,
-        date,
-        startTime,
-        durationMinutes,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone
-      })
-      setResult({
-        confirmationCode: booking.confirmationCode,
-        bookingId: booking.id,
-        cancellationToken: booking.cancellationToken
-      })
-      queueBookingConfirmationEmail(
-        club,
-        zone,
-        {
-          bookingId: booking.id,
-          cancellationToken: booking.cancellationToken,
-          confirmationCode: booking.confirmationCode,
+      const lang = isSupportedLanguage(i18n.language) ? i18n.language : 'en'
+
+      if (repeat) {
+        const recurrence: SeriesRecurrence =
+          recurrenceType === 'count' ? { type: 'count', count } : { type: 'until', endDate: untilDate }
+        const series = await createBookingSeries({
+          clubId: club.id,
+          rinkId,
+          zoneId: zone.id,
+          startDate: date,
+          startTime,
+          durationMinutes,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          recurrence
+        })
+        setSeriesResult(series)
+        queueSeriesConfirmationEmail(
+          club,
+          zone,
+          {
+            seriesId: series.seriesId,
+            cancellationToken: series.cancellationToken,
+            startTime,
+            durationMinutes,
+            name: formData.name,
+            email: formData.email,
+            created: series.created,
+            skippedDates: series.skippedDates
+          },
+          window.location.origin,
+          lang
+        )
+      } else {
+        const booking = await createBooking({
+          clubId: club.id,
+          rinkId,
+          zoneId: zone.id,
           date,
           startTime,
           durationMinutes,
           name: formData.name,
-          email: formData.email
-        },
-        window.location.origin,
-        isSupportedLanguage(i18n.language) ? i18n.language : 'en'
-      )
+          email: formData.email,
+          phone: formData.phone
+        })
+        setResult({
+          confirmationCode: booking.confirmationCode,
+          cancellationToken: booking.cancellationToken
+        })
+        queueBookingConfirmationEmail(
+          club,
+          zone,
+          {
+            bookingId: booking.id,
+            cancellationToken: booking.cancellationToken,
+            confirmationCode: booking.confirmationCode,
+            date,
+            startTime,
+            durationMinutes,
+            name: formData.name,
+            email: formData.email
+          },
+          window.location.origin,
+          lang
+        )
+      }
       onBooked()
     } catch (err) {
       if (err instanceof SlotUnavailableError) {
-        setError(t('booking.slotUnavailable'))
+        setError(repeat ? t('booking.seriesUnavailable') : t('booking.slotUnavailable'))
       } else {
         console.error('Error creating booking:', err)
         setError(t('common.error'))
@@ -96,9 +146,54 @@ export default function BookingModal({
 
   const handleClose = () => {
     setResult(null)
+    setSeriesResult(null)
     setFormData({ name: '', email: '', phone: '' })
+    setRepeat(false)
     setError(null)
     onClose()
+  }
+
+  if (seriesResult) {
+    return (
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="bg-background-card max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white text-center text-2xl">{t('booking.seriesConfirmed')}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-text-secondary text-sm text-center">
+              {t('booking.seriesConfirmedCount', { count: seriesResult.created.length })}
+            </p>
+            <ul className="text-sm text-text-secondary space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+              {seriesResult.created.map((o) => (
+                <li key={o.bookingId} className="flex justify-between">
+                  <span>{o.date}</span>
+                  <span className="mono text-primary">{o.confirmationCode}</span>
+                </li>
+              ))}
+            </ul>
+            {seriesResult.skippedDates.length > 0 && (
+              <div className="text-sm text-status-danger">
+                <p>{t('booking.seriesSkippedIntro')}</p>
+                <ul className="list-disc list-inside">
+                  {seriesResult.skippedDates.map((d) => (
+                    <li key={d}>{d}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-text-secondary text-sm text-center">
+              {t('booking.emailedNotice', { email: formData.email })}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleClose} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
+              {t('common.close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   if (result) {
@@ -175,6 +270,71 @@ export default function BookingModal({
               className="bg-background-dark border-border text-white"
               required
             />
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={repeat}
+                onChange={(e) => setRepeat(e.target.checked)}
+                className="h-4 w-4"
+              />
+              {t('booking.repeatWeekly')}
+            </label>
+
+            {repeat && (
+              <div className="mt-3 space-y-3 pl-6">
+                <div className="flex gap-4 text-sm text-white">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="recurrenceType"
+                      checked={recurrenceType === 'count'}
+                      onChange={() => setRecurrenceType('count')}
+                    />
+                    {t('booking.recurrenceForWeeks')}
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="recurrenceType"
+                      checked={recurrenceType === 'until'}
+                      onChange={() => setRecurrenceType('until')}
+                    />
+                    {t('booking.recurrenceUntilDate')}
+                  </label>
+                </div>
+
+                {recurrenceType === 'count' ? (
+                  <div>
+                    <Label htmlFor="series-count" className="text-white">{t('booking.numberOfWeeks')}</Label>
+                    <Input
+                      id="series-count"
+                      type="number"
+                      min={MIN_SERIES_COUNT}
+                      max={MAX_SERIES_COUNT}
+                      value={count}
+                      onChange={(e) => setCount(Number(e.target.value))}
+                      className="bg-background-dark border-border text-white max-w-[120px]"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="series-until" className="text-white">{t('booking.repeatUntil')}</Label>
+                    <Input
+                      id="series-until"
+                      type="date"
+                      min={date}
+                      value={untilDate}
+                      onChange={(e) => setUntilDate(e.target.value)}
+                      className="bg-background-dark border-border text-white"
+                    />
+                  </div>
+                )}
+                <p className="text-text-muted text-xs">{t('booking.repeatNotice')}</p>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex gap-2 pt-4">
