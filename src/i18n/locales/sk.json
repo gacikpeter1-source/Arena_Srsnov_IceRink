@@ -151,6 +151,8 @@
     "importExcel": "Importovať z Excelu",
     "importing": "Importuje sa...",
     "importedCount": "Importovaných {{count}} rezervácií.",
+    "downloadTemplate": "Stiahnuť šablónu na import",
+    "importHint": "Import očakáva zošit so stĺpcami: Dátum (RRRR-MM-DD alebo D.M.RRRR), Čas (HH:MM), Trvanie (min), Ľadová plocha, Zóna, Meno, E-mail, Telefón a nepovinný Stav (potvrdené/zrušené). Vhodné na hromadné pridanie opakovanej skupinovej rezervácie — napríklad týždenného ľadu pre škôlkarov — stiahnite si šablónu, vyplňte jeden riadok pre každý dátum a naimportujte ju späť.",
     "createAccount": "Vytvoriť účet",
     "haveAccount": "Už máte účet? Prihláste sa",
     "signupTitle": "Vytvoriť účet personálu",

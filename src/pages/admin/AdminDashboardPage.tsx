@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { cancelBooking, fetchBookingsInRange, createBooking, SlotUnavailableError } from '@/lib/bookings'
-import { exportBookingsToExcel, parseBookingsWorkbook } from '@/lib/excel'
+import { downloadImportTemplate, exportBookingsToExcel, parseBookingsWorkbook } from '@/lib/excel'
 import { addDays, formatDateISO } from '@/lib/utils'
 import { Booking } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -191,6 +191,9 @@ export default function AdminDashboardPage() {
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing}>
               {importing ? t('admin.importing') : t('admin.importExcel')}
             </Button>
+            <Button variant="outline" onClick={() => downloadImportTemplate()}>
+              {t('admin.downloadTemplate')}
+            </Button>
             <input
               ref={fileInputRef}
               type="file"
@@ -199,6 +202,8 @@ export default function AdminDashboardPage() {
               onChange={handleImportFile}
             />
           </div>
+
+          <p className="text-text-muted text-xs">{t('admin.importHint')}</p>
 
           {importResult && (
             <div className="text-sm space-y-1 border border-border rounded-md p-3 bg-background-dark">

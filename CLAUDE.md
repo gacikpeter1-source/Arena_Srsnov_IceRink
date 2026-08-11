@@ -128,6 +128,14 @@ rink, not club-wide, the admin Excel import/export
 (`src/lib/excel.ts`) includes a "Rink" column and resolves zones by
 rink name + zone name together, not zone name alone.
 
+`downloadImportTemplate` (also `src/lib/excel.ts`) gives a blank workbook
+with just the header row `parseBookingsWorkbook` expects — a "Download
+import template" button next to Import/Export on the admin dashboard,
+with an inline hint explaining the columns/date format. Meant for
+bulk-adding a recurring group booking that isn't a single customer's
+series — e.g. a kindergarten course's standing weekly slot — by filling
+in one row per date rather than the one-at-a-time create form.
+
 When both rinks are visible (the default), `BookingPage.tsx` lays their
 schedules out as two columns side by side (`grid-cols-2`, unconditional
 — not gated behind a `md:` breakpoint) — left is whichever rink sorts
