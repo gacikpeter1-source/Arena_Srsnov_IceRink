@@ -89,6 +89,10 @@ export default function CancelLookupPage() {
               </div>
               {booking.status === 'cancelled' ? (
                 <p className="text-status-muted">{t('manageBooking.alreadyCancelled')}</p>
+              ) : booking.status === 'pending' ? (
+                <p className="text-status-muted text-sm">{t('manageBooking.awaitingConfirmation')}</p>
+              ) : booking.status === 'expired' ? (
+                <p className="text-status-muted text-sm">{t('manageBooking.confirmationExpired')}</p>
               ) : isPastCancellationCutoff(booking.date, booking.startTime, club.timezone) ? (
                 <p className="text-status-muted text-sm">{t('manageBooking.cancellationLocked')}</p>
               ) : (

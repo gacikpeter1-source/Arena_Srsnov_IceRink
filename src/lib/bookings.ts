@@ -1,4 +1,17 @@
-import { collection, doc, getDocs, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import {
+  collection,
+  deleteField,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+  where
+} from 'firebase/firestore'
 import { db } from './firebase'
 import { Booking, SeriesFrequency } from '@/types'
 import { addDays, formatDateISO, generateConfirmationCode, generateToken } from './utils'
@@ -8,6 +21,13 @@ export class SlotUnavailableError extends Error {
   constructor() {
     super('This zone is no longer available for the selected time.')
     this.name = 'SlotUnavailableError'
+  }
+}
+
+export class BookingConfirmationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BookingConfirmationError'
   }
 }
 
@@ -32,17 +52,28 @@ function slotLockId(clubId: string, zoneId: string, date: string, startTime: str
   return `${clubId}__${zoneId}__${date}__${startTime}`
 }
 
+/** True if a slotLocks doc's optional `expiresAt` (see PENDING_CONFIRMATION_MINUTES) is in the past. */
+function isLockExpired(expiresAt: Timestamp | undefined): boolean {
+  return expiresAt != null && expiresAt.toMillis() < Date.now()
+}
+
 /**
  * Returns the set of "zoneId__startTime" pairs that are booked on the given
  * date, for display purposes (e.g. graying out taken slots in the picker).
  * Not used for the actual reservation decision — createBooking re-checks
- * inside a transaction regardless, so this is safe to read outside one.
+ * inside a transaction regardless, so this is safe to read outside one. A
+ * lock past its (optional) `expiresAt` — an unconfirmed pending booking that
+ * timed out — is filtered out so the slot shows as available again right
+ * away, without waiting for anyone to actually re-book it and trigger the
+ * reclaim in createBooking's transaction.
  */
 export async function fetchLockedSlots(clubId: string, date: string): Promise<Set<string>> {
   const snap = await getDocs(
     query(collection(db, 'slotLocks'), where('clubId', '==', clubId), where('date', '==', date))
   )
-  return new Set(snap.docs.map((d) => `${d.data().zoneId}__${d.data().startTime}`))
+  return new Set(
+    snap.docs.filter((d) => !isLockExpired(d.data().expiresAt)).map((d) => `${d.data().zoneId}__${d.data().startTime}`)
+  )
 }
 
 /**
@@ -66,12 +97,21 @@ export async function fetchLockedSlotsRange(
   )
   const byDate = new Map<string, Set<string>>()
   for (const d of snap.docs) {
-    const data = d.data() as { date: string; zoneId: string; startTime: string }
+    const data = d.data() as { date: string; zoneId: string; startTime: string; expiresAt?: Timestamp }
+    if (isLockExpired(data.expiresAt)) continue
     if (!byDate.has(data.date)) byDate.set(data.date, new Set())
     byDate.get(data.date)!.add(`${data.zoneId}__${data.startTime}`)
   }
   return byDate
 }
+
+// A customer-facing single booking must be confirmed via the emailed link
+// within this many minutes, or its hold on the slot is released — guards
+// against a typo'd email silently squatting on a slot forever, and bounds
+// how long a bad-faith flood of unconfirmed bookings can occupy real slots.
+// Staff-created and recurring-series bookings skip this (see
+// requiresConfirmation on CreateBookingInput) — see CLAUDE.md.
+export const PENDING_CONFIRMATION_MINUTES = 5
 
 export interface CreateBookingInput {
   clubId: string
@@ -90,12 +130,21 @@ export interface CreateBookingInput {
   // Set when this occurrence is part of a recurring series (see
   // createBookingSeries) — omitted for a normal one-off booking.
   seriesId?: string
+  // When true, the booking starts as 'pending' rather than 'confirmed' and
+  // must be confirmed via the emailed link within PENDING_CONFIRMATION_MINUTES
+  // (see confirmBooking) or its slot lock expires and becomes reclaimable.
+  // Only the public single-booking flow (BookingModal.tsx) sets this — staff
+  // (AdminCreateBookingModal, Excel import) already know the contact info is
+  // real, and a recurring series would need one confirmation per occurrence,
+  // which is its own can of worms, so series stay instant-confirm for now.
+  requiresConfirmation?: boolean
 }
 
 export interface CreatedBooking {
   id: string
   confirmationCode: string
   cancellationToken: string
+  status: 'confirmed' | 'pending'
 }
 
 /**
@@ -107,6 +156,12 @@ export interface CreatedBooking {
  * lib/divisionRules.ts). Same-mode zones are physically disjoint slices of
  * the rink, so a single lock document per zoneId+date+startTime is enough
  * to prevent double-booking; no cross-zone conflict check is needed.
+ *
+ * A lock held by an expired, never-confirmed pending booking is silently
+ * reclaimed rather than blocking the new attempt — that booking is left as
+ * 'pending' with a lock nobody points to anymore; it's cleaned up to
+ * 'expired' the next time anyone touches it (confirmBooking, or simply
+ * filtered out of availability reads via isLockExpired).
  */
 export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
   const lockRef = doc(db, 'slotLocks', slotLockId(input.clubId, input.zoneId, input.date, input.startTime))
@@ -114,13 +169,17 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
 
   return runTransaction(db, async (tx) => {
     const lockSnap = await tx.get(lockRef)
-    if (lockSnap.exists()) {
+    if (lockSnap.exists() && !isLockExpired(lockSnap.data().expiresAt)) {
       throw new SlotUnavailableError()
     }
 
     const confirmationCode = generateConfirmationCode()
     const cancellationToken = generateToken()
     const tokenExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    const status = input.requiresConfirmation ? 'pending' : 'confirmed'
+    const pendingExpiresAt = input.requiresConfirmation
+      ? new Date(Date.now() + PENDING_CONFIRMATION_MINUTES * 60 * 1000)
+      : null
 
     tx.set(lockRef, {
       clubId: input.clubId,
@@ -128,7 +187,8 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
       date: input.date,
       startTime: input.startTime,
       bookingId: bookingRef.id,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
+      ...(pendingExpiresAt ? { expiresAt: pendingExpiresAt } : {})
     })
 
     tx.set(bookingRef, {
@@ -144,15 +204,70 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
       // Firestore rejects `undefined` field values, so only include
       // seriesId when this occurrence actually belongs to one.
       ...(input.seriesId ? { seriesId: input.seriesId } : {}),
+      ...(pendingExpiresAt ? { pendingExpiresAt } : {}),
       confirmationCode,
       cancellationToken,
       tokenExpiresAt,
       startAtUtc: zonedTimeToUtc(input.date, input.startTime, input.timezone),
-      status: 'confirmed',
+      status,
       createdAt: serverTimestamp()
     })
 
-    return { id: bookingRef.id, confirmationCode, cancellationToken }
+    return { id: bookingRef.id, confirmationCode, cancellationToken, status }
+  })
+}
+
+/**
+ * Confirms a still-pending booking via its emailed link, promoting it to
+ * 'confirmed' and turning its slot lock permanent (clearing `expiresAt`).
+ * Idempotent — calling it again on an already-confirmed booking (e.g. the
+ * customer double-clicks, or revisits the link) just returns it unchanged
+ * rather than erroring, so the confirm page can't accidentally re-queue a
+ * second confirmation email.
+ *
+ * Re-checks the lock, not just the booking doc: if the 5-minute window
+ * already lapsed and someone else's booking has since reclaimed the same
+ * slot (see createBooking), this one is marked 'expired' instead of
+ * confirming — otherwise two different customers could end up "confirmed"
+ * for the same slot.
+ */
+export async function confirmBooking(
+  bookingId: string,
+  token: string
+): Promise<{ booking: Booking & { id: string }; alreadyConfirmed: boolean }> {
+  const bookingRef = doc(db, 'bookings', bookingId)
+
+  return runTransaction(db, async (tx) => {
+    const bookingSnap = await tx.get(bookingRef)
+    if (!bookingSnap.exists()) {
+      throw new BookingConfirmationError('Booking not found')
+    }
+    const booking = bookingSnap.data() as Omit<Booking, 'id'>
+    if (booking.cancellationToken !== token) {
+      throw new BookingConfirmationError('Invalid confirmation link')
+    }
+    if (booking.status === 'confirmed') {
+      return { booking: { id: bookingId, ...booking }, alreadyConfirmed: true }
+    }
+    if (booking.status !== 'pending') {
+      throw new BookingConfirmationError('This booking can no longer be confirmed')
+    }
+
+    const lockRef = doc(db, 'slotLocks', slotLockId(booking.clubId, booking.zoneId, booking.date, booking.startTime))
+    const lockSnap = await tx.get(lockRef)
+    const pendingExpiresAt = booking.pendingExpiresAt as unknown as Timestamp | undefined
+    const stillOurs = lockSnap.exists() && lockSnap.data().bookingId === bookingId
+
+    if (isLockExpired(pendingExpiresAt) || !stillOurs) {
+      tx.update(bookingRef, { status: 'expired' })
+      if (stillOurs) tx.delete(lockRef)
+      throw new BookingConfirmationError('This booking has expired')
+    }
+
+    tx.update(bookingRef, { status: 'confirmed' })
+    tx.update(lockRef, { expiresAt: deleteField() })
+
+    return { booking: { id: bookingId, ...booking, status: 'confirmed' }, alreadyConfirmed: false }
   })
 }
 

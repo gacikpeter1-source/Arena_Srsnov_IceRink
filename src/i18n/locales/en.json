@@ -48,6 +48,9 @@
     "confirmed": "Booking confirmed",
     "yourCode": "Your confirmation code",
     "emailedNotice": "We've emailed a confirmation with a link to manage or cancel this booking to {{email}}.",
+    "pendingTitle": "Confirm your booking by email",
+    "pendingIntro": "We've sent a confirmation link to {{email}}. Click it within {{count}} minutes to secure this slot.",
+    "pendingExpiryNotice": "If you don't confirm in time, the slot becomes available again for someone else.",
     "confirmBooking": "Confirm booking",
     "booking": "Booking...",
     "slotUnavailable": "This zone is no longer available for the selected time.",
@@ -84,7 +87,16 @@
     "cancelled": "Your booking has been cancelled.",
     "invalidLink": "This link is invalid.",
     "expiredLink": "This link has expired.",
-    "cancellationLocked": "This session starts within 24 hours and can no longer be cancelled online. Please contact the club directly if you need to cancel."
+    "cancellationLocked": "This session starts within 24 hours and can no longer be cancelled online. Please contact the club directly if you need to cancel.",
+    "awaitingConfirmation": "This booking is still waiting for email confirmation — check your inbox for the confirmation link.",
+    "confirmationExpired": "This booking was never confirmed in time and has expired. Please book again."
+  },
+  "confirmBooking": {
+    "title": "Confirm booking",
+    "success": "Your booking is confirmed!",
+    "invalidLink": "This confirmation link is invalid.",
+    "expired": "This confirmation link has expired.",
+    "expiredHint": "The slot wasn't confirmed within the time limit and has been released. Please book again."
   },
   "manageSeries": {
     "title": "Manage recurring booking",
@@ -98,6 +110,11 @@
     "seriesCancelled": "Cancelled {{count}} remaining session(s)."
   },
   "email": {
+    "confirmPendingSubject": "Please confirm your booking — {{club}}",
+    "confirmPendingTitle": "Confirm your booking",
+    "confirmPendingIntro": "Almost there — click below within {{count}} minutes to confirm this booking:",
+    "confirmBookingButton": "Confirm booking",
+    "confirmPendingExpiry": "This link expires in {{count}} minutes. If it lapses, the slot becomes available again and you'll need to book again.",
     "bookingConfirmedSubject": "Booking confirmed — {{club}}",
     "bookingCancelledSubject": "Booking cancelled — {{club}}",
     "bookingConfirmedTitle": "Booking confirmed",
@@ -139,6 +156,8 @@
     "clubAddress": "Address",
     "statusConfirmed": "confirmed",
     "statusCancelled": "cancelled",
+    "statusPending": "pending confirmation",
+    "statusExpired": "expired (unconfirmed)",
     "reservations": "Reservations",
     "from": "From",
     "to": "To",

@@ -3,6 +3,7 @@ import { db } from './firebase'
 import i18n, { SupportedLanguage } from '@/i18n'
 import { generateQrDataUrl } from './qrcode'
 import { buildGoogleCalendarUrl, buildIcsContent, IcsEventInput } from './ics'
+import { PENDING_CONFIRMATION_MINUTES } from './bookings'
 import { Club, Zone } from '@/types'
 
 interface MailAttachment {
@@ -83,6 +84,46 @@ interface BookingEmailInfo {
   durationMinutes: number
   name: string
   email: string
+}
+
+/**
+ * Sent immediately for a booking created with requiresConfirmation (see
+ * lib/bookings.ts) — the customer must click the link within
+ * PENDING_CONFIRMATION_MINUTES or the slot is released. Deliberately
+ * carries none of the calendar/QR/cancel content queueBookingConfirmationEmail
+ * has — the booking isn't real yet, so there's nothing to add to a calendar
+ * or cancel. That email is queued separately, from ConfirmBookingPage, only
+ * once the click actually lands.
+ */
+export async function queuePendingConfirmationEmail(
+  club: Club,
+  zone: Zone,
+  booking: Pick<BookingEmailInfo, 'bookingId' | 'cancellationToken' | 'name' | 'email' | 'date' | 'startTime' | 'durationMinutes'>,
+  confirmBaseUrl: string,
+  lang: SupportedLanguage
+): Promise<void> {
+  const t = i18n.getFixedT(lang)
+  const confirmUrl = `${confirmBaseUrl}/confirm-booking/${booking.bookingId}/${booking.cancellationToken}`
+
+  const body = `
+    <p>${t('email.greeting', { name: booking.name })}</p>
+    <p>${t('email.confirmPendingIntro', { count: PENDING_CONFIRMATION_MINUTES })}</p>
+    ${infoRow(t('email.zone'), zone.name)}
+    ${infoRow(t('email.date'), booking.date)}
+    ${infoRow(t('email.time'), booking.startTime)}
+    ${infoRow(t('email.duration'), t('common.minutes', { count: booking.durationMinutes }))}
+    <div style="margin-top: 20px; text-align: center;">
+      <a href="${confirmUrl}" style="display: inline-block; padding: 12px 30px; background: #16a34a; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+        ${t('email.confirmBookingButton')}
+      </a>
+      <p style="margin: 15px 0 0; font-size: 12px; color: #999;">${t('email.confirmPendingExpiry', { count: PENDING_CONFIRMATION_MINUTES })}</p>
+    </div>
+  `
+  await queueEmail(
+    booking.email,
+    t('email.confirmPendingSubject', { club: club.name }),
+    emailShell(club, t('email.confirmPendingTitle'), body, t('email.footer', { club: club.name }))
+  )
 }
 
 /**

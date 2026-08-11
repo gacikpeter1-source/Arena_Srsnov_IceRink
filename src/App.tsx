@@ -5,6 +5,7 @@ import HubHomePage from './pages/HubHomePage'
 import BookingPage from './pages/BookingPage'
 import CancelLookupPage from './pages/CancelLookupPage'
 import CancelViaTokenPage from './pages/CancelViaTokenPage'
+import ConfirmBookingPage from './pages/ConfirmBookingPage'
 import SeriesCancelPage from './pages/SeriesCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminSignupPage from './pages/admin/AdminSignupPage'
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/book" element={<BookingPage />} />
           <Route path="/my-booking" element={<CancelLookupPage />} />
           <Route path="/my-booking/:bookingId/:token" element={<CancelViaTokenPage />} />
+          <Route path="/confirm-booking/:bookingId/:token" element={<ConfirmBookingPage />} />
           <Route path="/my-series/:seriesId/:token" element={<SeriesCancelPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
