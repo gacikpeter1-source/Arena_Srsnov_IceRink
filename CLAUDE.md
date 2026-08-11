@@ -111,28 +111,37 @@ config — callers filter by `rinkId` for the rink they're working with.
 
 The public booking calendar (`/book`) shows every rink's schedule at once
 by default, with a filter to narrow to a single rink (`BookingPage.tsx`).
-Each rink section renders a `RinkDiagram` (`src/components/RinkDiagram.tsx`)
-using `public/rink-diagram.jpg` as a background image with the club's
-actual painted rink lines; when a zone is hovered/focused, the diagram
+A single `RinkDiagram` (`src/components/RinkDiagram.tsx`) — using
+`public/rink-diagram.jpg` as a background image with the club's actual
+painted rink lines — sits above both schedules rather than being
+duplicated per rink column, since both rinks share the same physical
+layout; when a zone is hovered/focused in either column, the diagram
 highlights that zone's slice of the ice and dims the rest — so a customer
-booking e.g. "Third 2 of 3" can see exactly which physical part of the rink
-they're reserving. The dividing-line positions are hardcoded as measured
-percentages of image width in `RinkDiagram.tsx` (`BOUNDS`) — if the diagram
-image is ever replaced, re-measure and update those percentages, they
-won't self-derive from a new image.
+booking e.g. "Third 2 of 3" can see exactly which physical part of the
+rink they're reserving. The dividing-line positions are hardcoded as
+measured percentages of image width in `RinkDiagram.tsx` (`BOUNDS`) — if
+the diagram image is ever replaced, re-measure and update those
+percentages, they won't self-derive from a new image.
 
 Since zone names (e.g. "Full Rink", "Half A") are only unique within a
 rink, not club-wide, the admin Excel import/export
 (`src/lib/excel.ts`) includes a "Rink" column and resolves zones by
 rink name + zone name together, not zone name alone.
 
-When both rinks are visible (the default), `BookingPage.tsx` lays them
-out as two columns side by side (`md:grid-cols-2`) — left is whichever
-rink sorts first (`Rink.sortOrder`), right is the other — collapsing to
-one full-width column when filtered to a single rink, and stacking on
-narrow phone widths. The diagram highlight also tracks the last-tapped
-zone per rink (not just live hover/focus), so it stays lit on touch
-devices after the pointer moves away or the booking form closes.
+When both rinks are visible (the default), `BookingPage.tsx` lays their
+schedules out as two columns side by side (`grid-cols-2`, unconditional
+— not gated behind a `md:` breakpoint) — left is whichever rink sorts
+first (`Rink.sortOrder`), right is the other — collapsing to one
+full-width column when filtered to a single rink. Deliberately not
+gated by breakpoint: since the diagram is shown once (not per column),
+each column only holds compact time/zone buttons, which fit two-across
+even on a phone in portrait — the earlier per-rink-diagram layout needed
+landscape width to show two columns. The diagram highlight tracks
+whichever zone was most recently hovered/focused or tapped in *either*
+column (not scoped per rink, since there's only one diagram to update),
+and tapped selections stay lit after the pointer moves away or the
+booking form closes — matters most on touch devices, which have no real
+hover.
 
 ## Recurring bookings
 Both customers (no login required) and staff can create a daily- or
