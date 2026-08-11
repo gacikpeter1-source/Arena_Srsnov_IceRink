@@ -9,6 +9,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered explicitly via virtual:pwa-register in main.tsx instead —
+      // the auto-injected bare script only calls .register() with no
+      // controllerchange handling, so `registerType: 'autoUpdate'` above had
+      // no actual effect: a client could keep running an old cached bundle
+      // indefinitely (a real booking's confirmation email came out missing
+      // the calendar attachment/link entirely because of this — the deployed
+      // server code was correct, but the phone was still executing a
+      // pre-calendar-feature build).
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'robots.txt'],
       // Explicit rather than relying on plugin defaults: a new deploy must
       // replace the old service worker and its caches immediately, so a
