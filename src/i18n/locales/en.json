@@ -65,6 +65,13 @@
     "seriesConfirmedCount": "{{count}} session(s) booked.",
     "seriesSkippedIntro": "These dates were already taken and were skipped:"
   },
+  "calendar": {
+    "eventTitle": "{{club}} — {{zone}}",
+    "eventDescription": "Confirmation code: {{code}}. Manage or cancel: {{url}}",
+    "addToGoogle": "Add to Google Calendar",
+    "downloadIcs": "Add to calendar (.ics)",
+    "downloadIcsMultiple": "Add all {{count}} sessions to calendar (.ics)"
+  },
   "manageBooking": {
     "findTitle": "Find your booking",
     "manageTitle": "Manage booking",

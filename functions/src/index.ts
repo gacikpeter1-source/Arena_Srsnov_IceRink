@@ -30,6 +30,7 @@ export const sendQueuedMail = onDocumentCreated(
     const data = snap.data() as {
       to?: string;
       message?: { subject?: string; html?: string };
+      attachments?: { filename: string; content: string; contentType: string }[];
       delivery?: unknown;
     };
 
@@ -56,6 +57,7 @@ export const sendQueuedMail = onDocumentCreated(
         to,
         subject: message.subject,
         html: message.html,
+        attachments: data.attachments,
       });
       await snap.ref.update({
         delivery: { state: "SUCCESS", endTime: new Date().toISOString() },

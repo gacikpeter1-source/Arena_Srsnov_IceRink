@@ -10,6 +10,8 @@ import { isSupportedLanguage } from '@/i18n'
 import { Booking, BookingSeries, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import AddToCalendarButtons from '@/components/AddToCalendarButtons'
+import { IcsEventInput } from '@/lib/ics'
 
 type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'error'
 
@@ -126,7 +128,7 @@ export default function SeriesCancelPage() {
           {state === 'expired' && <p className="text-status-danger">{t('manageSeries.expiredLink')}</p>}
           {state === 'error' && <p className="text-status-danger">{t('common.error')}</p>}
 
-          {state === 'ready' && series && zone && (
+          {state === 'ready' && series && zone && club && (
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
                 <p><strong className="text-white">{zone.name}</strong></p>
@@ -135,6 +137,27 @@ export default function SeriesCancelPage() {
                   {t(series.frequency === 'daily' ? 'booking.frequencyDaily' : 'booking.frequencyWeekly')}
                 </p>
               </div>
+
+              <AddToCalendarButtons
+                events={occurrences
+                  .filter((o) => o.status === 'confirmed')
+                  .map(
+                    (o): IcsEventInput => ({
+                      uid: `${o.id}@${window.location.hostname}`,
+                      title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+                      description: t('calendar.eventDescription', {
+                        code: o.confirmationCode,
+                        url: window.location.href
+                      }),
+                      location: club.contact.address || club.name,
+                      date: o.date,
+                      startTime: o.startTime,
+                      durationMinutes: o.durationMinutes,
+                      timezone: club.timezone
+                    })
+                  )}
+                filename={`${club.name}-sessions.ics`}
+              />
 
               <div>
                 <h3 className="text-white text-sm font-semibold mb-2">{t('manageSeries.occurrencesTitle')}</h3>
