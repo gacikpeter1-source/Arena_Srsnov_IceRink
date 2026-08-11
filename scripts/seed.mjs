@@ -26,7 +26,8 @@ async function seed() {
       // PLACEHOLDER — replace with the club's real contact details.
       email: 'gacikpeter1@gmail.com',
       phone: '',
-      address: ''
+      address: '',
+      website: ''
     },
     timezone: 'Europe/Bratislava',
     paymentsEnabled: false,

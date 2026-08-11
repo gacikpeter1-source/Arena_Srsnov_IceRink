@@ -10,6 +10,7 @@ export interface Club {
     email: string
     phone?: string
     address?: string
+    website?: string
   }
   timezone: string
   paymentsEnabled: boolean
