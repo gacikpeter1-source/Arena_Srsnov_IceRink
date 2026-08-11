@@ -26,7 +26,7 @@ function escapeIcsText(text: string): string {
  * screen previews it fine but silently refuses to actually save the
  * event — UTC avoids the whole problem.
  */
-function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
+export function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
   const [year, month, day] = date.split('-').map(Number)
   const [hour, minute] = time.split(':').map(Number)
   // First guess: treat the wall-clock numbers as if they were already UTC.

@@ -174,6 +174,35 @@ emailed via `queueSeriesConfirmationEmail`, landing on `SeriesCancelPage`
 (`/my-series/:seriesId/:token`), which can also cancel occurrences
 individually.
 
+## Cancellation lockdown
+A customer can self-cancel a booking (or a single occurrence of a series)
+up to `CANCELLATION_CUTOFF_HOURS` (24, `src/lib/bookings.ts`) before it
+starts — inside that window the cancel button is hidden/disabled and a
+locked notice shown instead, across all three self-service surfaces
+(`CancelViaTokenPage`, `CancelLookupPage`, `SeriesCancelPage`). Cancelling
+an entire series (`cancelBookingSeries`) skips any locked occurrence and
+leaves it confirmed rather than failing the whole action. The check
+(`isPastCancellationCutoff`) reuses `zonedTimeToUtc` from `lib/ics.ts` —
+same DST-aware local→UTC conversion the calendar-invite feature already
+needed, kept in one place rather than re-deriving it.
+
+Staff are exempt: `cancelBooking` itself has no cutoff logic, and the
+admin dashboard's cancel action is a separate Firestore-rules branch
+(`isStaffMember()`) from the public one, so an owner/assistant can still
+cancel a booking last-minute (e.g. rink issue, no-show) regardless of the
+customer-facing lockdown.
+
+Enforced server-side too, not just hidden in the UI: `createBooking`
+stores `startAtUtc` (the booking's true UTC start instant, converted at
+creation time via the club's `timezone` — now a required field on
+`CreateBookingInput`/`CreateSeriesInput`) precisely so `firestore.rules`
+can gate the public self-cancel `allow update` rule on
+`request.time + duration.value(24, 'h') < resource.data.startAtUtc`
+without needing its own timezone math (rules have no `Intl` access).
+Bookings written before this field existed have no cutoff to check and
+fall back to the pre-feature (always-allowed) behavior rather than being
+permanently locked out.
+
 ## Availability visibility
 Two ways to see occupancy without opening each day one at a time (both in
 `BookingPage.tsx`):

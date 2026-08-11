@@ -113,6 +113,7 @@ export default function AdminCreateBookingModal({
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
+          timezone: club.timezone,
           recurrence
         })
         setSeriesResult(series)
@@ -127,7 +128,8 @@ export default function AdminCreateBookingModal({
           durationMinutes: timeSlotConfig.slotDurationMinutes,
           name: formData.name,
           email: formData.email,
-          phone: formData.phone
+          phone: formData.phone,
+          timezone: club.timezone
         })
         onCreated()
         handleClose()

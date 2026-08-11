@@ -2,12 +2,30 @@ import { collection, doc, getDocs, orderBy, query, runTransaction, serverTimesta
 import { db } from './firebase'
 import { Booking, SeriesFrequency } from '@/types'
 import { addDays, formatDateISO, generateConfirmationCode, generateToken } from './utils'
+import { zonedTimeToUtc } from './ics'
 
 export class SlotUnavailableError extends Error {
   constructor() {
     super('This zone is no longer available for the selected time.')
     this.name = 'SlotUnavailableError'
   }
+}
+
+// A customer can self-cancel up to this many hours before a booking's start
+// — inside the window it's "locked down" for online cancellation (staff can
+// still cancel it from the admin dashboard any time, since cancelBooking
+// itself has no cutoff logic — the check lives in the customer-facing pages
+// and, for defense-in-depth against a direct API call, in firestore.rules).
+export const CANCELLATION_CUTOFF_HOURS = 24
+
+/**
+ * True once a booking is inside its cancellation lockdown window, i.e. it's
+ * too close to start for a customer to self-cancel online anymore.
+ */
+export function isPastCancellationCutoff(date: string, startTime: string, timezone: string): boolean {
+  const startUtc = zonedTimeToUtc(date, startTime, timezone)
+  const cutoff = new Date(startUtc.getTime() - CANCELLATION_CUTOFF_HOURS * 60 * 60 * 1000)
+  return new Date() >= cutoff
 }
 
 function slotLockId(clubId: string, zoneId: string, date: string, startTime: string) {
@@ -65,6 +83,10 @@ export interface CreateBookingInput {
   name: string
   email: string
   phone: string
+  // Club's IANA zone (e.g. "Europe/Bratislava") — stored as startAtUtc so
+  // firestore.rules can enforce the cancellation cutoff without needing its
+  // own DST-aware conversion (rules have no Intl access).
+  timezone: string
   // Set when this occurrence is part of a recurring series (see
   // createBookingSeries) — omitted for a normal one-off booking.
   seriesId?: string
@@ -125,6 +147,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
       confirmationCode,
       cancellationToken,
       tokenExpiresAt,
+      startAtUtc: zonedTimeToUtc(input.date, input.startTime, input.timezone),
       status: 'confirmed',
       createdAt: serverTimestamp()
     })
@@ -174,6 +197,7 @@ export interface CreateSeriesInput {
   name: string
   email: string
   phone: string
+  timezone: string
   recurrence: SeriesRecurrence
 }
 
@@ -259,6 +283,7 @@ export async function createBookingSeries(input: CreateSeriesInput): Promise<Cre
         name: input.name,
         email: input.email,
         phone: input.phone,
+        timezone: input.timezone,
         seriesId: seriesRef.id
       })
       created.push({ bookingId: booking.id, date, confirmationCode: booking.confirmationCode })
@@ -306,24 +331,34 @@ export async function fetchSeriesBookings(seriesId: string): Promise<(Booking & 
 }
 
 /**
- * Cancels every still-confirmed occurrence in a series. Each occurrence is
- * cancelled through the normal single-booking transaction, one at a time —
- * not a single atomic operation across the whole series — so a failure on
- * one occurrence doesn't block the rest from being cancelled.
+ * Cancels every still-confirmed, not-yet-locked occurrence in a series. Each
+ * occurrence is cancelled through the normal single-booking transaction, one
+ * at a time — not a single atomic operation across the whole series — so a
+ * failure on one occurrence doesn't block the rest from being cancelled. An
+ * occurrence inside the CANCELLATION_CUTOFF_HOURS window is left confirmed,
+ * same as if the customer had tried to cancel it individually.
  */
-export async function cancelBookingSeries(seriesId: string): Promise<{ cancelled: number; alreadyCancelled: number }> {
+export async function cancelBookingSeries(
+  seriesId: string,
+  timezone: string
+): Promise<{ cancelled: number; alreadyCancelled: number; locked: number }> {
   const occurrences = await fetchSeriesBookings(seriesId)
   let cancelled = 0
   let alreadyCancelled = 0
+  let locked = 0
   for (const occurrence of occurrences) {
     if (occurrence.status === 'cancelled') {
       alreadyCancelled++
       continue
     }
+    if (isPastCancellationCutoff(occurrence.date, occurrence.startTime, timezone)) {
+      locked++
+      continue
+    }
     await cancelBooking(occurrence.id)
     cancelled++
   }
-  return { cancelled, alreadyCancelled }
+  return { cancelled, alreadyCancelled, locked }
 }
 
 /**

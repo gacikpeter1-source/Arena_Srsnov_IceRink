@@ -83,7 +83,8 @@
     "cancelThisBooking": "Zrušiť túto rezerváciu",
     "cancelled": "Vaša rezervácia bola zrušená.",
     "invalidLink": "Tento odkaz je neplatný.",
-    "expiredLink": "Platnosť tohto odkazu vypršala."
+    "expiredLink": "Platnosť tohto odkazu vypršala.",
+    "cancellationLocked": "Tento termín začína o menej ako 24 hodín, a preto ho už nie je možné zrušiť online. Ak potrebujete zrušiť rezerváciu, kontaktujte prosím klub priamo."
   },
   "manageSeries": {
     "title": "Správa opakovanej rezervácie",
@@ -92,6 +93,7 @@
     "occurrencesTitle": "Termíny v tejto sérii",
     "cancelSeries": "Zrušiť celú sériu",
     "cancelOccurrence": "Zrušiť tento termín",
+    "occurrenceLocked": "Uzamknuté (< 24h)",
     "allCancelled": "Celá táto séria už bola zrušená.",
     "seriesCancelled": "Zrušených {{count}} zostávajúcich termínov."
   },
