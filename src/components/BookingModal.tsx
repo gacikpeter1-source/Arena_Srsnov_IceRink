@@ -303,6 +303,12 @@ export default function BookingModal({
             />
           </div>
 
+          {!repeat && (
+            <p className="text-text-muted text-xs">
+              {t('booking.confirmationNotice', { count: PENDING_CONFIRMATION_MINUTES })}
+            </p>
+          )}
+
           <div className="border-t border-border pt-4">
             <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
               <input

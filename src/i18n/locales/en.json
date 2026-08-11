@@ -51,6 +51,7 @@
     "pendingTitle": "Confirm your booking by email",
     "pendingIntro": "We've sent a confirmation link to {{email}}. Click it within {{count}} minutes to secure this slot.",
     "pendingExpiryNotice": "If you don't confirm in time, the slot becomes available again for someone else.",
+    "confirmationNotice": "After booking, we'll email you a confirmation link — your booking is only finalized once you click it, within {{count}} minutes.",
     "confirmBooking": "Confirm booking",
     "booking": "Booking...",
     "slotUnavailable": "This zone is no longer available for the selected time.",
