@@ -10,6 +10,7 @@
     "minutes": "{{count}} min",
     "dateAtTime": "{{date}} at {{startTime}}",
     "save": "Save",
+    "saving": "Saving...",
     "edit": "Edit"
   },
   "nav": {
@@ -123,6 +124,9 @@
     "dashboardTitle": "Admin dashboard",
     "signedInAs": "Signed in as {{email}}",
     "signOut": "Sign out",
+    "clubSettingsTitle": "Club settings",
+    "clubName": "Club name",
+    "clubAddress": "Address",
     "statusConfirmed": "confirmed",
     "statusCancelled": "cancelled",
     "reservations": "Reservations",
