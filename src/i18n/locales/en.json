@@ -151,6 +151,8 @@
     "importExcel": "Import from Excel",
     "importing": "Importing...",
     "importedCount": "Imported {{count}} reservation(s).",
+    "downloadTemplate": "Download import template",
+    "importHint": "Import expects a workbook with columns: Date (YYYY-MM-DD or D.M.YYYY), Time (HH:MM), Duration (min), Rink, Zone, Name, Email, Phone, and an optional Status (confirmed/cancelled). Handy for bulk-adding a recurring group booking — e.g. a kindergarten course's weekly ice time — download the template, fill in one row per date, and import it back.",
     "createAccount": "Create an account",
     "haveAccount": "Already have an account? Sign in",
     "signupTitle": "Create staff account",

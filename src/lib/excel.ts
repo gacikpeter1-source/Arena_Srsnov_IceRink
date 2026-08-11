@@ -55,6 +55,35 @@ export function exportBookingsToExcel(
   XLSX.writeFile(wb, filename)
 }
 
+// Columns parseBookingsWorkbook actually reads on import — leaves out
+// Confirmation Code / Created At, which only ever make sense as export
+// output (parseBookingsWorkbook generates a fresh confirmation code per
+// row and ignores any existing one).
+const IMPORT_HEADERS = [
+  HEADERS.date,
+  HEADERS.time,
+  HEADERS.duration,
+  HEADERS.rink,
+  HEADERS.zone,
+  HEADERS.name,
+  HEADERS.email,
+  HEADERS.phone,
+  HEADERS.status
+]
+
+/**
+ * A blank workbook with just the header row parseBookingsWorkbook expects
+ * — handy for bulk-adding a recurring group booking (e.g. a kindergarten
+ * course's weekly slot) by filling in one row per date rather than using
+ * the one-at-a-time create form or the repeat-booking option.
+ */
+export function downloadImportTemplate(filename = 'reservation-import-template.xlsx'): void {
+  const ws = XLSX.utils.aoa_to_sheet([IMPORT_HEADERS])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Bookings')
+  XLSX.writeFile(wb, filename)
+}
+
 export interface ImportRow {
   date: string
   startTime: string
