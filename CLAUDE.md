@@ -197,11 +197,15 @@ calendar. `src/lib/ics.ts` builds a standard iCalendar (.ics) file;
 quick-add URL doesn't support multiple) plus a `.ics` download that
 works with any calendar app. A recurring series' `.ics` download bundles
 every occurrence as its own `VEVENT` in one file, so importing it adds
-every session at once. Event times are written as local wall-clock time
-with a bare `TZID=<club.timezone>` parameter (no embedded `VTIMEZONE`
-block) — simpler than UTC-converting, and every mainstream calendar app
-resolves a standard IANA zone name like `Europe/Bratislava` fine without
-one.
+every session at once. Event times are written as true UTC (`Z` suffix),
+converted from the club's local wall-clock time via `zonedTimeToUtc`
+(Intl-based DST-aware conversion, no timezone library needed) — NOT a
+bare `TZID=<club.timezone>` reference. That was the first approach and
+technically requires an accompanying `VTIMEZONE` block per RFC 5545;
+Google/Outlook tolerate a well-known zone name without one, but iOS
+Mail's quick-add screen previewed the event fine and then silently
+refused to actually save it. UTC sidesteps the whole problem and needs
+no VTIMEZONE at all.
 
 The confirmation email embeds the same `.ics` as a real attachment (not
 just a link) so Apple Mail/Outlook users can add it with one tap from

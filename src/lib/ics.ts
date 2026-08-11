@@ -15,17 +15,60 @@ function escapeIcsText(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 }
 
-// "2026-08-13" + "18:00" -> "20260813T180000" — a plain local wall-clock
-// time (no UTC conversion), paired with a TZID parameter so calendar apps
-// know which zone it's in. Simpler than embedding a full VTIMEZONE block,
-// and every mainstream calendar app (Google/Apple/Outlook) resolves a
-// bare IANA TZID like "Europe/Bratislava" correctly without one.
-function formatIcsLocalDateTime(date: string, time: string): string {
-  return `${date.replace(/-/g, '')}T${time.replace(':', '')}00`
+/**
+ * Converts a club-local wall-clock date+time to the true UTC instant,
+ * correctly handling DST for the given IANA zone — using only the
+ * built-in Intl API, no timezone library needed. Event times are written
+ * to the .ics file (and the Google Calendar link) as unambiguous UTC
+ * ("Z" suffix) rather than a bare TZID reference: a TZID needs an
+ * accompanying VTIMEZONE block per RFC 5545, and while Google/Outlook
+ * tolerate a well-known zone name without one, iOS Mail's quick-add
+ * screen previews it fine but silently refuses to actually save the
+ * event — UTC avoids the whole problem.
+ */
+function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
+  const [year, month, day] = date.split('-').map(Number)
+  const [hour, minute] = time.split(':').map(Number)
+  // First guess: treat the wall-clock numbers as if they were already UTC.
+  const guess = Date.UTC(year, month - 1, day, hour, minute)
+
+  // Ask what that instant actually looks like in the target zone, then use
+  // the difference to back out the zone's real UTC offset (DST-aware)
+  // at that point in time.
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+    .formatToParts(new Date(guess))
+    .reduce<Record<string, string>>((acc, p) => {
+      acc[p.type] = p.value
+      return acc
+    }, {})
+
+  const asIfUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    parts.hour === '24' ? 0 : Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  )
+  const offsetMillis = asIfUtc - guess
+  return new Date(guess - offsetMillis)
+}
+
+function formatIcsUtc(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
 }
 
 function nowAsIcsUtc(): string {
-  return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  return formatIcsUtc(new Date())
 }
 
 /**
@@ -37,12 +80,14 @@ export function buildIcsContent(events: IcsEventInput[]): string {
   const dtStamp = nowAsIcsUtc()
   const veventBlocks = events.map((event) => {
     const endTime = minutesToTime(timeToMinutes(event.startTime) + event.durationMinutes)
+    const startUtc = formatIcsUtc(zonedTimeToUtc(event.date, event.startTime, event.timezone))
+    const endUtc = formatIcsUtc(zonedTimeToUtc(event.date, endTime, event.timezone))
     return [
       'BEGIN:VEVENT',
       `UID:${event.uid}`,
       `DTSTAMP:${dtStamp}`,
-      `DTSTART;TZID=${event.timezone}:${formatIcsLocalDateTime(event.date, event.startTime)}`,
-      `DTEND;TZID=${event.timezone}:${formatIcsLocalDateTime(event.date, endTime)}`,
+      `DTSTART:${startUtc}`,
+      `DTEND:${endUtc}`,
       `SUMMARY:${escapeIcsText(event.title)}`,
       event.description ? `DESCRIPTION:${escapeIcsText(event.description)}` : null,
       event.location ? `LOCATION:${escapeIcsText(event.location)}` : null,
@@ -84,10 +129,12 @@ export function downloadIcsFile(content: string, filename: string): void {
  */
 export function buildGoogleCalendarUrl(event: IcsEventInput): string {
   const endTime = minutesToTime(timeToMinutes(event.startTime) + event.durationMinutes)
+  const startUtc = formatIcsUtc(zonedTimeToUtc(event.date, event.startTime, event.timezone))
+  const endUtc = formatIcsUtc(zonedTimeToUtc(event.date, endTime, event.timezone))
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: event.title,
-    dates: `${formatIcsLocalDateTime(event.date, event.startTime)}/${formatIcsLocalDateTime(event.date, endTime)}`,
+    dates: `${startUtc}/${endUtc}`,
     details: event.description ?? '',
     location: event.location ?? ''
   })
