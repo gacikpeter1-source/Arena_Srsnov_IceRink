@@ -187,10 +187,12 @@ project, zero code changes.
 
 The header (`App.tsx`) reflects this directly: the brand name shown next
 to the logo is `club.name` from Firestore (not a translation string), and
-a slim contact bar under the header renders mailto/tel/website links from
-`club.contact.{email,phone,website}` — any of the three can be left unset
-and its link just doesn't render. `Club.contact.website` is a plain
-string (e.g. `https://...`), opened in a new tab as-is.
+a "Contact us" nav item (`src/components/ContactUsButton.tsx`), between
+"Manage my booking" and the language switcher, opens a popup with
+mailto/tel/website links plus the address from `club.contact.{email,
+phone,address,website}` — each field only renders if actually set.
+`Club.contact.website` is a plain string (e.g. `https://...`), opened in
+a new tab as-is.
 
 Owners/superadmins edit the club's name and contact info themselves from
 the admin dashboard's "Club settings" panel (`AdminClubSettingsPanel.tsx`,
