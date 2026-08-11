@@ -75,6 +75,15 @@ service cloud.firestore {
       allow delete: if isStaffMember();
     }
 
+    // One-off, per-rink+date hand-adjusted schedules that override the
+    // recurring timeSlotConfig default for that day only (see
+    // src/lib/scheduleOverrides.ts). Public read — same reason as
+    // timeSlotConfig, the booking calendar needs it with no login.
+    match /scheduleOverrides/{overrideId} {
+      allow read: if true;
+      allow write: if isStaffMember();
+    }
+
     match /staff/{uid} {
       // Anyone signed in may read their own doc (to see their own role).
       allow read: if isSignedIn() && request.auth.uid == uid;

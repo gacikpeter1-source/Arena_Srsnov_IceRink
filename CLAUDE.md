@@ -151,6 +151,61 @@ and tapped selections stay lit after the pointer moves away or the
 booking form closes — matters most on touch devices, which have no real
 hover.
 
+## Configurable schedule
+Session length and hours were previously set once by `scripts/seed.mjs`
+and never editable through the app. Owner/assistant self-service now
+covers three layers, all in `AdminDashboardPage.tsx`:
+
+- **Default schedule** (`AdminScheduleSettingsPanel.tsx`, writes via
+  `lib/timeSlotConfig.ts`) — per rink, edits `TimeSlotConfig`'s
+  `slotDurationMinutes`, the new `breakMinutes` (cleaning/prep time between
+  sessions, suggested default 10 in the UI but stored as `undefined` until
+  actually saved — see below), and which day-of-week + open/close hours
+  the rink runs. `computeDaySchedule` (`lib/schedule.ts`) generates slots
+  spaced by `slotDurationMinutes + breakMinutes`; the break is never shown
+  to customers, only each session's own start-end is (e.g. 8:00-9:00,
+  9:10-10:10 for a 60/10 config).
+- **Per-day override** (`AdminDaySchedulePanel.tsx`, backed by a new
+  `scheduleOverrides` collection, one doc per rinkId+date) — a one-off
+  hand-adjusted schedule for a specific date (or a range of dates, applied
+  by writing the same override to each date in the range — "per week" is
+  just this with a wider range, not a separate concept). Editing one
+  session's start time or duration calls `cascadeSlotEdit`
+  (`lib/scheduleOverrides.ts`), which re-flows every session after it back
+  to the rink's default rhythm — matches the stated policy that one
+  session running long reschedules the rest of the day rather than
+  preserving whatever other custom durations those later sessions had.
+  "Reset to default" deletes the override doc for that date/range.
+  Existing bookings aren't auto-migrated when a date's schedule changes
+  underneath them — the panel shows a best-effort warning (booked start
+  times no longer present in the edited schedule) but leaves resolving
+  conflicts to the admin, same "out of scope for this pass" boundary as
+  other known limitations in this codebase.
+- **Excel import** (`lib/excel.ts`'s `parseScheduleWorkbook` +
+  `downloadScheduleImportTemplate`) — a separate, smaller format from the
+  booking import (columns: Rink, Date, Start Time, Duration): rows sharing
+  a Rink+Date are grouped and written as one full-replace
+  `scheduleOverrides` doc for that date, same mechanism the manual day
+  editor's Save uses.
+
+`computeDaySchedule` takes an optional `ScheduleOverride | null` fourth
+argument — when given, it returns the override's explicit slot list as-is
+instead of generating from `TimeSlotConfig`; either way, every `ScheduleRow`
+now carries its own `durationMinutes` (previously callers all assumed
+`timeSlotConfig.slotDurationMinutes` uniformly, which broke once a single
+date could have per-slot custom durations). All four consumers
+(`BookingPage.tsx`, `AvailabilityGrid.tsx`, `AdminCreateBookingModal.tsx`,
+`AdminQrPanel.tsx`) fetch the relevant override(s) — `BookingPage` for the
+whole visible 14-day range across every rink (`fetchScheduleOverridesRange`,
+mirroring how `fetchLockedSlotsRange` already worked), the admin tools for
+just the single rink+date being edited — and pass them through.
+
+`breakMinutes` defaults to 0 (back-to-back, today's behavior) if a
+`TimeSlotConfig` doc doesn't have it set, rather than defaulting to 10 —
+an already-live rink's schedule should never silently gain a gap and shed
+slots just because this feature shipped; 10 only becomes real once an
+owner/assistant explicitly saves it via the settings panel.
+
 ## Recurring bookings
 Both customers (no login required) and staff can create a daily- or
 weekly-recurring series instead of a single slot — a "Repeat this
