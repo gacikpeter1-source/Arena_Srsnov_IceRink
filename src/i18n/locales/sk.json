@@ -14,10 +14,11 @@
   },
   "nav": {
     "brand": "Rezervácia ľadovej plochy",
-    "manageBooking": "Moja rezervácia"
+    "manageBooking": "Moja rezervácia",
+    "website": "Webová stránka"
   },
   "hub": {
-    "tagline": "Rezervujte si ľad, spravujte tréningy a ďalšie služby na jednom mieste.",
+    "tagline": "Rezervujte si ľad, prihláste sa na tréning alebo verejné korčuľovanie a ďalšie služby — všetko na jednom mieste.",
     "reserveRink": "Rezervovať ľadovú plochu",
     "reserveRinkDesc": "Rezervujte celú plochu alebo zónu na časový úsek.",
     "trainingReservations": "Rezervácia tréningov",

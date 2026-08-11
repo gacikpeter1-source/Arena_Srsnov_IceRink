@@ -185,6 +185,13 @@ paymentsEnabled) in one config (Firestore `clubs` collection or config
 file). New customer deployment = config + env vars + new Vercel 
 project, zero code changes.
 
+The header (`App.tsx`) reflects this directly: the brand name shown next
+to the logo is `club.name` from Firestore (not a translation string), and
+a slim contact bar under the header renders mailto/tel/website links from
+`club.contact.{email,phone,website}` — any of the three can be left unset
+and its link just doesn't render. `Club.contact.website` is a plain
+string (e.g. `https://...`), opened in a new tab as-is.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 

@@ -14,10 +14,11 @@
   },
   "nav": {
     "brand": "Ice Rink Booking",
-    "manageBooking": "Manage my booking"
+    "manageBooking": "Manage my booking",
+    "website": "Website"
   },
   "hub": {
-    "tagline": "Book your ice time, manage training, and more — all in one place.",
+    "tagline": "Book your ice time, book training or ice skating session and more — all in one place.",
     "reserveRink": "Reserve Ice Rink",
     "reserveRinkDesc": "Book the full rink or a zone for a time slot.",
     "trainingReservations": "Training Reservations",
