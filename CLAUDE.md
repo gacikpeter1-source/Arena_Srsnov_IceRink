@@ -214,6 +214,25 @@ their inbox — `sendQueuedMail` (`functions/src/index.ts`) reads an
 nodemailer; `src/lib/email.ts` builds that field client-side when it
 queues the email, so there was nothing new to compute server-side.
 
+Shipping this feature exposed a pre-existing PWA bug: `vite.config.ts` set
+`registerType: 'autoUpdate'`, but nothing called `virtual:pwa-register`'s
+`registerSW()`, so that setting had no actual effect — vite-plugin-pwa
+fell back to auto-injecting a bare `registerSW.js` that only calls
+`navigator.serviceWorker.register()` once and never reacts to a new worker
+taking control. Net effect: an already-open client (especially an iOS
+home-screen PWA, which doesn't reliably do a true network reload on
+resume) could keep running an old cached JS bundle indefinitely — which is
+why a real booking's confirmation email came out with no calendar
+attachment/link at all even after the feature had already shipped and been
+verified server-side: the phone was still executing a pre-calendar-feature
+build. Fixed by setting `injectRegister: false` and registering explicitly
+in `src/main.tsx` via `virtual:pwa-register`'s `registerSW({ immediate:
+true, onRegisteredSW })`, which installs a 60s `registration.update()`
+poll so an already-open tab picks up a new deploy (combined with the
+existing `skipWaiting`/`clientsClaim`/`cleanupOutdatedCaches` workbox
+options, which control the *server*-side swap but were never sufficient
+on their own).
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
