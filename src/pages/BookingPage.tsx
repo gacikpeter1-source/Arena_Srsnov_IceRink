@@ -152,6 +152,12 @@ export default function BookingPage() {
     return map
   }, [days, visibleRinks, timeSlotConfigs, zones, divisionRules, lockedSlotsRange])
 
+  // Both rinks share one diagram now, so its highlight just follows
+  // whichever zone the customer is currently interacting with — live
+  // hover/focus wins over the last-tapped selection, regardless of which
+  // rink's column it's in.
+  const sharedActiveZone = hovered?.zone ?? selected?.zone ?? null
+
   if (loading) {
     return <div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>
   }
@@ -267,88 +273,87 @@ export default function BookingPage() {
       {visibleRinks.length === 0 ? (
         <Card className="arena-card p-8 text-center text-text-secondary">{t('home.noRinksConfigured')}</Card>
       ) : (
-        <div
-          className={`grid gap-8 ${
-            visibleRinks.length > 1 ? 'md:grid-cols-2' : ''
-          }`}
-        >
-          {visibleRinks.map((rink) => {
-            const schedule = schedulesByRink.get(rink.id) ?? []
-            const rinkConfig = timeSlotConfigs.find((c) => c.rinkId === rink.id)
-            const rinkZones = zones.filter((z) => z.rinkId === rink.id)
-            const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
-            // Live hover/focus preview wins; otherwise fall back to the
-            // last zone actually tapped on this rink, if any.
-            const rinkActiveZone =
-              (hovered?.rinkId === rink.id ? hovered.zone : null) ??
-              (selected?.rinkId === rink.id ? selected.zone : null)
+        <>
+          {/* Both rinks use the same physical diagram, so it's shown once
+              (not duplicated per column) — this is also what lets the two
+              schedule columns stay narrow enough to fit side by side on a
+              phone in portrait, not just landscape. It reflects whichever
+              zone was most recently hovered/tapped, in either column. */}
+          <RinkDiagram
+            mode={sharedActiveZone?.mode ?? 'full'}
+            highlightedSlotIndex={sharedActiveZone?.slotIndex ?? null}
+            className="max-w-md mx-auto"
+          />
 
-            return (
-              <div key={rink.id} className="space-y-3">
-                {rinks.length > 1 && <h2 className="text-white text-lg font-semibold">{rink.name}</h2>}
+          <div className={`grid gap-4 ${visibleRinks.length > 1 ? 'grid-cols-2' : ''}`}>
+            {visibleRinks.map((rink) => {
+              const schedule = schedulesByRink.get(rink.id) ?? []
+              const rinkConfig = timeSlotConfigs.find((c) => c.rinkId === rink.id)
+              const rinkZones = zones.filter((z) => z.rinkId === rink.id)
+              const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
 
-                <RinkDiagram
-                  mode={rinkActiveZone?.mode ?? 'full'}
-                  highlightedSlotIndex={rinkActiveZone?.slotIndex ?? null}
-                  className="max-w-md"
-                />
+              return (
+                <div key={rink.id} className="space-y-3">
+                  {rinks.length > 1 && <h2 className="text-white text-lg font-semibold">{rink.name}</h2>}
 
-                {viewMode === 'grid' ? (
-                  rinkConfig ? (
-                    <AvailabilityGrid
-                      days={days}
-                      timeSlotConfig={rinkConfig}
-                      divisionRules={rinkRules}
-                      zones={rinkZones}
-                      lockedSlotsByDate={lockedSlotsRange}
-                      onSelectDate={handleSelectGridDate}
-                    />
-                  ) : (
+                  {viewMode === 'grid' ? (
+                    rinkConfig ? (
+                      <AvailabilityGrid
+                        days={days}
+                        timeSlotConfig={rinkConfig}
+                        divisionRules={rinkRules}
+                        zones={rinkZones}
+                        lockedSlotsByDate={lockedSlotsRange}
+                        onSelectDate={handleSelectGridDate}
+                      />
+                    ) : (
+                      <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
+                    )
+                  ) : schedule.length === 0 ? (
                     <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
-                  )
-                ) : schedule.length === 0 ? (
-                  <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
-                ) : (
-                  <div className="space-y-2">
-                    {schedule.map(({ time, zones: slotZones }) => (
-                      <div key={time} className="flex items-center gap-3 flex-wrap">
-                        <div className="w-14 mono text-sm text-text-muted flex-shrink-0">{time}</div>
-                        <div className="flex gap-2 flex-wrap">
-                          {slotZones.length === 0 ? (
-                            <span className="text-text-muted text-sm">{t('home.noZonesConfigured')}</span>
-                          ) : (
-                            slotZones.map((zone) => {
-                              const isTaken = lockedSlots.has(`${zone.id}__${time}`)
-                              const isSelected = selected?.rinkId === rink.id && selected.zone.id === zone.id
-                              return (
-                                <Button
-                                  key={zone.id}
-                                  variant={isTaken ? 'secondary' : 'outline'}
-                                  disabled={isTaken}
-                                  className={isSelected ? 'ring-2 ring-primary' : ''}
-                                  onMouseEnter={() => setHovered({ rinkId: rink.id, zone })}
-                                  onMouseLeave={() => setHovered(null)}
-                                  onFocus={() => setHovered({ rinkId: rink.id, zone })}
-                                  onBlur={() => setHovered(null)}
-                                  onClick={() => {
-                                    setSelected({ rinkId: rink.id, zone })
-                                    setPendingBooking({ rink, zone, time })
-                                  }}
-                                >
-                                  {zone.name}
-                                </Button>
-                              )
-                            })
-                          )}
+                  ) : (
+                    <div className="space-y-2">
+                      {schedule.map(({ time, zones: slotZones }) => (
+                        <div key={time} className="flex items-center gap-2 flex-wrap">
+                          <div className="w-12 mono text-xs text-text-muted flex-shrink-0">{time}</div>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {slotZones.length === 0 ? (
+                              <span className="text-text-muted text-xs">{t('home.noZonesConfigured')}</span>
+                            ) : (
+                              slotZones.map((zone) => {
+                                const isTaken = lockedSlots.has(`${zone.id}__${time}`)
+                                const isSelected = selected?.rinkId === rink.id && selected.zone.id === zone.id
+                                return (
+                                  <Button
+                                    key={zone.id}
+                                    size="sm"
+                                    variant={isTaken ? 'secondary' : 'outline'}
+                                    disabled={isTaken}
+                                    className={isSelected ? 'ring-2 ring-primary' : ''}
+                                    onMouseEnter={() => setHovered({ rinkId: rink.id, zone })}
+                                    onMouseLeave={() => setHovered(null)}
+                                    onFocus={() => setHovered({ rinkId: rink.id, zone })}
+                                    onBlur={() => setHovered(null)}
+                                    onClick={() => {
+                                      setSelected({ rinkId: rink.id, zone })
+                                      setPendingBooking({ rink, zone, time })
+                                    }}
+                                  >
+                                    {zone.name}
+                                  </Button>
+                                )
+                              })
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {pendingBooking &&
