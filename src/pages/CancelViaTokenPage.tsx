@@ -12,7 +12,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import AddToCalendarButtons from '@/components/AddToCalendarButtons'
 
-type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'already_cancelled' | 'cancelled' | 'error'
+type State =
+  | 'loading'
+  | 'invalid'
+  | 'expired'
+  | 'ready'
+  | 'pending'
+  | 'confirmation_expired'
+  | 'already_cancelled'
+  | 'cancelled'
+  | 'error'
 
 export default function CancelViaTokenPage() {
   const { t, i18n } = useTranslation()
@@ -47,7 +56,10 @@ export default function CancelViaTokenPage() {
       const zoneSnap = await getDoc(doc(db, 'zones', found.zoneId))
       if (zoneSnap.exists()) setZone({ id: zoneSnap.id, ...zoneSnap.data() } as Zone)
 
-      setState(found.status === 'cancelled' ? 'already_cancelled' : 'ready')
+      if (found.status === 'cancelled') setState('already_cancelled')
+      else if (found.status === 'pending') setState('pending')
+      else if (found.status === 'expired') setState('confirmation_expired')
+      else setState('ready')
     }
     load()
   }, [bookingId, token])
@@ -89,6 +101,8 @@ export default function CancelViaTokenPage() {
           {state === 'error' && <p className="text-status-danger">{t('common.error')}</p>}
           {state === 'already_cancelled' && <p className="text-status-muted">{t('manageBooking.alreadyCancelled')}</p>}
           {state === 'cancelled' && <p className="text-status-success">{t('manageBooking.cancelled')}</p>}
+          {state === 'pending' && <p className="text-status-muted">{t('manageBooking.awaitingConfirmation')}</p>}
+          {state === 'confirmation_expired' && <p className="text-status-muted">{t('manageBooking.confirmationExpired')}</p>}
 
           {state === 'ready' && booking && zone && club && (
             <div className="space-y-4">

@@ -48,6 +48,9 @@
     "confirmed": "Rezervácia potvrdená",
     "yourCode": "Váš potvrdzovací kód",
     "emailedNotice": "Potvrdenie s odkazom na správu alebo zrušenie tejto rezervácie sme poslali na {{email}}.",
+    "pendingTitle": "Potvrďte rezerváciu e-mailom",
+    "pendingIntro": "Poslali sme potvrdzovací odkaz na {{email}}. Kliknite naň do {{count}} minút, aby ste si termín zaistili.",
+    "pendingExpiryNotice": "Ak nepotvrdíte včas, termín sa opäť uvoľní pre iných.",
     "confirmBooking": "Potvrdiť rezerváciu",
     "booking": "Rezervuje sa...",
     "slotUnavailable": "Táto zóna už nie je pre vybraný čas dostupná.",
@@ -84,7 +87,16 @@
     "cancelled": "Vaša rezervácia bola zrušená.",
     "invalidLink": "Tento odkaz je neplatný.",
     "expiredLink": "Platnosť tohto odkazu vypršala.",
-    "cancellationLocked": "Tento termín začína o menej ako 24 hodín, a preto ho už nie je možné zrušiť online. Ak potrebujete zrušiť rezerváciu, kontaktujte prosím klub priamo."
+    "cancellationLocked": "Tento termín začína o menej ako 24 hodín, a preto ho už nie je možné zrušiť online. Ak potrebujete zrušiť rezerváciu, kontaktujte prosím klub priamo.",
+    "awaitingConfirmation": "Táto rezervácia stále čaká na potvrdenie e-mailom — skontrolujte si doručenú poštu.",
+    "confirmationExpired": "Táto rezervácia nebola včas potvrdená a jej platnosť vypršala. Zarezervujte si prosím znova."
+  },
+  "confirmBooking": {
+    "title": "Potvrdenie rezervácie",
+    "success": "Vaša rezervácia je potvrdená!",
+    "invalidLink": "Tento potvrdzovací odkaz je neplatný.",
+    "expired": "Platnosť tohto potvrdzovacieho odkazu vypršala.",
+    "expiredHint": "Termín nebol potvrdený včas a bol uvoľnený. Zarezervujte si prosím znova."
   },
   "manageSeries": {
     "title": "Správa opakovanej rezervácie",
@@ -98,6 +110,11 @@
     "seriesCancelled": "Zrušených {{count}} zostávajúcich termínov."
   },
   "email": {
+    "confirmPendingSubject": "Potvrďte prosím svoju rezerváciu — {{club}}",
+    "confirmPendingTitle": "Potvrďte svoju rezerváciu",
+    "confirmPendingIntro": "Už len krok — kliknite nižšie do {{count}} minút a potvrďte túto rezerváciu:",
+    "confirmBookingButton": "Potvrdiť rezerváciu",
+    "confirmPendingExpiry": "Platnosť tohto odkazu vyprší o {{count}} minút. Ak vyprší, termín sa uvoľní a bude potrebné zarezervovať znova.",
     "bookingConfirmedSubject": "Rezervácia potvrdená — {{club}}",
     "bookingCancelledSubject": "Rezervácia zrušená — {{club}}",
     "bookingConfirmedTitle": "Rezervácia potvrdená",
@@ -139,6 +156,8 @@
     "clubAddress": "Adresa",
     "statusConfirmed": "potvrdené",
     "statusCancelled": "zrušené",
+    "statusPending": "čaká na potvrdenie",
+    "statusExpired": "vypršané (nepotvrdené)",
     "reservations": "Rezervácie",
     "from": "Od",
     "to": "Do",

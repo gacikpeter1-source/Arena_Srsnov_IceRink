@@ -249,8 +249,11 @@ export default function AdminDashboardPage() {
                       <td className="py-2 pr-3 text-white">{b.name}</td>
                       <td className="py-2 pr-3 text-text-secondary">{b.email}</td>
                       <td className="py-2 pr-3 text-text-secondary">{b.phone}</td>
-                      <td className={`py-2 pr-3 ${b.status === 'cancelled' ? 'text-status-muted' : 'text-status-success'}`}>
-                        {b.status === 'cancelled' ? t('admin.statusCancelled') : t('admin.statusConfirmed')}
+                      <td className={`py-2 pr-3 ${b.status === 'confirmed' ? 'text-status-success' : 'text-status-muted'}`}>
+                        {b.status === 'cancelled' && t('admin.statusCancelled')}
+                        {b.status === 'confirmed' && t('admin.statusConfirmed')}
+                        {b.status === 'pending' && t('admin.statusPending')}
+                        {b.status === 'expired' && t('admin.statusExpired')}
                       </td>
                       <td className="py-2 pr-3">
                         <div className="flex gap-2">

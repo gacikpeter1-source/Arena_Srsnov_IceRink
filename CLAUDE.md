@@ -174,6 +174,61 @@ emailed via `queueSeriesConfirmationEmail`, landing on `SeriesCancelPage`
 (`/my-series/:seriesId/:token`), which can also cancel occurrences
 individually.
 
+## Booking email confirmation (anti-typo / anti-hoarding)
+A single (non-recurring) customer booking made through `BookingModal.tsx`
+starts as `status: 'pending'` instead of instantly `'confirmed'` —
+`createBooking` is called with `requiresConfirmation: true`, which also
+stamps `pendingExpiresAt` (`PENDING_CONFIRMATION_MINUTES`, 5,
+`src/lib/bookings.ts`) on both the booking and its `slotLocks` doc. The
+slot is still atomically held during the pending window (so nobody else
+can grab it), but the customer must click the link in a "please confirm"
+email (`queuePendingConfirmationEmail`, deliberately bare — no calendar/QR/
+cancel content, since the booking isn't real yet) within that window, via
+`ConfirmBookingPage` (`/confirm-booking/:bookingId/:token`) →
+`confirmBooking()`. Only on that click does the *real*
+`queueBookingConfirmationEmail` (calendar attachment, cancel link, QR) go
+out — so a typo'd email address means nobody ever receives a link, nobody
+confirms, and the hold simply expires rather than silently squatting on a
+slot forever with a booking nobody can look up or cancel.
+
+Staff-created bookings (`AdminCreateBookingModal`, Excel import) and every
+occurrence of a recurring series (`createBookingSeries`) skip this and go
+straight to `'confirmed'` as before — staff already know the contact info
+is real, and a series would need one click per occurrence to fully close
+the loophole, which is its own feature for another day.
+
+Expiry is enforced two ways, not just a background sweep:
+- **Lazy, read-side**: `fetchLockedSlots`/`fetchLockedSlotsRange` filter out
+  any lock whose `expiresAt` has passed, so an abandoned pending hold stops
+  blocking the calendar/availability views in real time, with no Cloud
+  Function needed.
+- **Write-side reclaim**: `createBooking`'s transaction treats an existing
+  lock as available for reclaiming (full overwrite) once its `expiresAt` is
+  in the past, rather than throwing `SlotUnavailableError` — so the next
+  person to actually try booking that exact slot gets it immediately. The
+  original pending booking is left orphaned as `'pending'` until something
+  touches it (a late confirm click marks it `'expired'`); there's no
+  scheduled cleanup job, since nothing in the UI needs one to behave
+  correctly — this is data hygiene, not a correctness requirement.
+
+`confirmBooking` re-reads the slot lock inside its own transaction (not
+just the booking doc) and checks `bookingId` still matches — if the 5
+minutes lapsed and someone else's booking has since reclaimed the same
+slot, the late click marks the original `'expired'` instead of blindly
+promoting it to `'confirmed'`, which would otherwise double-book the slot.
+It's also idempotent (a revisit or double-click on an already-`'confirmed'`
+booking is a no-op, just re-rendering the same success state) so the real
+confirmation email never gets queued twice.
+
+This only raises the bar, it doesn't close every hole: firestore.rules'
+public `'pending' -> 'confirmed'`/`'expired'` transition doesn't verify
+possession of `cancellationToken` (rules have no way to see it — the app
+only checks it client-side before calling `confirmBooking`), same trust
+boundary the rest of this public-write collection already accepts (see the
+KNOWN LIMITATION note above `/bookings`). Genuine bot/abuse resistance
+would still need rate-limiting or a CAPTCHA on booking creation — out of
+scope for this pass, which targets the typo case specifically.
+
 ## Cancellation lockdown
 A customer can self-cancel a booking (or a single occurrence of a series)
 up to `CANCELLATION_CUTOFF_HOURS` (24, `src/lib/bookings.ts`) before it

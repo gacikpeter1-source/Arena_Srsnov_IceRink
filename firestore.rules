@@ -124,6 +124,15 @@ service cloud.firestore {
         && request.resource.data.status == 'cancelled'
         && (!('startAtUtc' in resource.data)
             || request.time + duration.value(24, 'h') < resource.data.startAtUtc);
+      // Public (email confirm link): 'pending' -> 'confirmed', or -> 'expired'
+      // when confirmBooking (lib/bookings.ts) discovers the 5-minute window
+      // already lapsed. Doesn't check the token itself — the client already
+      // filters by cancellationToken before it gets here, and rules can't
+      // see the URL param it came from anyway — same trust boundary as the
+      // rest of this public-write collection (see KNOWN LIMITATION above).
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['confirmed', 'expired'];
       // Staff (admin dashboard): full edit rights — cancel, create,
       // correct contact details, etc.
       allow update: if isStaffMember();
@@ -146,6 +155,17 @@ service cloud.firestore {
       allow read: if true;
       allow create: if true;
       allow delete: if true;
+      // Two legitimate public-write shapes for an existing lock:
+      // 1. confirmBooking finalizing a pending hold — only the `expiresAt`
+      //    field is removed, nothing else about the lock changes.
+      // 2. createBooking reclaiming a slot whose previous hold already
+      //    expired (see PENDING_CONFIRMATION_MINUTES) — a full overwrite
+      //    (new bookingId/expiresAt/etc.), but ONLY when the lock being
+      //    replaced was itself already past its own expiresAt, so a still-
+      //    valid hold can never be stolen or have its expiry tampered with.
+      allow update: if
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt']) && !('expiresAt' in request.resource.data))
+        || ('expiresAt' in resource.data && resource.data.expiresAt < request.time);
     }
 
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.

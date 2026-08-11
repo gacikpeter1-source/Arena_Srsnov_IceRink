@@ -110,7 +110,15 @@ export interface Booking {
   // because bookings created before this field existed won't have it.
   startAtUtc?: Date
 
-  status: 'confirmed' | 'cancelled'
+  // 'pending': awaiting the emailed confirm-click (see
+  // PENDING_CONFIRMATION_MINUTES in lib/bookings.ts) — only single
+  // customer-flow bookings ever start here, everything else (staff, Excel
+  // import, recurring series) goes straight to 'confirmed'.
+  // 'expired': was 'pending' and the confirmation window lapsed unconfirmed.
+  status: 'pending' | 'confirmed' | 'cancelled' | 'expired'
+  // Only set while status is 'pending' — when the emailed confirm link
+  // stops working and the slot lock becomes reclaimable by someone else.
+  pendingExpiresAt?: Date
   payment?: Payment
 
   // Set when this occurrence was created as part of a recurring series (see

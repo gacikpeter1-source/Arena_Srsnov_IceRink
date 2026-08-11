@@ -7,12 +7,13 @@ import { Label } from './ui/label'
 import {
   createBooking,
   createBookingSeries,
+  PENDING_CONFIRMATION_MINUTES,
   SeriesRecurrence,
   SERIES_MAX_OCCURRENCES,
   SlotUnavailableError,
   type CreatedSeries
 } from '@/lib/bookings'
-import { queueBookingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
+import { queuePendingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { addDays, formatDateISO } from '@/lib/utils'
 import { IcsEventInput } from '@/lib/ics'
@@ -120,20 +121,20 @@ export default function BookingModal({
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          timezone: club.timezone
+          timezone: club.timezone,
+          requiresConfirmation: true
         })
         setResult({
           bookingId: booking.id,
           confirmationCode: booking.confirmationCode,
           cancellationToken: booking.cancellationToken
         })
-        queueBookingConfirmationEmail(
+        queuePendingConfirmationEmail(
           club,
           zone,
           {
             bookingId: booking.id,
             cancellationToken: booking.cancellationToken,
-            confirmationCode: booking.confirmationCode,
             date,
             startTime,
             durationMinutes,
@@ -226,25 +227,11 @@ export default function BookingModal({
   }
 
   if (result) {
-    const singleEvent: IcsEventInput = {
-      uid: `${result.bookingId}@${window.location.hostname}`,
-      title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
-      description: t('calendar.eventDescription', {
-        code: result.confirmationCode,
-        url: `${window.location.origin}/my-booking/${result.bookingId}/${result.cancellationToken}`
-      }),
-      location: club.contact.address || club.name,
-      date,
-      startTime,
-      durationMinutes,
-      timezone: club.timezone
-    }
-
     return (
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="bg-background-card max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white text-center text-2xl">{t('booking.confirmed')}</DialogTitle>
+            <DialogTitle className="text-white text-center text-2xl">{t('booking.pendingTitle')}</DialogTitle>
           </DialogHeader>
           <div className="py-6 space-y-4 text-center">
             <div>
@@ -253,10 +240,10 @@ export default function BookingModal({
                 {result.confirmationCode}
               </div>
             </div>
-            <AddToCalendarButtons events={[singleEvent]} filename={`${club.name}-booking.ics`} />
             <p className="text-text-secondary text-sm">
-              {t('booking.emailedNotice', { email: formData.email })}
+              {t('booking.pendingIntro', { email: formData.email, count: PENDING_CONFIRMATION_MINUTES })}
             </p>
+            <p className="text-text-muted text-xs">{t('booking.pendingExpiryNotice')}</p>
           </div>
           <DialogFooter>
             <Button onClick={handleClose} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
