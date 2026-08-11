@@ -10,6 +10,7 @@
     "minutes": "{{count}} min",
     "dateAtTime": "{{date}} o {{startTime}}",
     "save": "Uložiť",
+    "saving": "Ukladá sa...",
     "edit": "Upraviť"
   },
   "nav": {
@@ -123,6 +124,9 @@
     "dashboardTitle": "Administrácia",
     "signedInAs": "Prihlásený ako {{email}}",
     "signOut": "Odhlásiť sa",
+    "clubSettingsTitle": "Nastavenia klubu",
+    "clubName": "Názov klubu",
+    "clubAddress": "Adresa",
     "statusConfirmed": "potvrdené",
     "statusCancelled": "zrušené",
     "reservations": "Rezervácie",

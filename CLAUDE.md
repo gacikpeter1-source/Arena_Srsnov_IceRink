@@ -192,6 +192,15 @@ a slim contact bar under the header renders mailto/tel/website links from
 and its link just doesn't render. `Club.contact.website` is a plain
 string (e.g. `https://...`), opened in a new tab as-is.
 
+Owners/superadmins edit the club's name and contact info themselves from
+the admin dashboard's "Club settings" panel (`AdminClubSettingsPanel.tsx`,
+`updateClubInfo` in `src/lib/club.ts`) rather than needing direct
+Firestore access — same `isOwnerOrAbove` write rule as everything else
+club-level. Since club data isn't shared/live state across the app (the
+header, booking page, and admin dashboard each fetch their own copy on
+mount via `useClubData`), saving triggers a full page reload so every
+screen picks up the new values immediately.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 

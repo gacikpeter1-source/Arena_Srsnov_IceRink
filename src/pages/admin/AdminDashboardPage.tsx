@@ -14,6 +14,7 @@ import AdminCreateBookingModal from '@/components/AdminCreateBookingModal'
 import EditBookingModal from '@/components/EditBookingModal'
 import AdminStaffPanel from '@/components/AdminStaffPanel'
 import AdminQrPanel from '@/components/AdminQrPanel'
+import AdminClubSettingsPanel from '@/components/AdminClubSettingsPanel'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -267,6 +268,8 @@ export default function AdminDashboardPage() {
       </Card>
 
       <AdminQrPanel rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} divisionRules={divisionRules} />
+
+      {canManageStaff && club && <AdminClubSettingsPanel club={club} />}
 
       {canManageStaff && staff && club && (
         <AdminStaffPanel clubId={club.id} viewerUid={staff.uid} viewerRole={staff.role} />
