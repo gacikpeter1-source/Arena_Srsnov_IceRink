@@ -51,6 +51,7 @@
     "pendingTitle": "Potvrďte rezerváciu e-mailom",
     "pendingIntro": "Poslali sme potvrdzovací odkaz na {{email}}. Kliknite naň do {{count}} minút, aby ste si termín zaistili.",
     "pendingExpiryNotice": "Ak nepotvrdíte včas, termín sa opäť uvoľní pre iných.",
+    "confirmationNotice": "Po rezervácii vám pošleme potvrdzovací e-mail — rezervácia bude platná až po kliknutí na odkaz, do {{count}} minút.",
     "confirmBooking": "Potvrdiť rezerváciu",
     "booking": "Rezervuje sa...",
     "slotUnavailable": "Táto zóna už nie je pre vybraný čas dostupná.",
