@@ -16,7 +16,8 @@
   "nav": {
     "brand": "Ice Rink Booking",
     "manageBooking": "Manage my booking",
-    "website": "Website"
+    "website": "Website",
+    "contactUs": "Contact us"
   },
   "hub": {
     "tagline": "Book your ice time, book training or ice skating session and more — all in one place.",
