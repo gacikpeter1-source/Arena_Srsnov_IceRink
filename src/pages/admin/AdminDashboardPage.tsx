@@ -118,7 +118,8 @@ export default function AdminDashboardPage() {
             durationMinutes: row.durationMinutes,
             name: row.name,
             email: row.email,
-            phone: row.phone
+            phone: row.phone,
+            timezone: club.timezone
           })
           if (row.status === 'cancelled') {
             await cancelBooking(created.id)

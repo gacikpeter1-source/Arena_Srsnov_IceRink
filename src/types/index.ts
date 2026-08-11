@@ -103,6 +103,12 @@ export interface Booking {
   confirmationCode: string // server-generated, unique per club
   cancellationToken: string
   tokenExpiresAt: Date
+  // The booking's actual start instant in UTC (date+startTime converted via
+  // the club's timezone at creation time) — lets firestore.rules enforce
+  // the customer self-cancel cutoff (see CANCELLATION_CUTOFF_HOURS in
+  // lib/bookings.ts) without needing timezone math of its own. Optional
+  // because bookings created before this field existed won't have it.
+  startAtUtc?: Date
 
   status: 'confirmed' | 'cancelled'
   payment?: Payment

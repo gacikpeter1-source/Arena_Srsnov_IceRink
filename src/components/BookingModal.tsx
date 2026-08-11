@@ -89,6 +89,7 @@ export default function BookingModal({
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
+          timezone: club.timezone,
           recurrence
         })
         setSeriesResult(series)
@@ -118,7 +119,8 @@ export default function BookingModal({
           durationMinutes,
           name: formData.name,
           email: formData.email,
-          phone: formData.phone
+          phone: formData.phone,
+          timezone: club.timezone
         })
         setResult({
           bookingId: booking.id,

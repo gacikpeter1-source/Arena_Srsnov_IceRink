@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useClubData } from '@/hooks/useClubData'
-import { cancelBooking } from '@/lib/bookings'
+import { cancelBooking, isPastCancellationCutoff } from '@/lib/bookings'
 import { queueCancellationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { Booking, Zone } from '@/types'
@@ -115,9 +115,13 @@ export default function CancelViaTokenPage() {
                 ]}
                 filename={`${club.name}-booking.ics`}
               />
-              <Button onClick={handleCancel} variant="destructive" className="w-full">
-                {t('manageBooking.cancelThisBooking')}
-              </Button>
+              {isPastCancellationCutoff(booking.date, booking.startTime, club.timezone) ? (
+                <p className="text-status-muted text-sm">{t('manageBooking.cancellationLocked')}</p>
+              ) : (
+                <Button onClick={handleCancel} variant="destructive" className="w-full">
+                  {t('manageBooking.cancelThisBooking')}
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

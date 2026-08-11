@@ -114,9 +114,16 @@ service cloud.firestore {
       allow create: if true;
       // Public (customer self-cancel): only allow flipping status to
       // 'cancelled' (+ timestamp) — never arbitrary edits to name/zone/time.
+      // Also locked out within CANCELLATION_CUTOFF_HOURS (lib/bookings.ts)
+      // of the booking's start — the UI already hides the cancel button by
+      // then, this is the server-side backstop against a direct API call.
+      // Bookings written before startAtUtc existed have no cutoff to check,
+      // so they fall back to the old (always-allowed) behavior.
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
         && resource.data.status == 'confirmed'
-        && request.resource.data.status == 'cancelled';
+        && request.resource.data.status == 'cancelled'
+        && (!('startAtUtc' in resource.data)
+            || request.time + duration.value(24, 'h') < resource.data.startAtUtc);
       // Staff (admin dashboard): full edit rights — cancel, create,
       // correct contact details, etc.
       allow update: if isStaffMember();

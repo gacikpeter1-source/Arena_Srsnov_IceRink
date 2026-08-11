@@ -83,7 +83,8 @@
     "cancelThisBooking": "Cancel this booking",
     "cancelled": "Your booking has been cancelled.",
     "invalidLink": "This link is invalid.",
-    "expiredLink": "This link has expired."
+    "expiredLink": "This link has expired.",
+    "cancellationLocked": "This session starts within 24 hours and can no longer be cancelled online. Please contact the club directly if you need to cancel."
   },
   "manageSeries": {
     "title": "Manage recurring booking",
@@ -92,6 +93,7 @@
     "occurrencesTitle": "Sessions in this series",
     "cancelSeries": "Cancel entire series",
     "cancelOccurrence": "Cancel this date",
+    "occurrenceLocked": "Locked (< 24h)",
     "allCancelled": "This entire series has already been cancelled.",
     "seriesCancelled": "Cancelled {{count}} remaining session(s)."
   },

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useClubData } from '@/hooks/useClubData'
-import { cancelBooking } from '@/lib/bookings'
+import { cancelBooking, isPastCancellationCutoff } from '@/lib/bookings'
 import { queueCancellationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { Booking, Zone } from '@/types'
@@ -80,7 +80,7 @@ export default function CancelLookupPage() {
           <CardTitle className="text-white">{t('manageBooking.findTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {status === 'found' && booking && zone && (
+          {status === 'found' && booking && zone && club && (
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
                 <p><strong className="text-white">{zone.name}</strong></p>
@@ -89,6 +89,8 @@ export default function CancelLookupPage() {
               </div>
               {booking.status === 'cancelled' ? (
                 <p className="text-status-muted">{t('manageBooking.alreadyCancelled')}</p>
+              ) : isPastCancellationCutoff(booking.date, booking.startTime, club.timezone) ? (
+                <p className="text-status-muted text-sm">{t('manageBooking.cancellationLocked')}</p>
               ) : (
                 <Button onClick={handleCancel} variant="destructive" className="w-full">
                   {t('manageBooking.cancelThisBooking')}

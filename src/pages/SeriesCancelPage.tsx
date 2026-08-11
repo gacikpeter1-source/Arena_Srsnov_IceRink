@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useClubData } from '@/hooks/useClubData'
-import { cancelBooking, cancelBookingSeries, fetchSeriesBookings } from '@/lib/bookings'
+import { cancelBooking, cancelBookingSeries, fetchSeriesBookings, isPastCancellationCutoff } from '@/lib/bookings'
 import { queueCancellationEmail, queueSeriesCancellationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { Booking, BookingSeries, Zone } from '@/types'
@@ -61,6 +61,7 @@ export default function SeriesCancelPage() {
 
   const handleCancelOne = async (booking: Booking & { id: string }) => {
     if (!club || !zone) return
+    if (isPastCancellationCutoff(booking.date, booking.startTime, club.timezone)) return
     setCancellingId(booking.id)
     try {
       await cancelBooking(booking.id)
@@ -90,7 +91,7 @@ export default function SeriesCancelPage() {
     if (!series || !club || !zone) return
     setCancellingAll(true)
     try {
-      const result = await cancelBookingSeries(series.id)
+      const result = await cancelBookingSeries(series.id, club.timezone)
       if (result.cancelled > 0) {
         await queueSeriesCancellationEmail(
           club,
@@ -115,6 +116,9 @@ export default function SeriesCancelPage() {
   }
 
   const confirmedCount = occurrences.filter((o) => o.status === 'confirmed').length
+  const cancellableCount = club
+    ? occurrences.filter((o) => o.status === 'confirmed' && !isPastCancellationCutoff(o.date, o.startTime, club.timezone)).length
+    : confirmedCount
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
@@ -162,32 +166,41 @@ export default function SeriesCancelPage() {
               <div>
                 <h3 className="text-white text-sm font-semibold mb-2">{t('manageSeries.occurrencesTitle')}</h3>
                 <ul className="space-y-2">
-                  {occurrences.map((o) => (
-                    <li key={o.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className={o.status === 'cancelled' ? 'text-text-muted line-through' : 'text-text-secondary'}>
-                        {o.date}
-                      </span>
-                      {o.status === 'confirmed' ? (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={cancellingId === o.id || cancellingAll}
-                          onClick={() => handleCancelOne(o)}
-                        >
-                          {t('manageSeries.cancelOccurrence')}
-                        </Button>
-                      ) : (
-                        <span className="text-status-muted text-xs">{t('admin.statusCancelled')}</span>
-                      )}
-                    </li>
-                  ))}
+                  {occurrences.map((o) => {
+                    const locked = o.status === 'confirmed' && isPastCancellationCutoff(o.date, o.startTime, club.timezone)
+                    return (
+                      <li key={o.id} className="flex items-center justify-between gap-2 text-sm">
+                        <span className={o.status === 'cancelled' ? 'text-text-muted line-through' : 'text-text-secondary'}>
+                          {o.date}
+                        </span>
+                        {o.status === 'confirmed' ? (
+                          locked ? (
+                            <span className="text-status-muted text-xs">{t('manageSeries.occurrenceLocked')}</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={cancellingId === o.id || cancellingAll}
+                              onClick={() => handleCancelOne(o)}
+                            >
+                              {t('manageSeries.cancelOccurrence')}
+                            </Button>
+                          )
+                        ) : (
+                          <span className="text-status-muted text-xs">{t('admin.statusCancelled')}</span>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
 
-              {confirmedCount > 0 ? (
+              {cancellableCount > 0 ? (
                 <Button onClick={handleCancelAll} variant="destructive" className="w-full" disabled={cancellingAll}>
                   {t('manageSeries.cancelSeries')}
                 </Button>
+              ) : confirmedCount > 0 ? (
+                <p className="text-status-muted text-sm">{t('manageBooking.cancellationLocked')}</p>
               ) : (
                 <p className="text-status-muted text-sm">{t('manageSeries.allCancelled')}</p>
               )}
