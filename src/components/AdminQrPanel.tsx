@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { computeDaySchedule } from '@/lib/schedule'
+import { fetchScheduleOverride } from '@/lib/scheduleOverrides'
 import { formatDateISO } from '@/lib/utils'
-import { DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
+import { Club, DivisionRule, Rink, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Label } from './ui/label'
@@ -10,13 +11,14 @@ import { Input } from './ui/input'
 import QrCodeDisplay from './QrCodeDisplay'
 
 interface AdminQrPanelProps {
+  club: Club
   rinks: Rink[]
   zones: Zone[]
   timeSlotConfigs: TimeSlotConfig[]
   divisionRules: DivisionRule[]
 }
 
-export default function AdminQrPanel({ rinks, zones, timeSlotConfigs, divisionRules }: AdminQrPanelProps) {
+export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs, divisionRules }: AdminQrPanelProps) {
   const { t } = useTranslation()
   const origin = window.location.origin
 
@@ -30,14 +32,23 @@ export default function AdminQrPanel({ rinks, zones, timeSlotConfigs, divisionRu
   const qrZone = zones.find((z) => z.id === qrZoneId)
   const timeSlotConfig = timeSlotConfigs.find((c) => c.rinkId === qrZone?.rinkId) ?? null
 
+  const [override, setOverride] = useState<ScheduleOverride | null>(null)
+  useEffect(() => {
+    if (!qrZone) {
+      setOverride(null)
+      return
+    }
+    fetchScheduleOverride(club.id, qrZone.rinkId, qrDate).then(setOverride)
+  }, [club.id, qrZone, qrDate])
+
   const availableTimes = useMemo(() => {
     if (!timeSlotConfig || !qrZone) return []
     const rinkZones = zones.filter((z) => z.rinkId === qrZone.rinkId)
     const rinkRules = divisionRules.filter((r) => r.rinkId === qrZone.rinkId)
-    return computeDaySchedule(new Date(`${qrDate}T00:00:00`), timeSlotConfig, rinkRules, rinkZones)
+    return computeDaySchedule(new Date(`${qrDate}T00:00:00`), timeSlotConfig, rinkRules, rinkZones, override)
       .filter((row) => row.zones.some((z) => z.id === qrZone.id))
       .map((row) => row.time)
-  }, [timeSlotConfig, divisionRules, zones, qrDate, qrZone])
+  }, [timeSlotConfig, divisionRules, zones, qrDate, qrZone, override])
 
   const handleGenerateSlotQr = () => {
     if (!qrZoneId || !qrDate || !qrTime) return

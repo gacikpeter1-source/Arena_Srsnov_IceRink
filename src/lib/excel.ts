@@ -205,3 +205,83 @@ export function parseBookingsWorkbook(buffer: ArrayBuffer): ParsedImport {
 
   return { rows, errors }
 }
+
+// A separate, smaller import format from the booking one above — sets a
+// rink's per-date schedule (see src/lib/scheduleOverrides.ts) rather than
+// creating bookings. One row per session; multiple rows sharing the same
+// Rink+Date together become that date's full slot list (a full replace,
+// same as the manual day editor's Save).
+const SCHEDULE_HEADERS = {
+  rink: 'Rink',
+  date: 'Date',
+  startTime: 'Start Time',
+  duration: 'Duration (min)'
+} as const
+
+const SCHEDULE_IMPORT_HEADERS = [SCHEDULE_HEADERS.rink, SCHEDULE_HEADERS.date, SCHEDULE_HEADERS.startTime, SCHEDULE_HEADERS.duration]
+
+export function downloadScheduleImportTemplate(filename = 'schedule-import-template.xlsx'): void {
+  const ws = XLSX.utils.aoa_to_sheet([SCHEDULE_IMPORT_HEADERS])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
+  XLSX.writeFile(wb, filename)
+}
+
+export interface ScheduleImportRow {
+  rinkName: string
+  date: string
+  startTime: string
+  durationMinutes: number
+}
+
+export interface ParsedScheduleImport {
+  rows: ScheduleImportRow[]
+  errors: ImportRowError[]
+}
+
+/**
+ * Parses an uploaded .xlsx into candidate schedule rows — one session per
+ * row. Doesn't touch Firestore; the caller (AdminSchedulePanel) resolves
+ * rink names to rinkId, groups rows by rinkId+date, sorts each group by
+ * start time, and writes one scheduleOverrides doc per date via
+ * saveScheduleOverride — a full replace of that date's slot list, same as
+ * uploading the manual day editor's Save.
+ */
+export function parseScheduleWorkbook(buffer: ArrayBuffer): ParsedScheduleImport {
+  const wb = XLSX.read(buffer)
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+
+  const rows: ScheduleImportRow[] = []
+  const errors: ImportRowError[] = []
+
+  raw.forEach((r, i) => {
+    const rowNumber = i + 2
+
+    const rinkName = String(r[SCHEDULE_HEADERS.rink] ?? '').trim()
+    const date = excelValueToDateString(r[SCHEDULE_HEADERS.date])
+    const startTime = excelValueToTimeString(r[SCHEDULE_HEADERS.startTime])
+    const durationMinutes = Number(r[SCHEDULE_HEADERS.duration])
+
+    if (!rinkName) {
+      errors.push({ rowNumber, message: `Missing "${SCHEDULE_HEADERS.rink}"` })
+      return
+    }
+    if (!date) {
+      errors.push({ rowNumber, message: `Invalid or missing "${SCHEDULE_HEADERS.date}"` })
+      return
+    }
+    if (!startTime) {
+      errors.push({ rowNumber, message: `Invalid or missing "${SCHEDULE_HEADERS.startTime}"` })
+      return
+    }
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      errors.push({ rowNumber, message: `Invalid or missing "${SCHEDULE_HEADERS.duration}"` })
+      return
+    }
+
+    rows.push({ rinkName, date, startTime, durationMinutes })
+  })
+
+  return { rows, errors }
+}

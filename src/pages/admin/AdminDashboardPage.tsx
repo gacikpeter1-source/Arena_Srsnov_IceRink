@@ -15,6 +15,8 @@ import EditBookingModal from '@/components/EditBookingModal'
 import AdminStaffPanel from '@/components/AdminStaffPanel'
 import AdminQrPanel from '@/components/AdminQrPanel'
 import AdminClubSettingsPanel from '@/components/AdminClubSettingsPanel'
+import AdminScheduleSettingsPanel from '@/components/AdminScheduleSettingsPanel'
+import AdminDaySchedulePanel from '@/components/AdminDaySchedulePanel'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -276,7 +278,11 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      <AdminQrPanel rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} divisionRules={divisionRules} />
+      {club && <AdminQrPanel club={club} rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} divisionRules={divisionRules} />}
+
+      <AdminScheduleSettingsPanel rinks={rinks} timeSlotConfigs={timeSlotConfigs} />
+
+      {club && <AdminDaySchedulePanel club={club} rinks={rinks} timeSlotConfigs={timeSlotConfigs} />}
 
       {canManageStaff && club && <AdminClubSettingsPanel club={club} />}
 

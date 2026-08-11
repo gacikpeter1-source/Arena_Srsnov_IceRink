@@ -63,7 +63,30 @@ export interface TimeSlotConfig {
   clubId: string
   rinkId: string
   slotDurationMinutes: number
+  // Cleaning/prep time between the end of one session and the start of the
+  // next, e.g. 10 for "9:00-10:00, then 10:10-11:10". Not shown to
+  // customers — the schedule only ever displays each session's own
+  // start-end, the gap is just implicit. Missing/undefined (a config
+  // written before this field existed) falls back to 0 (back-to-back)
+  // rather than silently changing an already-live schedule.
+  breakMinutes?: number
   hours: DayHours[]
+}
+
+// A one-off, per-date replacement for a rink's normally auto-generated
+// schedule — lets an owner/assistant hand-adjust a specific day (or a
+// range of days, applied one date at a time) without touching the
+// recurring TimeSlotConfig default. `slots` is the full explicit list for
+// that date, in order; when present for a rinkId+date, computeDaySchedule
+// uses it as-is instead of generating from slotDurationMinutes/breakMinutes.
+// One doc per rinkId+date (see scheduleOverrideId in lib/scheduleOverrides.ts).
+export interface ScheduleOverride {
+  id: string
+  clubId: string
+  rinkId: string
+  date: string // "2026-08-15"
+  slots: { startTime: string; durationMinutes: number }[]
+  updatedAt: Date
 }
 
 // Admin-configured recurring window where the rink is offered as halves or

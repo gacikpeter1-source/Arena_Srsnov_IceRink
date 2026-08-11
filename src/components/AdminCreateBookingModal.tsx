@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
@@ -13,8 +13,9 @@ import {
   type CreatedSeries
 } from '@/lib/bookings'
 import { computeDaySchedule } from '@/lib/schedule'
+import { fetchScheduleOverride } from '@/lib/scheduleOverrides'
 import { addDays, formatDateISO } from '@/lib/utils'
-import { Club, DivisionRule, Rink, SeriesFrequency, TimeSlotConfig, Zone } from '@/types'
+import { Club, DivisionRule, Rink, ScheduleOverride, SeriesFrequency, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
   club: Club
@@ -63,12 +64,22 @@ export default function AdminCreateBookingModal({
   const rinkRules = useMemo(() => divisionRules.filter((r) => r.rinkId === rinkId), [divisionRules, rinkId])
   const timeSlotConfig = timeSlotConfigs.find((c) => c.rinkId === rinkId) ?? null
 
+  const [override, setOverride] = useState<ScheduleOverride | null>(null)
+  useEffect(() => {
+    if (!rinkId || !date) {
+      setOverride(null)
+      return
+    }
+    fetchScheduleOverride(club.id, rinkId, date).then(setOverride)
+  }, [club.id, rinkId, date])
+
   const schedule = useMemo(
-    () => (timeSlotConfig ? computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, rinkRules, rinkZones) : []),
-    [date, timeSlotConfig, rinkRules, rinkZones]
+    () => (timeSlotConfig ? computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, rinkRules, rinkZones, override) : []),
+    [date, timeSlotConfig, rinkRules, rinkZones, override]
   )
 
-  const zoneOptions = schedule.find((s) => s.time === startTime)?.zones ?? []
+  const selectedSlot = schedule.find((s) => s.time === startTime)
+  const zoneOptions = selectedSlot?.zones ?? []
 
   const resetForm = () => {
     setRinkId(rinks[0]?.id ?? '')
@@ -96,6 +107,8 @@ export default function AdminCreateBookingModal({
       return
     }
 
+    const durationMinutes = selectedSlot?.durationMinutes ?? timeSlotConfig.slotDurationMinutes
+
     setSubmitting(true)
     try {
       if (repeat) {
@@ -109,7 +122,7 @@ export default function AdminCreateBookingModal({
           zoneId,
           startDate: date,
           startTime,
-          durationMinutes: timeSlotConfig.slotDurationMinutes,
+          durationMinutes,
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
@@ -125,7 +138,7 @@ export default function AdminCreateBookingModal({
           zoneId,
           date,
           startTime,
-          durationMinutes: timeSlotConfig.slotDurationMinutes,
+          durationMinutes,
           name: formData.name,
           email: formData.email,
           phone: formData.phone,

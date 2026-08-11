@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchLockedSlots, fetchLockedSlotsRange } from '@/lib/bookings'
 import { computeDaySchedule, ScheduleRow } from '@/lib/schedule'
+import { fetchScheduleOverridesRange } from '@/lib/scheduleOverrides'
 import { addDays, formatDateISO } from '@/lib/utils'
-import { Rink, Zone } from '@/types'
+import { Rink, ScheduleOverride, Zone } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BookingModal from '@/components/BookingModal'
@@ -38,7 +39,14 @@ export default function BookingPage() {
   // above which is just the currently selected day (used for graying out
   // individual zone buttons).
   const [lockedSlotsRange, setLockedSlotsRange] = useState<Map<string, Set<string>>>(new Map())
-  const [pendingBooking, setPendingBooking] = useState<{ rink: Rink; zone: Zone; time: string } | null>(null)
+  // Per-rink hand-adjusted schedules (see scheduleOverrides.ts) across the
+  // visible date range — keyed by rinkId, then by date. Empty inner map
+  // means that rink has no overrides in range, i.e. every visible day uses
+  // the recurring default.
+  const [overridesByRink, setOverridesByRink] = useState<Map<string, Map<string, ScheduleOverride>>>(new Map())
+  const [pendingBooking, setPendingBooking] = useState<{ rink: Rink; zone: Zone; time: string; durationMinutes: number } | null>(
+    null
+  )
   const [autoOpened, setAutoOpened] = useState(false)
   // 'all' shows every rink's schedule at once (the default); otherwise a
   // single rink id narrows the calendar to just that rink.
@@ -68,6 +76,15 @@ export default function BookingPage() {
     fetchLockedSlotsRange(club.id, rangeStart, rangeEnd).then(setLockedSlotsRange)
   }, [club, rangeStart, rangeEnd])
 
+  useEffect(() => {
+    if (!club || rinks.length === 0) return
+    Promise.all(rinks.map((rink) => fetchScheduleOverridesRange(club.id, rink.id, rangeStart, rangeEnd))).then((results) => {
+      const map = new Map<string, Map<string, ScheduleOverride>>()
+      rinks.forEach((rink, i) => map.set(rink.id, results[i]))
+      setOverridesByRink(map)
+    })
+  }, [club, rinks, rangeStart, rangeEnd])
+
   // A per-zone QR link (?zone=) narrows the calendar to that zone's rink.
   useEffect(() => {
     if (!zoneParam || zones.length === 0) return
@@ -81,11 +98,12 @@ export default function BookingPage() {
     if (autoOpened || !zoneParam || !dateParam || !timeParam || zones.length === 0 || rinks.length === 0) return
     const zone = zones.find((z) => z.id === zoneParam)
     const rink = rinks.find((r) => r.id === zone?.rinkId)
-    if (zone && rink) {
-      setPendingBooking({ rink, zone, time: timeParam })
+    const config = timeSlotConfigs.find((c) => c.rinkId === rink?.id)
+    if (zone && rink && config) {
+      setPendingBooking({ rink, zone, time: timeParam, durationMinutes: config.slotDurationMinutes })
     }
     setAutoOpened(true)
-  }, [autoOpened, zoneParam, dateParam, timeParam, zones, rinks])
+  }, [autoOpened, zoneParam, dateParam, timeParam, zones, rinks, timeSlotConfigs])
 
   const handleSelectGridDate = (dISO: string) => {
     setSelectedDate(new Date(`${dISO}T00:00:00`))
@@ -114,14 +132,15 @@ export default function BookingPage() {
       }
       const rinkZones = zones.filter((z) => z.rinkId === rink.id)
       const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
-      let rows = computeDaySchedule(selectedDate, config, rinkRules, rinkZones)
+      const override = overridesByRink.get(rink.id)?.get(dateISO) ?? null
+      let rows = computeDaySchedule(selectedDate, config, rinkRules, rinkZones, override)
       if (zoneParam) {
         rows = rows.map((row) => ({ ...row, zones: row.zones.filter((z) => z.id === zoneParam) }))
       }
       map.set(rink.id, rows)
     }
     return map
-  }, [visibleRinks, timeSlotConfigs, zones, divisionRules, selectedDate, zoneParam])
+  }, [visibleRinks, timeSlotConfigs, zones, divisionRules, selectedDate, dateISO, overridesByRink, zoneParam])
 
   // How full each of the 14 visible days is, across whichever rink(s) are
   // currently in view — "occupied" counts individually-bookable zone-time
@@ -139,7 +158,8 @@ export default function BookingPage() {
         if (!config) continue
         const rinkZones = zones.filter((z) => z.rinkId === rink.id)
         const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
-        const rows = computeDaySchedule(day, config, rinkRules, rinkZones)
+        const override = overridesByRink.get(rink.id)?.get(dISO) ?? null
+        const rows = computeDaySchedule(day, config, rinkRules, rinkZones, override)
         for (const row of rows) {
           for (const zone of row.zones) {
             total++
@@ -150,7 +170,7 @@ export default function BookingPage() {
       map.set(dISO, { total, occupied })
     }
     return map
-  }, [days, visibleRinks, timeSlotConfigs, zones, divisionRules, lockedSlotsRange])
+  }, [days, visibleRinks, timeSlotConfigs, zones, divisionRules, lockedSlotsRange, overridesByRink])
 
   // Both rinks share one diagram now, so its highlight just follows
   // whichever zone the customer is currently interacting with — live
@@ -304,6 +324,7 @@ export default function BookingPage() {
                         divisionRules={rinkRules}
                         zones={rinkZones}
                         lockedSlotsByDate={lockedSlotsRange}
+                        overridesByDate={overridesByRink.get(rink.id) ?? new Map()}
                         onSelectDate={handleSelectGridDate}
                       />
                     ) : (
@@ -313,7 +334,7 @@ export default function BookingPage() {
                     <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
                   ) : (
                     <div className="space-y-2">
-                      {schedule.map(({ time, zones: slotZones }) => (
+                      {schedule.map(({ time, durationMinutes, zones: slotZones }) => (
                         <div key={time} className="flex items-center gap-2 flex-wrap">
                           <div className="w-12 mono text-xs text-text-muted flex-shrink-0">{time}</div>
                           <div className="flex gap-1.5 flex-wrap">
@@ -336,7 +357,7 @@ export default function BookingPage() {
                                     onBlur={() => setHovered(null)}
                                     onClick={() => {
                                       setSelected({ rinkId: rink.id, zone })
-                                      setPendingBooking({ rink, zone, time })
+                                      setPendingBooking({ rink, zone, time, durationMinutes })
                                     }}
                                   >
                                     {zone.name}
@@ -356,24 +377,19 @@ export default function BookingPage() {
         </>
       )}
 
-      {pendingBooking &&
-        (() => {
-          const config = timeSlotConfigs.find((c) => c.rinkId === pendingBooking.rink.id)
-          if (!config) return null
-          return (
-            <BookingModal
-              club={club}
-              rinkId={pendingBooking.rink.id}
-              zone={pendingBooking.zone}
-              date={dateISO}
-              startTime={pendingBooking.time}
-              durationMinutes={config.slotDurationMinutes}
-              isOpen
-              onClose={() => setPendingBooking(null)}
-              onBooked={refreshLockedSlots}
-            />
-          )
-        })()}
+      {pendingBooking && (
+        <BookingModal
+          club={club}
+          rinkId={pendingBooking.rink.id}
+          zone={pendingBooking.zone}
+          date={dateISO}
+          startTime={pendingBooking.time}
+          durationMinutes={pendingBooking.durationMinutes}
+          isOpen
+          onClose={() => setPendingBooking(null)}
+          onBooked={refreshLockedSlots}
+        />
+      )}
     </div>
   )
 }

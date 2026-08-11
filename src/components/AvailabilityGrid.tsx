@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { computeDaySchedule } from '@/lib/schedule'
 import { formatDateISO } from '@/lib/utils'
-import { DivisionRule, TimeSlotConfig, Zone } from '@/types'
+import { DivisionRule, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 
 interface AvailabilityGridProps {
   days: Date[]
@@ -10,6 +10,7 @@ interface AvailabilityGridProps {
   divisionRules: DivisionRule[]
   zones: Zone[]
   lockedSlotsByDate: Map<string, Set<string>>
+  overridesByDate?: Map<string, ScheduleOverride>
   onSelectDate: (date: string) => void
 }
 
@@ -30,6 +31,7 @@ export default function AvailabilityGrid({
   divisionRules,
   zones,
   lockedSlotsByDate,
+  overridesByDate,
   onSelectDate
 }: AvailabilityGridProps) {
   const { t, i18n } = useTranslation()
@@ -38,8 +40,9 @@ export default function AvailabilityGrid({
     const schedulesByDate = new Map<string, ReturnType<typeof computeDaySchedule>>()
     const timeSet = new Set<string>()
     for (const day of days) {
-      const rows = computeDaySchedule(day, timeSlotConfig, divisionRules, zones)
-      schedulesByDate.set(formatDateISO(day), rows)
+      const dISO = formatDateISO(day)
+      const rows = computeDaySchedule(day, timeSlotConfig, divisionRules, zones, overridesByDate?.get(dISO) ?? null)
+      schedulesByDate.set(dISO, rows)
       for (const row of rows) timeSet.add(row.time)
     }
     const times = Array.from(timeSet).sort()
@@ -60,7 +63,7 @@ export default function AvailabilityGrid({
       }
     }
     return { times, cellStatus }
-  }, [days, timeSlotConfig, divisionRules, zones, lockedSlotsByDate])
+  }, [days, timeSlotConfig, divisionRules, zones, lockedSlotsByDate, overridesByDate])
 
   const statusClass: Record<CellStatus, string> = {
     closed: 'bg-background-dark',

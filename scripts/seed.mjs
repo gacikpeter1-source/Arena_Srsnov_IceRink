@@ -91,6 +91,7 @@ async function seed() {
       clubId: CLUB_ID,
       rinkId: rink.id,
       slotDurationMinutes: 60,
+      breakMinutes: 10,
       hours: allDays
     })
 
