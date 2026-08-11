@@ -186,6 +186,30 @@ Two ways to see occupancy without opening each day one at a time (both in
   filter; clicking an open cell jumps the day-by-day list to that date so
   the customer can pick the exact zone.
 
+## Add to calendar
+Every booking confirmation — the in-app confirmation screen
+(`BookingModal.tsx`), the emailed confirmation, and the self-service
+`/my-booking` and `/my-series` pages — offers "Add to calendar" so a
+customer can save it (and share it) via their own Google/Apple/Outlook
+calendar. `src/lib/ics.ts` builds a standard iCalendar (.ics) file;
+`src/components/AddToCalendarButtons.tsx` renders the actions: a one-tap
+"Add to Google Calendar" link (only for a single event — Google's
+quick-add URL doesn't support multiple) plus a `.ics` download that
+works with any calendar app. A recurring series' `.ics` download bundles
+every occurrence as its own `VEVENT` in one file, so importing it adds
+every session at once. Event times are written as local wall-clock time
+with a bare `TZID=<club.timezone>` parameter (no embedded `VTIMEZONE`
+block) — simpler than UTC-converting, and every mainstream calendar app
+resolves a standard IANA zone name like `Europe/Bratislava` fine without
+one.
+
+The confirmation email embeds the same `.ics` as a real attachment (not
+just a link) so Apple Mail/Outlook users can add it with one tap from
+their inbox — `sendQueuedMail` (`functions/src/index.ts`) reads an
+`attachments` field off the `mail` doc and passes it straight to
+nodemailer; `src/lib/email.ts` builds that field client-side when it
+queues the email, so there was nothing new to compute server-side.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

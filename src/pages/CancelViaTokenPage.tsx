@@ -10,6 +10,7 @@ import { isSupportedLanguage } from '@/i18n'
 import { Booking, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import AddToCalendarButtons from '@/components/AddToCalendarButtons'
 
 type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'already_cancelled' | 'cancelled' | 'error'
 
@@ -89,13 +90,31 @@ export default function CancelViaTokenPage() {
           {state === 'already_cancelled' && <p className="text-status-muted">{t('manageBooking.alreadyCancelled')}</p>}
           {state === 'cancelled' && <p className="text-status-success">{t('manageBooking.cancelled')}</p>}
 
-          {state === 'ready' && booking && zone && (
+          {state === 'ready' && booking && zone && club && (
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
                 <p><strong className="text-white">{zone.name}</strong></p>
                 <p>{t('common.dateAtTime', { date: booking.date, startTime: booking.startTime })}</p>
                 <p className="mono text-primary">{booking.confirmationCode}</p>
               </div>
+              <AddToCalendarButtons
+                events={[
+                  {
+                    uid: `${booking.id}@${window.location.hostname}`,
+                    title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+                    description: t('calendar.eventDescription', {
+                      code: booking.confirmationCode,
+                      url: window.location.href
+                    }),
+                    location: club.contact.address || club.name,
+                    date: booking.date,
+                    startTime: booking.startTime,
+                    durationMinutes: booking.durationMinutes,
+                    timezone: club.timezone
+                  }
+                ]}
+                filename={`${club.name}-booking.ics`}
+              />
               <Button onClick={handleCancel} variant="destructive" className="w-full">
                 {t('manageBooking.cancelThisBooking')}
               </Button>

@@ -2,7 +2,14 @@ import { addDoc, collection } from 'firebase/firestore'
 import { db } from './firebase'
 import i18n, { SupportedLanguage } from '@/i18n'
 import { generateQrDataUrl } from './qrcode'
+import { buildGoogleCalendarUrl, buildIcsContent, IcsEventInput } from './ics'
 import { Club, Zone } from '@/types'
+
+interface MailAttachment {
+  filename: string
+  content: string
+  contentType: string
+}
 
 /**
  * Queues an email by writing to the `mail` collection. Delivery is handled
@@ -13,12 +20,26 @@ import { Club, Zone } from '@/types'
  * never had to change. Failures are swallowed: email is a notification,
  * not a booking precondition.
  */
-async function queueEmail(to: string, subject: string, html: string): Promise<void> {
+async function queueEmail(to: string, subject: string, html: string, attachments?: MailAttachment[]): Promise<void> {
   try {
-    await addDoc(collection(db, 'mail'), { to, message: { subject, html } })
+    await addDoc(collection(db, 'mail'), { to, message: { subject, html }, ...(attachments ? { attachments } : {}) })
   } catch (err) {
     console.warn('Could not queue email:', err)
   }
+}
+
+function icsAttachment(filename: string, events: IcsEventInput[]): MailAttachment {
+  return { filename, content: buildIcsContent(events), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }
+}
+
+function calendarLinkButton(label: string, url: string): string {
+  return `
+    <div style="margin-top: 15px;">
+      <a href="${url}" style="display: inline-block; padding: 10px 24px; background: #1a1a1a; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px;">
+        ${label}
+      </a>
+    </div>
+  `
 }
 
 function emailShell(club: Club, title: string, bodyHtml: string, footer: string): string {
@@ -82,6 +103,18 @@ export async function queueBookingConfirmationEmail(
   // Best-effort: if QR generation fails for any reason, the email still
   // sends fine without it — the text link above still works.
   const qrDataUrl = await generateQrDataUrl(cancelUrl).catch(() => null)
+
+  const icsEvent: IcsEventInput = {
+    uid: `${booking.bookingId}@${new URL(cancelBaseUrl).hostname}`,
+    title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+    description: t('calendar.eventDescription', { code: booking.confirmationCode, url: cancelUrl }),
+    location: club.contact.address || club.name,
+    date: booking.date,
+    startTime: booking.startTime,
+    durationMinutes: booking.durationMinutes,
+    timezone: club.timezone
+  }
+
   const body = `
     <p>${t('email.greeting', { name: booking.name })}</p>
     <p>${t('email.confirmedIntro')}</p>
@@ -90,6 +123,7 @@ export async function queueBookingConfirmationEmail(
     ${infoRow(t('email.time'), booking.startTime)}
     ${infoRow(t('email.duration'), t('common.minutes', { count: booking.durationMinutes }))}
     ${infoRow(t('email.confirmationCode'), booking.confirmationCode)}
+    ${calendarLinkButton(t('calendar.addToGoogle'), buildGoogleCalendarUrl(icsEvent))}
     <div style="margin-top: 20px; padding: 15px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
       <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${t('email.needToCancel')}</p>
       <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
@@ -102,7 +136,8 @@ export async function queueBookingConfirmationEmail(
   await queueEmail(
     booking.email,
     t('email.bookingConfirmedSubject', { club: club.name }),
-    emailShell(club, t('email.bookingConfirmedTitle'), body, t('email.footer', { club: club.name }))
+    emailShell(club, t('email.bookingConfirmedTitle'), body, t('email.footer', { club: club.name })),
+    [icsAttachment(`${club.name}-booking.ics`, [icsEvent])]
   )
 }
 
@@ -113,7 +148,7 @@ interface SeriesEmailInfo {
   durationMinutes: number
   name: string
   email: string
-  created: { date: string; confirmationCode: string }[]
+  created: { bookingId: string; date: string; confirmationCode: string }[]
   skippedDates: string[]
 }
 
@@ -135,6 +170,18 @@ export async function queueSeriesConfirmationEmail(
   const t = i18n.getFixedT(lang)
   const manageUrl = `${cancelBaseUrl}/my-series/${series.seriesId}/${series.cancellationToken}`
   const qrDataUrl = await generateQrDataUrl(manageUrl).catch(() => null)
+  const hostname = new URL(cancelBaseUrl).hostname
+
+  const icsEvents: IcsEventInput[] = series.created.map((o) => ({
+    uid: `${o.bookingId}@${hostname}`,
+    title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+    description: t('calendar.eventDescription', { code: o.confirmationCode, url: manageUrl }),
+    location: club.contact.address || club.name,
+    date: o.date,
+    startTime: series.startTime,
+    durationMinutes: series.durationMinutes,
+    timezone: club.timezone
+  }))
 
   const datesList = series.created
     .map((o) => `<li>${o.date} — <span style="font-family: monospace;">${o.confirmationCode}</span></li>`)
@@ -168,7 +215,8 @@ export async function queueSeriesConfirmationEmail(
   await queueEmail(
     series.email,
     t('email.seriesConfirmedSubject', { club: club.name }),
-    emailShell(club, t('email.seriesConfirmedTitle'), body, t('email.footer', { club: club.name }))
+    emailShell(club, t('email.seriesConfirmedTitle'), body, t('email.footer', { club: club.name })),
+    [icsAttachment(`${club.name}-sessions.ics`, icsEvents)]
   )
 }
 

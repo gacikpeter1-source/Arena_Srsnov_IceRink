@@ -65,6 +65,13 @@
     "seriesConfirmedCount": "Zarezervovaných {{count}} termínov.",
     "seriesSkippedIntro": "Tieto dátumy boli už obsadené a boli preskočené:"
   },
+  "calendar": {
+    "eventTitle": "{{club}} — {{zone}}",
+    "eventDescription": "Potvrdzovací kód: {{code}}. Správa alebo zrušenie: {{url}}",
+    "addToGoogle": "Pridať do Google Kalendára",
+    "downloadIcs": "Pridať do kalendára (.ics)",
+    "downloadIcsMultiple": "Pridať všetkých {{count}} termínov do kalendára (.ics)"
+  },
   "manageBooking": {
     "findTitle": "Nájsť moju rezerváciu",
     "manageTitle": "Správa rezervácie",

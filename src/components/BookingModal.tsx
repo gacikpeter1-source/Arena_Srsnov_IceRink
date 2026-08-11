@@ -15,6 +15,8 @@ import {
 import { queueBookingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { addDays, formatDateISO } from '@/lib/utils'
+import { IcsEventInput } from '@/lib/ics'
+import AddToCalendarButtons from './AddToCalendarButtons'
 import { Club, SeriesFrequency, Zone } from '@/types'
 
 interface BookingModalProps {
@@ -56,7 +58,7 @@ export default function BookingModal({
   }
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ confirmationCode: string; cancellationToken: string } | null>(null)
+  const [result, setResult] = useState<{ bookingId: string; confirmationCode: string; cancellationToken: string } | null>(null)
   const [seriesResult, setSeriesResult] = useState<CreatedSeries | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -119,6 +121,7 @@ export default function BookingModal({
           phone: formData.phone
         })
         setResult({
+          bookingId: booking.id,
           confirmationCode: booking.confirmationCode,
           cancellationToken: booking.cancellationToken
         })
@@ -163,6 +166,20 @@ export default function BookingModal({
   }
 
   if (seriesResult) {
+    const seriesEvents: IcsEventInput[] = seriesResult.created.map((o) => ({
+      uid: `${o.bookingId}@${window.location.hostname}`,
+      title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+      description: t('calendar.eventDescription', {
+        code: o.confirmationCode,
+        url: `${window.location.origin}/my-series/${seriesResult.seriesId}/${seriesResult.cancellationToken}`
+      }),
+      location: club.contact.address || club.name,
+      date: o.date,
+      startTime,
+      durationMinutes,
+      timezone: club.timezone
+    }))
+
     return (
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="bg-background-card max-w-md">
@@ -191,6 +208,7 @@ export default function BookingModal({
                 </ul>
               </div>
             )}
+            <AddToCalendarButtons events={seriesEvents} filename={`${club.name}-sessions.ics`} />
             <p className="text-text-secondary text-sm text-center">
               {t('booking.emailedNotice', { email: formData.email })}
             </p>
@@ -206,6 +224,20 @@ export default function BookingModal({
   }
 
   if (result) {
+    const singleEvent: IcsEventInput = {
+      uid: `${result.bookingId}@${window.location.hostname}`,
+      title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+      description: t('calendar.eventDescription', {
+        code: result.confirmationCode,
+        url: `${window.location.origin}/my-booking/${result.bookingId}/${result.cancellationToken}`
+      }),
+      location: club.contact.address || club.name,
+      date,
+      startTime,
+      durationMinutes,
+      timezone: club.timezone
+    }
+
     return (
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="bg-background-card max-w-md">
@@ -219,6 +251,7 @@ export default function BookingModal({
                 {result.confirmationCode}
               </div>
             </div>
+            <AddToCalendarButtons events={[singleEvent]} filename={`${club.name}-booking.ics`} />
             <p className="text-text-secondary text-sm">
               {t('booking.emailedNotice', { email: formData.email })}
             </p>
