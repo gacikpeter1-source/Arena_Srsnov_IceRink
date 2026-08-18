@@ -2,18 +2,20 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
+import { InvalidInviteCodeError } from '@/lib/trainerInvites'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export default function AdminSignupPage() {
+export default function TrainerSignupPage() {
   const { t } = useTranslation()
-  const { signup } = useAuth()
+  const { signupTrainer } = useAuth()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,11 +24,11 @@ export default function AdminSignupPage() {
     setError(null)
     setSubmitting(true)
     try {
-      await signup(email, password, name)
+      await signupTrainer(email, password, name, inviteCode.trim())
       navigate('/admin')
     } catch (err) {
-      console.error('Sign up failed:', err)
-      setError(t('admin.signupError'))
+      console.error('Trainer sign up failed:', err)
+      setError(err instanceof InvalidInviteCodeError ? t('admin.invalidInviteCode') : t('admin.signupError'))
     } finally {
       setSubmitting(false)
     }
@@ -36,12 +38,22 @@ export default function AdminSignupPage() {
     <div className="content-container py-12 max-w-sm mx-auto">
       <Card className="arena-card">
         <CardHeader>
-          <CardTitle className="text-white">{t('admin.signupTitle')}</CardTitle>
+          <CardTitle className="text-white">{t('admin.trainerSignupTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-text-secondary text-sm mb-4">{t('admin.signupNotice')}</p>
+          <p className="text-text-secondary text-sm mb-4">{t('admin.trainerSignupNotice')}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <p className="text-status-danger text-sm">{error}</p>}
+            <div>
+              <Label htmlFor="invite-code" className="text-white">{t('admin.inviteCode')}</Label>
+              <Input
+                id="invite-code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                className="bg-background-dark border-border text-white mono"
+                required
+              />
+            </div>
             <div>
               <Label htmlFor="name" className="text-white">{t('common.name')}</Label>
               <Input
@@ -83,7 +95,7 @@ export default function AdminSignupPage() {
             <Link to="/admin/login" className="hover:text-primary">{t('admin.haveAccount')}</Link>
           </p>
           <p className="text-text-muted text-sm text-center mt-1">
-            <Link to="/admin/signup-trainer" className="hover:text-primary">{t('admin.areYouATrainer')}</Link>
+            <Link to="/admin/signup" className="hover:text-primary">{t('admin.notATrainer')}</Link>
           </p>
         </CardContent>
       </Card>

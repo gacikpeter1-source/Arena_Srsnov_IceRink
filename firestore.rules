@@ -36,7 +36,14 @@ service cloud.firestore {
       return myRole() in ['superadmin', 'owner', 'assistant'];
     }
 
-    // Can manage club config and grant/revoke the 'assistant' role.
+    // Manages only their own training sessions/series/bundles — a
+    // separate track from isStaffMember(), not a variant of it. A trainer
+    // has no access to ice-rink bookings or club-wide config.
+    function isTrainer() {
+      return myRole() == 'trainer';
+    }
+
+    // Can manage club config and grant/revoke the 'assistant'/'trainer' role.
     function isOwnerOrAbove() {
       return myRole() in ['superadmin', 'owner'];
     }
@@ -97,13 +104,16 @@ service cloud.firestore {
         && request.resource.data.role == 'pending';
 
       // Role changes: superadmin can set any role on anyone; an owner can
-      // only move a row between 'pending' and 'assistant' (never touching
-      // owner/superadmin rows), and only the role field.
+      // only move a row between 'pending', 'assistant' and 'trainer'
+      // (never touching owner/superadmin rows), and only the role field —
+      // this is also how a trainer's invite-code signup (role stays
+      // 'pending' with pendingRole:'trainer' until approved — see
+      // StaffUser in src/types/index.ts) gets approved into 'trainer'.
       allow update: if isSuperAdmin()
         || (isOwner()
-            && resource.data.role in ['pending', 'assistant']
+            && resource.data.role in ['pending', 'assistant', 'trainer']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
-            && request.resource.data.role in ['pending', 'assistant']);
+            && request.resource.data.role in ['pending', 'assistant', 'trainer']);
 
       allow delete: if isSuperAdmin();
     }
@@ -175,6 +185,138 @@ service cloud.firestore {
       allow update: if
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt']) && !('expiresAt' in request.resource.data))
         || ('expiresAt' in resource.data && resource.data.expiresAt < request.time);
+    }
+
+    // ---------------------------------------------------------------
+    // Training reservations (korčuľovanie) — see src/types/index.ts for
+    // the full data model rationale. Same public-write trade-offs as the
+    // ice-rink collections above (documented once there, not repeated
+    // per collection here).
+    // ---------------------------------------------------------------
+
+    // Gates trainer self-registration — see AuthContext.signupTrainer.
+    // Public read so the signup form can show a friendly "invalid or
+    // already-used code" error before even creating the Firebase Auth
+    // account. Consumption (used:false -> true) is restricted to the
+    // exact account it was issued for, and Firestore serializes writes to
+    // a single document, so two people racing the same code can't both
+    // win even without an explicit client-side transaction.
+    match /trainerInviteCodes/{code} {
+      allow read: if true;
+      allow create: if isOwnerOrAbove();
+      allow update: if isSignedIn()
+        && resource.data.used == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'usedBy', 'usedAt'])
+        && request.resource.data.used == true
+        && request.resource.data.usedBy == request.auth.uid;
+      allow delete: if isOwnerOrAbove();
+    }
+
+    // Metadata for a trainer's recurring session series (see
+    // TrainingSeries) — each occurrence is its own trainingSessions doc.
+    match /trainingSeries/{seriesId} {
+      allow read: if true;
+      allow create: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+      allow update, delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      allow update, delete: if isOwnerOrAbove();
+    }
+
+    // A kurz/kemp bundle (see TrainingBundle) — one registration covers
+    // every session it contains.
+    match /trainingBundles/{bundleId} {
+      allow read: if true;
+      allow create: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+      // Owning trainer manages their own bundle's own fields.
+      allow update: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      // Public registration flow atomically adjusts confirmedCount only.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedCount']);
+      allow update, delete: if isOwnerOrAbove();
+      allow delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+    }
+
+    // One real training hour (see TrainingSession) — publicly readable so
+    // the calendar works with no login.
+    match /trainingSessions/{sessionId} {
+      allow read: if true;
+      // A trainer creates their own session; an owner/superadmin creates
+      // one via Excel import, with or without a trainer assigned.
+      allow create: if (isTrainer() && request.resource.data.trainerId == request.auth.uid) || isOwnerOrAbove();
+      // Owning trainer manages their own session's own fields.
+      allow update: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      // Any approved trainer may claim an unassigned session — atomically,
+      // guarded by the prior state having no trainerId at all.
+      allow update: if isTrainer()
+        && !('trainerId' in resource.data)
+        && request.resource.data.trainerId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trainerId', 'trainerName', 'status']);
+      // Public registration flow atomically adjusts confirmedCount only.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedCount']);
+      allow update, delete: if isOwnerOrAbove();
+      allow delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+    }
+
+    // A customer's (no-login) registration for one TrainingSession — same
+    // public-write/status-transition shape as `bookings` above: anonymous
+    // create, pending -> confirmed/expired (email-confirm), confirmed ->
+    // cancelled (self-cancel, respecting the session's own
+    // cancellationCutoffHours), plus the owning trainer marking attendance.
+    match /trainingRegistrations/{regId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && resource.data.status == 'confirmed'
+        && request.resource.data.status == 'cancelled'
+        && (!('startAtUtc' in resource.data)
+            || request.time + duration.value(get(/databases/$(database)/documents/trainingSessions/$(resource.data.sessionId)).data.cancellationCutoffHours, 'h') < resource.data.startAtUtc);
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['confirmed', 'expired'];
+      // Trainer marking attendance on their own session's registrations.
+      allow update: if isTrainer()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendance'])
+        && get(/databases/$(database)/documents/trainingSessions/$(resource.data.sessionId)).data.trainerId == request.auth.uid;
+      allow update: if isOwnerOrAbove();
+    }
+
+    // A customer's (no-login) registration for an entire TrainingBundle —
+    // same shape as trainingRegistrations above, scoped to the bundle.
+    match /trainingBundleRegistrations/{regId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && resource.data.status == 'confirmed'
+        && request.resource.data.status == 'cancelled';
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['confirmed', 'expired'];
+      allow update: if isTrainer()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendanceBySession'])
+        && get(/databases/$(database)/documents/trainingBundles/$(resource.data.bundleId)).data.trainerId == request.auth.uid;
+      allow update: if isOwnerOrAbove();
+    }
+
+    // A participant who showed up without registering — informal log,
+    // deliberately kept available for people who don't use the app.
+    match /trainingWalkIns/{walkInId} {
+      allow read: if isTrainer() || isStaffMember();
+      allow create: if isTrainer() || isStaffMember();
+      allow delete: if isTrainer() || isStaffMember();
+    }
+
+    // A trainer using club ice with no booked session — club-oversight
+    // tool. Deliberately NOT readable by trainers themselves, only by
+    // owner/superadmin; assistants can log entries but not read the log
+    // back (matches "asistent má samostatný dokument a toto nemusí byť
+    // viditeľné pre trénera, ale musí to vidieť owner").
+    match /trainerIceLog/{logId} {
+      allow read: if isOwnerOrAbove();
+      allow create: if isStaffMember();
+      allow update, delete: if isOwnerOrAbove();
+    }
+
+    // Audit log of generated exports — owner/superadmin only, end to end.
+    match /trainingReportHistory/{reportId} {
+      allow read, write: if isOwnerOrAbove();
     }
 
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.

@@ -185,11 +185,16 @@ export interface BookingSeries {
 // Role hierarchy:
 // - superadmin: full control, and the only role that can grant/revoke 'owner'
 // - owner ("Club owner"): manages bookings/schedules, and can grant/revoke
-//   'assistant' for their own club — but cannot touch owner/superadmin roles
+//   'assistant'/'trainer' for their own club — but cannot touch
+//   owner/superadmin roles
 // - assistant: manages bookings/schedules, cannot manage other staff
+// - trainer: manages only their own training sessions/series/bundles and
+//   the attendance/registrations on them — no access to ice-rink bookings,
+//   club settings, or other staff. Distinct from isStaffMember() entirely
+//   (see firestore.rules) rather than a variant of it.
 // - pending: a self-registered account with no permissions yet, awaiting an
 //   owner or superadmin to grant it a role
-export type StaffRole = 'superadmin' | 'owner' | 'assistant' | 'pending'
+export type StaffRole = 'superadmin' | 'owner' | 'assistant' | 'trainer' | 'pending'
 
 export interface StaffUser {
   uid: string
@@ -197,5 +202,216 @@ export interface StaffUser {
   email: string
   name: string
   role: StaffRole
+  // Trainer-only profile shown on the public trainer directory
+  // (/treningy/treneri) — meaningless for other roles.
+  bio?: string
+  photoUrl?: string
+  // Distinguishes this trainer's sessions on the public calendar, where
+  // several trainers can each have an independent entry at the same
+  // date/time. Auto-assigned from a fixed palette at approval time;
+  // editable later.
+  calendarColor?: string
+  // Set only while role is still 'pending' AND the signup came through the
+  // invite-code-gated trainer flow (see lib/trainerInvites.ts) — lets the
+  // staff approval panel show "wants to become a trainer" instead of a
+  // bare generic pending row, and lets the approve action set role
+  // straight to 'trainer' instead of the owner having to know to do that.
+  // The generic self-signup (AdminSignupPage) never sets this field.
+  pendingRole?: 'trainer'
   createdAt: Date
+}
+
+// ---------------------------------------------------------------------
+// Training reservations (korčuľovanie) — a second, independent booking
+// domain living in the same app/Firebase project/Auth as ice-rink
+// bookings above, so staff share one login. See CLAUDE.md's "Training
+// reservations" section for the full design rationale and the decisions
+// this data model reflects.
+// ---------------------------------------------------------------------
+
+// Gates trainer self-registration (see AuthContext.signupTrainer) so
+// accounts can't be created uncontrolled — an owner/superadmin generates
+// one, hands it to a specific person, and it's consumed exactly once.
+export interface TrainerInviteCode {
+  id: string // the code itself, e.g. a generateToken() string
+  clubId: string
+  createdBy: string // uid of the owner/superadmin who generated it
+  used: boolean
+  usedBy?: string // uid of the staff doc created with this code
+  usedAt?: Date
+  createdAt: Date
+}
+
+export type TrainingFrequency = 'daily' | 'weekly'
+
+// Metadata for a recurring series of independently-joinable training
+// sessions (e.g. "every Tuesday 17:00") — each occurrence is still its
+// own TrainingSession document with its own registrations/capacity;
+// customers register per session, not once for the whole series. This is
+// the "opakované tréningy" model, distinct from TrainingBundle below.
+export interface TrainingSeries {
+  id: string
+  clubId: string
+  trainerId: string
+  trainerName: string
+  title: string
+  frequency: TrainingFrequency
+  dayOfWeek?: number // 0=Sun..6=Sat, for weekly
+  startTime: string
+  durationMinutes: number
+  capacity: number | null // null = unlimited
+  cancellationCutoffHours: number
+  createdAt: Date
+}
+
+// A "kurz"/"kemp" — a fixed bundle of pre-scheduled sessions where a
+// participant registers ONCE and that single registration covers every
+// session in the bundle (as opposed to TrainingSeries, where each
+// occurrence needs its own registration). Capacity/waitlist is tracked
+// once, on the bundle itself, not per session.
+export interface TrainingBundle {
+  id: string
+  clubId: string
+  trainerId: string
+  trainerName: string
+  title: string // e.g. "Krasokorčuliarsky kurz jeseň 2026" / "Letný kemp"
+  capacity: number | null
+  confirmedCount: number // maintained atomically in a transaction
+  cancellationCutoffHours: number
+  createdAt: Date
+}
+
+// One real, physical training hour on the calendar — whether standalone,
+// part of a TrainingSeries, or part of a TrainingBundle. Never reserves
+// ice/zone time itself — the trainer is assumed to already have the ice
+// booked separately (see CLAUDE.md).
+export interface TrainingSession {
+  id: string
+  clubId: string
+  // Unset while status is 'unassigned' — created without a trainer name
+  // via Excel import, waiting for any approved trainer to claim it. Public
+  // registration is only possible once a trainer has claimed it.
+  trainerId?: string
+  trainerName?: string
+  date: string // "2026-08-15"
+  startTime: string
+  durationMinutes: number
+  // null = unlimited (no waitlist ever triggers). Denormalized from the
+  // owning TrainingBundle when bundleId is set, since capacity there is
+  // shared across every session in the bundle.
+  capacity: number | null
+  confirmedCount: number // maintained atomically in a transaction
+  // Per-session self-cancel cutoff, set by the trainer — not a single
+  // club-wide constant like ice bookings' CANCELLATION_CUTOFF_HOURS.
+  cancellationCutoffHours: number
+  // Mutually exclusive: a session belongs to at most one of these.
+  seriesId?: string
+  bundleId?: string
+  status: 'unassigned' | 'active' | 'cancelled'
+  createdAt: Date
+}
+
+// A customer's (no-login) registration for one specific TrainingSession —
+// used for standalone sessions and for each occurrence of a TrainingSeries.
+// Same shape/lifecycle as Booking above by design (atomic capacity check,
+// pending-confirm-by-email anti-typo window, soft cancel, secure tokens).
+export interface TrainingRegistration {
+  id: string
+  clubId: string
+  sessionId: string
+  trainerId: string // denormalized for display/queries
+  date: string
+  startTime: string
+  durationMinutes: number
+
+  name: string
+  email: string
+  phone: string
+
+  confirmationCode: string
+  cancellationToken: string
+  tokenExpiresAt: Date
+  startAtUtc?: Date
+
+  status: 'pending' | 'confirmed' | 'waitlist' | 'cancelled' | 'expired'
+  pendingExpiresAt?: Date
+  waitlistPosition?: number
+  // Set by the trainer/assistant on the session's own check-in screen —
+  // the trainer sees this participant's name and confirmationCode
+  // together (not anonymized).
+  attendance?: { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }
+
+  createdAt: Date
+  cancelledAt?: Date
+}
+
+// A customer's (no-login) registration for an entire TrainingBundle at
+// once — covers every session the bundle contains. Attendance is still
+// tracked per real session (see attendanceBySession), since someone
+// enrolled in a 10-session course can still miss individual sessions.
+export interface TrainingBundleRegistration {
+  id: string
+  clubId: string
+  bundleId: string
+  trainerId: string
+
+  name: string
+  email: string
+  phone: string
+
+  confirmationCode: string
+  cancellationToken: string
+  tokenExpiresAt: Date
+
+  status: 'pending' | 'confirmed' | 'waitlist' | 'cancelled' | 'expired'
+  pendingExpiresAt?: Date
+  waitlistPosition?: number
+  attendanceBySession?: Record<string, { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }>
+
+  createdAt: Date
+  cancelledAt?: Date
+}
+
+// A participant who shows up to a specific session without having
+// registered beforehand — an informal log, deliberately kept available
+// for people who don't use the app. No email is sent; never touches
+// TrainingRegistration or a session's confirmedCount.
+export interface TrainingWalkIn {
+  id: string
+  clubId: string
+  sessionId: string
+  name: string
+  notes?: string
+  checkedInAt: Date
+  addedBy: string // uid of the assistant/trainer who logged it
+}
+
+// A trainer showing up to use the ice without any booked
+// session/reservation in the system — a club-oversight tool (catching
+// unauthorized private lessons on club ice), logged by an assistant.
+// Deliberately NOT visible to the trainer themselves, only to
+// owner/superadmin — see firestore.rules.
+export interface TrainerIceLogEntry {
+  id: string
+  clubId: string
+  trainerId: string
+  trainerName: string
+  date: string
+  notes?: string
+  loggedBy: string // uid of the assistant who logged it
+  loggedAt: Date
+}
+
+// Audit log of generated attendance/booking exports, so a past report can
+// be re-downloaded without regenerating it — owner/superadmin only.
+export interface TrainingReportHistory {
+  id: string
+  clubId: string
+  generatedBy: string
+  generatedAt: Date
+  dateFrom: string
+  dateTo: string
+  trainerIds?: string[] // unset = all trainers
+  format: 'xlsx' | 'csv'
+  filename: string
 }
