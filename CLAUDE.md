@@ -498,24 +498,89 @@ retype on the right page.
 - `trainingReportHistory` — audit log of generated exports, owner/
   superadmin only, so a past report can be re-downloaded without
   regenerating it.
-- Per-session/bundle `cancellationCutoffHours` (default 2, suggested — not
-  enforced — by the UI) is set by the trainer individually, unlike ice
-  bookings' single club-wide `CANCELLATION_CUTOFF_HOURS` constant, since
-  each trainer may want a different notice window.
+- Per-session/bundle `cancellationCutoffHours` (default 2, set by the
+  trainer at creation time in `TrainerDashboardPage.tsx`) is set
+  individually, unlike ice bookings' single club-wide
+  `CANCELLATION_CUTOFF_HOURS` constant, since each trainer may want a
+  different notice window. Enforced for session registrations the same
+  two ways ice bookings' cutoff is (`isPastTrainingCancellationCutoff` in
+  `lib/training.ts` for the UI lockout, plus the matching
+  `firestore.rules` check using the registration's `startAtUtc` and the
+  session's own `cancellationCutoffHours` — no club `timezone` math needed
+  in rules, same reason ice bookings stamp `startAtUtc`). Bundle
+  registrations deliberately have no cutoff at all — cancelling a
+  multi-week course enrollment isn't the same "about to start" concern a
+  single session is, so `cancelBundleRegistration` and its rule never
+  check one.
+
+### Fáza 2: calendar, directory, registration
+
+Built on the Fáza 1 foundation: the trainer's own dashboard
+(`TrainerDashboardPage.tsx`, `/admin/treningy`) for creating standalone
+sessions, recurring series, and bundles; the public calendar
+(`TrainingCalendarPage.tsx`, `/treningy`) and trainer directory
+(`TrainerDirectoryPage.tsx`, `/treningy/treneri`); and the full no-login
+registration lifecycle (`lib/training.ts`) for both sessions and bundles.
+`AdminDashboardPage.tsx` now redirects a trainer-only account (no ice-rink
+role at all) straight to `/admin/treningy` instead of a placeholder, and
+shows a "My trainings" link for an account holding both an ice-rink role
+and `isTrainer` — same for the reverse link back from the trainer
+dashboard. The hub's "Training Reservations" card now points at the
+internal `/treningy` route unconditionally, no longer gated behind
+`clubs.integrations.trainingReservationsUrl` — the external-link
+integration model was superseded once this domain was rebuilt natively in
+this app (see the "second Firebase project was rejected" note above).
+
+**Capacity/waitlist model**: the Firestore Web SDK's `Transaction.get()`
+only reads documents by reference, not queries, so the capacity decision
+can't inspect "how many pending+confirmed registrations exist right now"
+inside a transaction the way a query-based count would. Instead, a
+'pending' registration reserves a real spot immediately at creation time —
+`confirmedCount` on the session/bundle doc is incremented right then, the
+same way ice bookings' `slotLocks` hold a slot during the pending window —
+and only a registration created while the session/bundle is already full
+goes straight to `'waitlist'` without touching `confirmedCount` at all. An
+abandoned pending registration's reserved spot is released lazily and
+best-effort: `reclaimExpiredSessionRegistrations`/
+`reclaimExpiredBundleRegistrations` run a small non-transactional scan
+before each new registration attempt on that session/bundle, same
+"no scheduled cleanup job, self-heals on next touch" stance
+`PENDING_CONFIRMATION_MINUTES` already documents for ice bookings.
+Cancelling releases the reserved spot for `'confirmed'` OR `'pending'`
+(both hold one) but not `'waitlist'` (which never did). Auto-promoting
+the next waitlisted person when a confirmed registration cancels is
+deliberately NOT built — it would need its own public
+`waitlist -> confirmed` firestore.rules transition (not currently
+permitted) and overlaps with the cross-notification feature below, so
+it's left for that pass rather than half-building it now.
+
+For a bundle-linked `TrainingSession` (`bundleId` set), the session's own
+`capacity`/`confirmedCount` fields are a point-in-time snapshot only, NOT
+kept in sync as the bundle fills up — registering against a bundle only
+touches the one `trainingBundles` doc plus the new registration, not every
+session the bundle contains. The calendar reads the owning bundle's
+`capacity`/`confirmedCount` directly for a bundle-linked session's real
+`X/Y` (`fetchTrainingBundlesByIds` in `lib/training.ts`) rather than
+trusting the session's own (stale) copy.
+
+**Public trainer directory** needed a new `firestore.rules` case: `/staff`
+had no public read at all before this, so
+`allow read: if resource.data.isTrainer == true` was added — Firestore
+evaluates `read` per-document for list queries when the rule only depends
+on `resource.data`, so a `where('isTrainer','==',true)` query safely
+returns only trainer docs; every other staff doc stays private exactly as
+before.
 
 **Planned but not yet built** (this section will be extended as later
-phases land): the public calendar (`/treningy/*`, colored per trainer,
-`X/Y` occupancy + waitlist count when full), trainer directory, session/
-bundle registration flows, attendance check-in screens, walk-in and
-ice-log logging UI, the "krížové upozornenie z čakačky" cross-notification
-(when a new session opens at a date/time where another trainer's session
-already has a waitlist, everyone on that waitlist gets emailed a one-click
-claim link into the new session — never a silent auto-move, since a
-waitlisted customer chose a particular trainer and shouldn't end up
-enrolled with a different one without an explicit action), Excel import/
-export for sessions, and swapping the hub's "Training Reservations" card
-from `clubs.integrations.trainingReservationsUrl` (external link) to an
-internal route.
+phases land): attendance check-in screens, walk-in and ice-log logging UI,
+the "krížové upozornenie z čakačky" cross-notification (when a new session
+opens at a date/time where another trainer's session already has a
+waitlist, everyone on that waitlist gets emailed a one-click claim link
+into the new session — never a silent auto-move, since a waitlisted
+customer chose a particular trainer and shouldn't end up enrolled with a
+different one without an explicit action), auto-promoting a session's own
+next-in-line waitlister when a confirmed registration cancels (see above),
+and Excel import/export for sessions.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 

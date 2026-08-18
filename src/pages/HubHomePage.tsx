@@ -79,8 +79,7 @@ export default function HubHomePage() {
         <ServiceCard
           title={t('hub.trainingReservations')}
           description={t('hub.trainingReservationsDesc')}
-          href={club.integrations?.trainingReservationsUrl}
-          external
+          href="/treningy"
         />
         <ServiceCard
           title={t('hub.tournaments')}

@@ -7,6 +7,10 @@ import CancelLookupPage from './pages/CancelLookupPage'
 import CancelViaTokenPage from './pages/CancelViaTokenPage'
 import ConfirmBookingPage from './pages/ConfirmBookingPage'
 import SeriesCancelPage from './pages/SeriesCancelPage'
+import TrainingCalendarPage from './pages/TrainingCalendarPage'
+import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
+import TrainingConfirmPage from './pages/TrainingConfirmPage'
+import TrainingCancelPage from './pages/TrainingCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminSignupPage from './pages/admin/AdminSignupPage'
 import TrainerSignupPage from './pages/admin/TrainerSignupPage'
@@ -20,6 +24,7 @@ import { useClubData } from './hooks/useClubData'
 // import/export, which is sizable and irrelevant to the public booking
 // flow most visitors use — keep it out of the main bundle.
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
+const TrainerDashboardPage = lazy(() => import('./pages/admin/TrainerDashboardPage'))
 
 function Footer() {
   const { t } = useTranslation()
@@ -49,6 +54,9 @@ export default function App() {
             {club?.name ?? t('nav.brand')}
           </Link>
           <div className="flex items-center gap-4">
+            <Link to="/treningy" className="text-sm text-text-secondary hover:text-primary">
+              {t('nav.trainings')}
+            </Link>
             <Link to="/my-booking" className="text-sm text-text-secondary hover:text-primary">
               {t('nav.manageBooking')}
             </Link>
@@ -66,6 +74,12 @@ export default function App() {
           <Route path="/my-booking/:bookingId/:token" element={<CancelViaTokenPage />} />
           <Route path="/confirm-booking/:bookingId/:token" element={<ConfirmBookingPage />} />
           <Route path="/my-series/:seriesId/:token" element={<SeriesCancelPage />} />
+          <Route path="/treningy" element={<TrainingCalendarPage />} />
+          <Route path="/treningy/treneri" element={<TrainerDirectoryPage />} />
+          <Route path="/treningy/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="session" />} />
+          <Route path="/treningy/zrusit/:regId/:token" element={<TrainingCancelPage kind="session" />} />
+          <Route path="/treningy/kurz/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="bundle" />} />
+          <Route path="/treningy/kurz/zrusit/:regId/:token" element={<TrainingCancelPage kind="bundle" />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
           <Route path="/admin/signup-trainer" element={<TrainerSignupPage />} />
@@ -75,6 +89,16 @@ export default function App() {
               <ProtectedRoute>
                 <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
                   <AdminDashboardPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/treningy"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <TrainerDashboardPage />
                 </Suspense>
               </ProtectedRoute>
             }
