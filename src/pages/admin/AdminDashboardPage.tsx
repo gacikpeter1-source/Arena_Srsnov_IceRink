@@ -55,7 +55,9 @@ export default function AdminDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [club, dateFrom, dateTo])
 
-  if (staff?.role === 'pending') {
+  // 'pending' with no trainer access at all — a plain signup still
+  // awaiting an owner/superadmin to grant a role.
+  if (staff?.role === 'pending' && !staff.isTrainer) {
     return (
       <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
         <h1>{t('admin.pendingTitle')}</h1>
@@ -65,13 +67,15 @@ export default function AdminDashboardPage() {
     )
   }
 
-  // A trainer manages only their own training sessions, never ice-rink
-  // bookings — this dashboard isn't for them at all (see firestore.rules'
-  // isTrainer(), a separate track from isStaffMember()). The trainer's own
-  // dashboard (calendar, registrations, attendance) is a later build step;
-  // this placeholder just keeps them out of the ice-booking admin view
-  // meanwhile rather than showing something that doesn't apply to them.
-  if (staff?.role === 'trainer') {
+  // isTrainer is independent of role (see StaffUser) — an account can be
+  // both isStaffMember() and a trainer at once, in which case the normal
+  // ice-rink dashboard below is exactly right for them. This placeholder
+  // only applies to a trainer-only account (role still 'pending', so no
+  // ice-rink access at all) — the trainer's own dashboard (calendar,
+  // registrations, attendance) is a later build step; this just keeps
+  // them out of the ice-booking admin view meanwhile rather than showing
+  // something that doesn't apply to them.
+  if (staff?.isTrainer && staff.role === 'pending') {
     return (
       <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
         <h1>{t('admin.trainerDashboardComingSoonTitle')}</h1>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { fetchStaffRoster, updateStaffRole } from '@/lib/staff'
+import { deleteStaffAccount, fetchStaffRoster, setTrainerAccess, updateStaffRole } from '@/lib/staff'
 import { fetchTrainerInviteCodes, generateTrainerInviteCode, revokeTrainerInviteCode } from '@/lib/trainerInvites'
 import { StaffRole, StaffUser, TrainerInviteCode } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -17,7 +17,6 @@ function roleLabelKey(role: StaffRole) {
     case 'superadmin': return 'admin.roleSuperadmin'
     case 'owner': return 'admin.roleOwner'
     case 'assistant': return 'admin.roleAssistant'
-    case 'trainer': return 'admin.roleTrainer'
     default: return 'admin.rolePending'
   }
 }
@@ -68,6 +67,33 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
     }
   }
 
+  const handleSetTrainerAccess = async (uid: string, isTrainer: boolean) => {
+    setBusyUid(uid)
+    try {
+      await setTrainerAccess(uid, isTrainer)
+      refresh()
+    } catch (err) {
+      console.error('Error updating trainer access:', err)
+      alert(t('common.error'))
+    } finally {
+      setBusyUid(null)
+    }
+  }
+
+  const handleDelete = async (uid: string, name: string) => {
+    if (!confirm(t('admin.confirmDeleteStaff', { name }))) return
+    setBusyUid(uid)
+    try {
+      await deleteStaffAccount(uid)
+      refresh()
+    } catch (err) {
+      console.error('Error deleting staff account:', err)
+      alert(t('common.error'))
+    } finally {
+      setBusyUid(null)
+    }
+  }
+
   const handleGenerateCode = async () => {
     setGenerating(true)
     try {
@@ -111,6 +137,7 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                     <th className="py-2 pr-3">{t('common.name')}</th>
                     <th className="py-2 pr-3">{t('common.email')}</th>
                     <th className="py-2 pr-3">{t('admin.role')}</th>
+                    <th className="py-2 pr-3">{t('admin.roleTrainer')}</th>
                     <th className="py-2 pr-3" />
                   </tr>
                 </thead>
@@ -120,26 +147,55 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                     const busy = busyUid === s.uid
                     const canGrantOwner = viewerRole === 'superadmin' && !isSelf && (s.role === 'pending' || s.role === 'assistant')
                     const canGrantAssistant = (viewerRole === 'superadmin' || viewerRole === 'owner') && !isSelf && s.role === 'pending'
-                    // Only offered when the signup actually came through the
-                    // invite-code-gated trainer flow (see StaffUser.pendingRole)
-                    // — a plain generic pending signup can't be promoted to
-                    // trainer without having gone through that gate.
-                    const canGrantTrainer =
-                      (viewerRole === 'superadmin' || viewerRole === 'owner') && !isSelf && s.role === 'pending' && s.pendingRole === 'trainer'
                     const canRevoke = !isSelf && (
-                      (viewerRole === 'superadmin' && (s.role === 'owner' || s.role === 'assistant' || s.role === 'trainer')) ||
-                      (viewerRole === 'owner' && (s.role === 'assistant' || s.role === 'trainer'))
+                      (viewerRole === 'superadmin' && (s.role === 'owner' || s.role === 'assistant')) ||
+                      (viewerRole === 'owner' && s.role === 'assistant')
+                    )
+                    // Same boundary firestore.rules and deleteStaffAccount both
+                    // enforce server-side: a superadmin can touch any row but
+                    // its own, an owner only pending/assistant rows — used
+                    // both for the isTrainer toggle (independent of `role`,
+                    // see StaffUser) and the real account delete.
+                    const canManageRow = !isSelf && (
+                      viewerRole === 'superadmin' || (viewerRole === 'owner' && (s.role === 'pending' || s.role === 'assistant'))
                     )
 
                     return (
                       <tr key={s.uid} className="border-b border-border">
                         <td className="py-2 pr-3 text-white">{s.name}{isSelf ? ` (${t('admin.you')})` : ''}</td>
                         <td className="py-2 pr-3 text-text-secondary">{s.email}</td>
-                        <td className="py-2 pr-3 text-text-secondary">
-                          {t(roleLabelKey(s.role))}
-                          {s.role === 'pending' && s.pendingRole === 'trainer' && (
-                            <span className="ml-2 text-xs text-primary">({t('admin.wantsToBeTrainer')})</span>
-                          )}
+                        <td className="py-2 pr-3 text-text-secondary">{t(roleLabelKey(s.role))}</td>
+                        <td className="py-2 pr-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {s.isTrainer ? (
+                              <>
+                                <span className="text-primary">{t('admin.roleTrainer')}</span>
+                                {canManageRow && (
+                                  <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetTrainerAccess(s.uid, false)}>
+                                    {t('admin.revokeTrainer')}
+                                  </Button>
+                                )}
+                              </>
+                            ) : s.pendingRole === 'trainer' ? (
+                              <>
+                                <span className="text-xs text-primary">{t('admin.wantsToBeTrainer')}</span>
+                                {canManageRow && (
+                                  <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetTrainerAccess(s.uid, true)}>
+                                    {t('admin.grantTrainer')}
+                                  </Button>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-text-muted">—</span>
+                                {canManageRow && (
+                                  <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetTrainerAccess(s.uid, true)}>
+                                    {t('admin.assignTrainer')}
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2 pr-3">
                           <div className="flex gap-2 flex-wrap">
@@ -153,14 +209,14 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                                 {t('admin.grantAssistant')}
                               </Button>
                             )}
-                            {canGrantTrainer && (
-                              <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetRole(s.uid, 'trainer')}>
-                                {t('admin.grantTrainer')}
-                              </Button>
-                            )}
                             {canRevoke && (
                               <Button size="sm" variant="destructive" disabled={busy} onClick={() => handleSetRole(s.uid, 'pending')}>
                                 {t('admin.revoke')}
+                              </Button>
+                            )}
+                            {canManageRow && (
+                              <Button size="sm" variant="destructive" disabled={busy} onClick={() => handleDelete(s.uid, s.name)}>
+                                {t('admin.deleteAccount')}
                               </Button>
                             )}
                           </div>
