@@ -182,19 +182,16 @@ export interface BookingSeries {
   createdAt: Date
 }
 
-// Role hierarchy:
+// Role hierarchy (ice-rink admin duties only — see isTrainer below for the
+// separate, orthogonal training-reservations track):
 // - superadmin: full control, and the only role that can grant/revoke 'owner'
 // - owner ("Club owner"): manages bookings/schedules, and can grant/revoke
-//   'assistant'/'trainer' for their own club — but cannot touch
-//   owner/superadmin roles
+//   'assistant' for their own club, plus grant/revoke isTrainer on anyone
+//   but an owner/superadmin — but cannot touch owner/superadmin roles
 // - assistant: manages bookings/schedules, cannot manage other staff
-// - trainer: manages only their own training sessions/series/bundles and
-//   the attendance/registrations on them — no access to ice-rink bookings,
-//   club settings, or other staff. Distinct from isStaffMember() entirely
-//   (see firestore.rules) rather than a variant of it.
-// - pending: a self-registered account with no permissions yet, awaiting an
-//   owner or superadmin to grant it a role
-export type StaffRole = 'superadmin' | 'owner' | 'assistant' | 'trainer' | 'pending'
+// - pending: a self-registered account with no ice-rink permissions yet,
+//   awaiting an owner or superadmin to grant it a role
+export type StaffRole = 'superadmin' | 'owner' | 'assistant' | 'pending'
 
 export interface StaffUser {
   uid: string
@@ -202,8 +199,15 @@ export interface StaffUser {
   email: string
   name: string
   role: StaffRole
+  // Independent of `role` — an account can be e.g. role:'assistant' AND
+  // isTrainer:true at once (one person doing both jobs). Manages only
+  // their own training sessions/series/bundles and the attendance/
+  // registrations on them; grants no ice-rink/club-settings/staff access
+  // by itself. Distinct from isStaffMember() entirely (see firestore.rules)
+  // rather than a variant of role.
+  isTrainer?: boolean
   // Trainer-only profile shown on the public trainer directory
-  // (/treningy/treneri) — meaningless for other roles.
+  // (/treningy/treneri) — meaningless when isTrainer isn't set.
   bio?: string
   photoUrl?: string
   // Distinguishes this trainer's sessions on the public calendar, where
@@ -211,11 +215,11 @@ export interface StaffUser {
   // date/time. Auto-assigned from a fixed palette at approval time;
   // editable later.
   calendarColor?: string
-  // Set only while role is still 'pending' AND the signup came through the
-  // invite-code-gated trainer flow (see lib/trainerInvites.ts) — lets the
-  // staff approval panel show "wants to become a trainer" instead of a
-  // bare generic pending row, and lets the approve action set role
-  // straight to 'trainer' instead of the owner having to know to do that.
+  // Set only while isTrainer isn't true yet AND the signup came through
+  // the invite-code-gated trainer flow (see lib/trainerInvites.ts) — lets
+  // the staff approval panel show "wants to become a trainer" instead of a
+  // bare generic pending row, and lets the approve action set isTrainer
+  // straight to true instead of the owner having to know to do that.
   // The generic self-signup (AdminSignupPage) never sets this field.
   pendingRole?: 'trainer'
   createdAt: Date

@@ -36,14 +36,17 @@ service cloud.firestore {
       return myRole() in ['superadmin', 'owner', 'assistant'];
     }
 
-    // Manages only their own training sessions/series/bundles — a
-    // separate track from isStaffMember(), not a variant of it. A trainer
-    // has no access to ice-rink bookings or club-wide config.
+    // Manages only their own training sessions/series/bundles — independent
+    // of `role` (an account can be isStaffMember() AND isTrainer() at once).
+    // A trainer flag alone grants no access to ice-rink bookings or
+    // club-wide config.
     function isTrainer() {
-      return myRole() == 'trainer';
+      return hasStaffDoc()
+        && get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.isTrainer == true;
     }
 
-    // Can manage club config and grant/revoke the 'assistant'/'trainer' role.
+    // Can manage club config, grant/revoke the 'assistant' role, and
+    // grant/revoke the isTrainer flag on anyone but an owner/superadmin.
     function isOwnerOrAbove() {
       return myRole() in ['superadmin', 'owner'];
     }
@@ -103,17 +106,18 @@ service cloud.firestore {
         && request.resource.data.uid == uid
         && request.resource.data.role == 'pending';
 
-      // Role changes: superadmin can set any role on anyone; an owner can
-      // only move a row between 'pending', 'assistant' and 'trainer'
-      // (never touching owner/superadmin rows), and only the role field —
-      // this is also how a trainer's invite-code signup (role stays
-      // 'pending' with pendingRole:'trainer' until approved — see
-      // StaffUser in src/types/index.ts) gets approved into 'trainer'.
+      // Role/trainer changes: superadmin can change anything on anyone; an
+      // owner can only touch rows that are currently 'pending' or
+      // 'assistant' (never an owner/superadmin row), and only the role,
+      // isTrainer and pendingRole fields — this is also how a trainer's
+      // invite-code signup (role stays 'pending' with pendingRole:'trainer'
+      // until approved — see StaffUser in src/types/index.ts) gets approved
+      // by setting isTrainer:true and clearing pendingRole.
       allow update: if isSuperAdmin()
         || (isOwner()
-            && resource.data.role in ['pending', 'assistant', 'trainer']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
-            && request.resource.data.role in ['pending', 'assistant', 'trainer']);
+            && resource.data.role in ['pending', 'assistant']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'isTrainer', 'pendingRole'])
+            && request.resource.data.role in ['pending', 'assistant']);
 
       allow delete: if isSuperAdmin();
     }

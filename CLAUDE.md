@@ -393,12 +393,38 @@ code as-is would have meant staff needing two separate logins — one for
 two Tailwind configs and dependency trees for no real benefit. Rebuilding
 natively means one Firebase project, one Auth pool, one login.
 
-**Role model**: `trainer` was added as a fifth `StaffRole` (see
-`src/types/index.ts`), separate from `isStaffMember()` (assistant/
-owner/superadmin — ice-rink duties) rather than a variant of it — a
-trainer has zero access to ice bookings, club settings, or other staff,
-only to their own training sessions. Public customers still never log in,
-same as ice bookings.
+**Role model**: trainer access is `isTrainer?: boolean` on `StaffUser` (see
+`src/types/index.ts`) — independent of `role` (`superadmin`/`owner`/
+`assistant`/`pending`), not a fifth value of it. That was the original
+design (`role: 'trainer'`) but a club owner asked for one account to be
+able to hold an ice-rink role AND trainer access at once (e.g. an
+assistant who also coaches), which a single-valued enum can't express —
+so the two tracks were decoupled. `isStaffMember()` (assistant/owner/
+superadmin — ice-rink duties) and `isTrainer()` (own training sessions
+only) are fully independent checks in `firestore.rules`; an account with
+neither has `role: 'pending'` and `isTrainer` unset/false. Public
+customers still never log in, same as ice bookings.
+
+Granting/revoking `isTrainer` goes through `setTrainerAccess` (`lib/
+staff.ts`) — an owner/superadmin action available directly on any
+`pending`/`assistant` roster row in `AdminStaffPanel.tsx` (a superadmin
+can also touch an owner/superadmin row), not gated behind the invite-code
+flow once the account already exists — the invite code only controls who
+can *self-register* as a brand-new trainer, not whether an owner can
+later hand an existing staff member trainer access with one click.
+
+**Deleting a staff account** (`deleteStaffAccount` in `functions/src/
+index.ts`, called via `lib/staff.ts`) is a separate action from
+"Revoke" (`updateStaffRole(uid, 'pending')`), which only zeroes out
+permissions but leaves the account able to sign in. A real delete removes
+both the Firestore `staff` doc and the Firebase Auth account — the Auth
+half requires the Admin SDK (a client can't delete another user's Auth
+account), so it's a callable Cloud Function rather than a direct
+Firestore write; the function re-derives the same caller-role boundary
+`firestore.rules`' `/staff` update rule already enforces (superadmin: any
+row but their own; owner: only `pending`/`assistant` rows, never
+owner/superadmin) since Admin SDK calls bypass Firestore rules entirely
+and so must re-check permissions themselves.
 
 **Trainer signup is invite-code-gated**, unlike the generic open
 `/admin/signup` (which anyone can use to create a `'pending'` account with
