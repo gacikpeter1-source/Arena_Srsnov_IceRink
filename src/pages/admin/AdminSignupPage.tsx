@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
+import SignupModeSwitch from '@/components/SignupModeSwitch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,6 +40,7 @@ export default function AdminSignupPage() {
           <CardTitle className="text-white">{t('admin.signupTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
+          <SignupModeSwitch active="staff" />
           <p className="text-text-secondary text-sm mb-4">{t('admin.signupNotice')}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <p className="text-status-danger text-sm">{error}</p>}
@@ -81,9 +83,6 @@ export default function AdminSignupPage() {
           </form>
           <p className="text-text-muted text-sm text-center mt-4">
             <Link to="/admin/login" className="hover:text-primary">{t('admin.haveAccount')}</Link>
-          </p>
-          <p className="text-text-muted text-sm text-center mt-1">
-            <Link to="/admin/signup-trainer" className="hover:text-primary">{t('admin.areYouATrainer')}</Link>
           </p>
         </CardContent>
       </Card>

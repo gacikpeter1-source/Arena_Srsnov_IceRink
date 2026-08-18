@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { InvalidInviteCodeError } from '@/lib/trainerInvites'
+import SignupModeSwitch from '@/components/SignupModeSwitch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,10 +13,11 @@ export default function TrainerSignupPage() {
   const { t } = useTranslation()
   const { signupTrainer } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
+  const [inviteCode, setInviteCode] = useState(searchParams.get('code') ?? '')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -41,6 +43,7 @@ export default function TrainerSignupPage() {
           <CardTitle className="text-white">{t('admin.trainerSignupTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
+          <SignupModeSwitch active="trainer" />
           <p className="text-text-secondary text-sm mb-4">{t('admin.trainerSignupNotice')}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <p className="text-status-danger text-sm">{error}</p>}
@@ -93,9 +96,6 @@ export default function TrainerSignupPage() {
           </form>
           <p className="text-text-muted text-sm text-center mt-4">
             <Link to="/admin/login" className="hover:text-primary">{t('admin.haveAccount')}</Link>
-          </p>
-          <p className="text-text-muted text-sm text-center mt-1">
-            <Link to="/admin/signup" className="hover:text-primary">{t('admin.notATrainer')}</Link>
           </p>
         </CardContent>
       </Card>
