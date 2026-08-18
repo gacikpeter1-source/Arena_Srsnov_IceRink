@@ -421,6 +421,19 @@ creation can't itself be part of a Firestore transaction, so
 transaction loses a race (code already used), rather than leaving an
 orphaned account with no `staff` doc.
 
+`/admin/signup` (staff) and `/admin/signup-trainer` (invite-code-gated)
+are two separate forms creating differently-shaped `staff` docs, which
+was confusing when the only way to find the trainer form was a small
+link at the bottom of the other page — `SignupModeSwitch.tsx` puts an
+explicit Staff/Trainer tab switch in both pages' header instead, so the
+choice is obvious before anyone starts typing. The invite-code table in
+`AdminStaffPanel.tsx` shows a "Copy link" button per unused code
+(`{origin}/admin/signup-trainer?code=<code>`) alongside the raw code
+(which stays visible in the table itself, not just a one-time toast) —
+`TrainerSignupPage.tsx` reads that `?code=` param to prefill the field,
+so an owner can hand a trainer a single link instead of a code to
+retype on the right page.
+
 **Data model** (see `src/types/index.ts` for full field docs):
 - `trainingSeries` — a recurring series (e.g. "every Tuesday") a trainer
   sets up once; each occurrence is still its own `trainingSessions` doc

@@ -32,6 +32,15 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
   const [codesLoading, setCodesLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [busyCode, setBusyCode] = useState<string | null>(null)
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
+
+  const inviteLink = (code: string) => `${window.location.origin}/admin/signup-trainer?code=${code}`
+
+  const handleCopyLink = async (code: string) => {
+    await navigator.clipboard.writeText(inviteLink(code))
+    setCopiedCode(code)
+    setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 2000)
+  }
 
   const refresh = () => {
     setLoading(true)
@@ -185,6 +194,7 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                 <thead>
                   <tr className="text-left text-text-muted border-b border-border">
                     <th className="py-2 pr-3">{t('admin.inviteCode')}</th>
+                    <th className="py-2 pr-3">{t('admin.inviteLink')}</th>
                     <th className="py-2 pr-3">{t('admin.status')}</th>
                     <th className="py-2 pr-3" />
                   </tr>
@@ -192,8 +202,15 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                 <tbody>
                   {inviteCodes.map((c) => (
                     <tr key={c.id} className="border-b border-border">
-                      <td className="py-2 pr-3 mono text-primary">{c.id}</td>
-                      <td className="py-2 pr-3 text-text-secondary">
+                      <td className="py-2 pr-3 mono text-primary whitespace-nowrap">{c.id}</td>
+                      <td className="py-2 pr-3">
+                        {!c.used && (
+                          <Button size="sm" variant="outline" onClick={() => handleCopyLink(c.id)}>
+                            {copiedCode === c.id ? t('admin.linkCopied') : t('admin.copyLink')}
+                          </Button>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3 text-text-secondary whitespace-nowrap">
                         {c.used ? t('admin.inviteCodeUsed') : t('admin.inviteCodeUnused')}
                       </td>
                       <td className="py-2 pr-3">
