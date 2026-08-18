@@ -20,7 +20,7 @@ import AdminDaySchedulePanel from '@/components/AdminDaySchedulePanel'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
-  const { staff, logout } = useAuth()
+  const { user, staff, logout } = useAuth()
   const { club, rinks, zones, timeSlotConfigs, divisionRules } = useClubData()
 
   const [dateFrom, setDateFrom] = useState(formatDateISO(new Date()))
@@ -302,8 +302,8 @@ export default function AdminDashboardPage() {
 
       {canManageStaff && club && <AdminClubSettingsPanel club={club} />}
 
-      {canManageStaff && staff && club && (
-        <AdminStaffPanel clubId={club.id} viewerUid={staff.uid} viewerRole={staff.role} />
+      {canManageStaff && user && staff && club && (
+        <AdminStaffPanel clubId={club.id} viewerUid={user.uid} viewerRole={staff.role} />
       )}
 
       {club && rinks.length > 0 && (
