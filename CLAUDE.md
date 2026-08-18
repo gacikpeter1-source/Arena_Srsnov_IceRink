@@ -372,6 +372,112 @@ existing `skipWaiting`/`clientsClaim`/`cleanupOutdatedCaches` workbox
 options, which control the *server*-side swap but were never sufficient
 on their own).
 
+## Training reservations (korčuľovanie)
+A second, independent booking domain living in this same app/Firebase
+project/Auth — not a separate embedded app, and not a data migration of
+`../Arena-Srsnov` either. That reference app was read (see its own repo)
+to understand its actual behavior, then this domain was redesigned from
+scratch to reuse this app's existing conventions (atomic transactions,
+soft-cancel, secure tokens, the `mail` email-queue mechanism, bilingual
+i18n) rather than port its code — several of its mechanisms were
+deliberately not carried over as-is: unsynchronized `read-then-write`
+capacity checks (a real double-booking race), a `Math.random()`
+`cancellationToken` (not cryptographically secure), and cancellation by
+hard `deleteDoc` (loses history) were all fixed rather than reproduced.
+
+**Why a second Firebase project was rejected**: the reference app runs on
+its own separate Firebase project (`arena-srsnov`, vs. this app's
+`arena-srsnov-reservation`) with its own Auth user pool. Embedding its
+code as-is would have meant staff needing two separate logins — one for
+`/admin` (ice bookings) and one for training sessions — plus reconciling
+two Tailwind configs and dependency trees for no real benefit. Rebuilding
+natively means one Firebase project, one Auth pool, one login.
+
+**Role model**: `trainer` was added as a fifth `StaffRole` (see
+`src/types/index.ts`), separate from `isStaffMember()` (assistant/
+owner/superadmin — ice-rink duties) rather than a variant of it — a
+trainer has zero access to ice bookings, club settings, or other staff,
+only to their own training sessions. Public customers still never log in,
+same as ice bookings.
+
+**Trainer signup is invite-code-gated**, unlike the generic open
+`/admin/signup` (which anyone can use to create a `'pending'` account with
+zero permissions until approved). An owner/superadmin generates a
+single-use code (`lib/trainerInvites.ts`, `trainerInviteCodes` collection)
+and hands it to one specific person — this exists purely to keep the
+pending-approval queue from filling with randoms who find the signup URL,
+since the actual security boundary (zero permissions until approved) is
+identical either way. `TrainerSignupPage.tsx`
+(`/admin/signup-trainer`) still creates the account as `role: 'pending'`
+(not straight to `'trainer'`) so it goes through the same existing
+owner-approval mechanism as everyone else, but stamps
+`pendingRole: 'trainer'` so `AdminStaffPanel.tsx` shows "wants to become a
+trainer" and offers a one-click "Approve as trainer" button instead of a
+bare generic pending row. Redeeming a code
+(`redeemTrainerInviteCode`) writes the `staff` doc and marks the code used
+in one Firestore transaction — necessary because Firebase Auth account
+creation can't itself be part of a Firestore transaction, so
+`AuthContext.signupTrainer` deletes the just-created Auth account if the
+transaction loses a race (code already used), rather than leaving an
+orphaned account with no `staff` doc.
+
+**Data model** (see `src/types/index.ts` for full field docs):
+- `trainingSeries` — a recurring series (e.g. "every Tuesday") a trainer
+  sets up once; each occurrence is still its own `trainingSessions` doc
+  with its own registrations — a customer registers per session, not once
+  for the whole series.
+- `trainingBundles` — a "kurz"/"kemp": a fixed set of pre-scheduled
+  sessions where a customer registers **once** and that single
+  registration covers every session in the bundle (`trainingBundleRegistrations`).
+  Capacity/waitlist is tracked once, on the bundle, not per session.
+  Distinct from `trainingSeries` above — same underlying
+  `trainingSessions` documents either way (every real training hour is
+  always its own session doc, whether standalone, part of a series via
+  `seriesId`, or part of a bundle via `bundleId` — mutually exclusive),
+  only the registration/capacity model differs.
+- `trainingSessions` — one real training hour, one trainer. Never reserves
+  ice/zone time itself (the trainer is assumed to have the ice booked
+  separately, outside this system). `trainerId` is optional: an
+  Excel-imported row with no trainer name creates a `status: 'unassigned'`
+  session that any approved trainer can claim (atomically, first to write
+  wins — see firestore.rules) — public registration only opens once
+  claimed. Nothing caps how many trainers can run sessions at the same
+  date/time — any trainer can always create their own independent session
+  alongside others', e.g. to absorb overflow demand.
+- `trainingRegistrations` / `trainingBundleRegistrations` — no-login
+  customer registrations, one shape per booking-unit above. Attendance
+  (`attendance` / `attendanceBySession`) shows the trainer the
+  participant's name *and* confirmation code together (not anonymized) —
+  marked by the owning trainer on their own session's roster.
+- `trainingWalkIns` — a participant who showed up without registering;
+  deliberately kept available for people who don't use the app. No email,
+  no link to a `trainingRegistrations` doc or a session's `confirmedCount`.
+- `trainerIceLog` — a trainer using club ice with **no** booked session at
+  all, logged by an assistant. A club-oversight tool for catching
+  unauthorized private lessons on club ice — deliberately **not** readable
+  by the trainer it's about, only by owner/superadmin.
+- `trainingReportHistory` — audit log of generated exports, owner/
+  superadmin only, so a past report can be re-downloaded without
+  regenerating it.
+- Per-session/bundle `cancellationCutoffHours` (default 2, suggested — not
+  enforced — by the UI) is set by the trainer individually, unlike ice
+  bookings' single club-wide `CANCELLATION_CUTOFF_HOURS` constant, since
+  each trainer may want a different notice window.
+
+**Planned but not yet built** (this section will be extended as later
+phases land): the public calendar (`/treningy/*`, colored per trainer,
+`X/Y` occupancy + waitlist count when full), trainer directory, session/
+bundle registration flows, attendance check-in screens, walk-in and
+ice-log logging UI, the "krížové upozornenie z čakačky" cross-notification
+(when a new session opens at a date/time where another trainer's session
+already has a waitlist, everyone on that waitlist gets emailed a one-click
+claim link into the new session — never a silent auto-move, since a
+waitlisted customer chose a particular trainer and shouldn't end up
+enrolled with a different one without an explicit action), Excel import/
+export for sessions, and swapping the hub's "Training Reservations" card
+from `clubs.integrations.trainingReservationsUrl` (external link) to an
+internal route.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

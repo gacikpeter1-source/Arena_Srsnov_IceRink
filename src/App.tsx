@@ -9,6 +9,7 @@ import ConfirmBookingPage from './pages/ConfirmBookingPage'
 import SeriesCancelPage from './pages/SeriesCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminSignupPage from './pages/admin/AdminSignupPage'
+import TrainerSignupPage from './pages/admin/TrainerSignupPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import ContactUsButton from './components/ContactUsButton'
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="/my-series/:seriesId/:token" element={<SeriesCancelPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
+          <Route path="/admin/signup-trainer" element={<TrainerSignupPage />} />
           <Route
             path="/admin"
             element={

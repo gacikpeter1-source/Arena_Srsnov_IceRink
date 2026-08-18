@@ -65,6 +65,22 @@ export default function AdminDashboardPage() {
     )
   }
 
+  // A trainer manages only their own training sessions, never ice-rink
+  // bookings — this dashboard isn't for them at all (see firestore.rules'
+  // isTrainer(), a separate track from isStaffMember()). The trainer's own
+  // dashboard (calendar, registrations, attendance) is a later build step;
+  // this placeholder just keeps them out of the ice-booking admin view
+  // meanwhile rather than showing something that doesn't apply to them.
+  if (staff?.role === 'trainer') {
+    return (
+      <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
+        <h1>{t('admin.trainerDashboardComingSoonTitle')}</h1>
+        <p className="text-text-secondary">{t('admin.trainerDashboardComingSoonNotice')}</p>
+        <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
+      </div>
+    )
+  }
+
   const canManageStaff = staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const handleCancel = async (booking: Booking & { id: string }) => {

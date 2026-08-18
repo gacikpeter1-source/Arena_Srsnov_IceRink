@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, User } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
+import { redeemTrainerInviteCode } from '@/lib/trainerInvites'
 import { StaffUser } from '@/types'
 
 const CLUB_ID = import.meta.env.VITE_CLUB_ID
@@ -12,6 +13,7 @@ interface AuthContextValue {
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, name: string) => Promise<void>
+  signupTrainer: (email: string, password: string, name: string, inviteCode: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -59,12 +61,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStaff(newStaff)
   }
 
+  // Trainer self-registration: gated by a single-use invite code (see
+  // lib/trainerInvites.ts) instead of being open to anyone — role still
+  // starts as 'pending' with pendingRole:'trainer' (same "no permissions
+  // until an owner approves" invariant as the generic signup above), but
+  // the invite code proves an owner actually meant for this specific
+  // person to sign up, so the pending queue doesn't fill with randoms.
+  // Firebase Auth account creation can't be part of the Firestore
+  // transaction that redeems the code, so a lost race (code already used
+  // by the time the transaction runs) deletes the just-created Auth
+  // account rather than leaving an orphaned account with no staff doc.
+  const signupTrainer = async (email: string, password: string, name: string, inviteCode: string) => {
+    const cred = await createUserWithEmailAndPassword(auth, email, password)
+    try {
+      await redeemTrainerInviteCode(inviteCode, { uid: cred.user.uid, clubId: CLUB_ID, email, name })
+    } catch (err) {
+      await cred.user.delete().catch(() => {})
+      throw err
+    }
+    const newStaff: StaffUser = {
+      uid: cred.user.uid,
+      clubId: CLUB_ID,
+      email,
+      name,
+      role: 'pending',
+      pendingRole: 'trainer',
+      createdAt: new Date()
+    }
+    setStaff(newStaff)
+  }
+
   const logout = async () => {
     await signOut(auth)
   }
 
   return (
-    <AuthContext.Provider value={{ user, staff, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, staff, loading, login, signup, signupTrainer, logout }}>
       {children}
     </AuthContext.Provider>
   )
