@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
@@ -69,20 +70,12 @@ export default function AdminDashboardPage() {
 
   // isTrainer is independent of role (see StaffUser) — an account can be
   // both isStaffMember() and a trainer at once, in which case the normal
-  // ice-rink dashboard below is exactly right for them. This placeholder
-  // only applies to a trainer-only account (role still 'pending', so no
-  // ice-rink access at all) — the trainer's own dashboard (calendar,
-  // registrations, attendance) is a later build step; this just keeps
-  // them out of the ice-booking admin view meanwhile rather than showing
-  // something that doesn't apply to them.
+  // ice-rink dashboard below is exactly right for them (with a link to
+  // their own training dashboard, added below). This redirect only
+  // applies to a trainer-only account (role still 'pending', so no
+  // ice-rink access at all) — nothing on this page applies to them.
   if (staff?.isTrainer && staff.role === 'pending') {
-    return (
-      <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
-        <h1>{t('admin.trainerDashboardComingSoonTitle')}</h1>
-        <p className="text-text-secondary">{t('admin.trainerDashboardComingSoonNotice')}</p>
-        <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
-      </div>
-    )
+    return <Navigate to="/admin/treningy" replace />
   }
 
   const canManageStaff = staff?.role === 'owner' || staff?.role === 'superadmin'
@@ -170,7 +163,14 @@ export default function AdminDashboardPage() {
           <h1>{t('admin.dashboardTitle')}</h1>
           <p className="text-text-secondary">{t('admin.signedInAs', { email: staff?.email })}</p>
         </div>
-        <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
+        <div className="flex gap-2">
+          {staff?.isTrainer && (
+            <Link to="/admin/treningy">
+              <Button variant="outline">{t('admin.myTrainings')}</Button>
+            </Link>
+          )}
+          <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
+        </div>
       </div>
 
       <Card className="arena-card">

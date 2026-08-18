@@ -8,6 +8,16 @@ export async function fetchStaffRoster(clubId: string): Promise<StaffUser[]> {
   return snap.docs.map((d) => d.data() as StaffUser)
 }
 
+// Public (no-login) trainer directory — relies on firestore.rules'
+// `allow read: if resource.data.isTrainer == true` filter on /staff, which
+// Firestore evaluates per-document for list queries, so this safely
+// returns only trainer docs regardless of clubId (each deployment serves
+// one club anyway — see CLAUDE.md's multi-tenant model).
+export async function fetchTrainers(): Promise<StaffUser[]> {
+  const snap = await getDocs(query(collection(db, 'staff'), where('isTrainer', '==', true)))
+  return snap.docs.map((d) => d.data() as StaffUser)
+}
+
 export async function updateStaffRole(uid: string, role: StaffRole): Promise<void> {
   await updateDoc(doc(db, 'staff', uid), { role })
 }

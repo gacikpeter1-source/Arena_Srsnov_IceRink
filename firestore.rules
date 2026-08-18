@@ -99,6 +99,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && request.auth.uid == uid;
       // Any active staff member can see the roster.
       allow read: if isStaffMember();
+      // Public trainer directory (/treningy/treneri) — no login, so this
+      // has to be a plain public rule rather than isTrainer(), which
+      // depends on the CALLER's own staff doc. Firestore evaluates `read`
+      // per-document for list queries when the rule only depends on
+      // resource.data, so a `where('isTrainer','==',true)` query safely
+      // returns only trainer docs — everyone else's stays private.
+      allow read: if resource.data.isTrainer == true;
 
       // Self-registration: create your OWN doc, but only as 'pending' —
       // you cannot grant yourself a real role.
@@ -267,10 +274,17 @@ service cloud.firestore {
     match /trainingRegistrations/{regId} {
       allow read: if true;
       allow create: if true;
+      // Public self-cancel: from 'confirmed' (releases a reserved spot,
+      // respecting the session's cancellationCutoffHours), or from
+      // 'pending'/'waitlist' (a customer changing their mind before ever
+      // being confirmed — no cutoff, since a pending hold only lasts
+      // TRAINING_PENDING_CONFIRMATION_MINUTES anyway and a waitlist entry
+      // never reserved real capacity in the first place).
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
-        && resource.data.status == 'confirmed'
+        && resource.data.status in ['confirmed', 'pending', 'waitlist']
         && request.resource.data.status == 'cancelled'
-        && (!('startAtUtc' in resource.data)
+        && (resource.data.status != 'confirmed'
+            || !('startAtUtc' in resource.data)
             || request.time + duration.value(get(/databases/$(database)/documents/trainingSessions/$(resource.data.sessionId)).data.cancellationCutoffHours, 'h') < resource.data.startAtUtc);
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && resource.data.status == 'pending'
@@ -287,8 +301,11 @@ service cloud.firestore {
     match /trainingBundleRegistrations/{regId} {
       allow read: if true;
       allow create: if true;
+      // Public self-cancel from any of confirmed/pending/waitlist — no
+      // cutoff on a bundle registration (see cancelBundleRegistration in
+      // src/lib/training.ts for why that's deliberate).
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
-        && resource.data.status == 'confirmed'
+        && resource.data.status in ['confirmed', 'pending', 'waitlist']
         && request.resource.data.status == 'cancelled';
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && resource.data.status == 'pending'
