@@ -9,16 +9,19 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where
 } from 'firebase/firestore'
 import { db } from './firebase'
 import {
+  TrainerIceLogEntry,
   TrainingBundle,
   TrainingBundleRegistration,
   TrainingFrequency,
   TrainingRegistration,
   TrainingSeries,
-  TrainingSession
+  TrainingSession,
+  TrainingWalkIn
 } from '@/types'
 import { addDays, formatDateISO, generateConfirmationCode, generateToken } from './utils'
 import { zonedTimeToUtc } from './ics'
@@ -680,4 +683,122 @@ export async function fetchBundleRegistrationsByEmail(
     query(collection(db, 'trainingBundleRegistrations'), where('bundleId', '==', bundleId), where('email', '==', email))
   )
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TrainingBundleRegistration & { id: string })
+}
+
+// ---------------------------------------------------------------------
+// Attendance, walk-ins, trainer ice log — trainer's own check-in screens
+// plus the club-oversight ice log. See CLAUDE.md's "Training reservations"
+// section: "attendance" here means marking the CUSTOMER present, distinct
+// from the reference app's confusing reuse of that word for trainer-
+// presence validation.
+// ---------------------------------------------------------------------
+
+/** Full roster for a trainer's own session (any status) — used by the check-in screen. */
+export async function fetchSessionRegistrations(sessionId: string): Promise<(TrainingRegistration & { id: string })[]> {
+  const snap = await getDocs(query(collection(db, 'trainingRegistrations'), where('sessionId', '==', sessionId)))
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as TrainingRegistration & { id: string })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Full roster for a trainer's own bundle (any status) — one row per enrolled participant. */
+export async function fetchBundleRegistrations(bundleId: string): Promise<(TrainingBundleRegistration & { id: string })[]> {
+  const snap = await getDocs(query(collection(db, 'trainingBundleRegistrations'), where('bundleId', '==', bundleId)))
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as TrainingBundleRegistration & { id: string })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export async function markSessionAttendance(registrationId: string, checkedIn: boolean, checkedInBy: string): Promise<void> {
+  await updateDoc(doc(db, 'trainingRegistrations', registrationId), {
+    attendance: checkedIn ? { checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy } : { checkedIn: false }
+  })
+}
+
+/** Marks attendance for one real session within a bundle registration's attendanceBySession map. */
+export async function markBundleSessionAttendance(
+  registrationId: string,
+  sessionId: string,
+  checkedIn: boolean,
+  checkedInBy: string
+): Promise<void> {
+  const regRef = doc(db, 'trainingBundleRegistrations', registrationId)
+  const snap = await getDoc(regRef)
+  if (!snap.exists()) throw new Error('Registration not found')
+  const existing = (snap.data() as TrainingBundleRegistration).attendanceBySession ?? {}
+  await updateDoc(regRef, {
+    attendanceBySession: {
+      ...existing,
+      [sessionId]: checkedIn ? { checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy } : { checkedIn: false }
+    }
+  })
+}
+
+export interface AddWalkInInput {
+  clubId: string
+  sessionId: string
+  name: string
+  notes?: string
+  addedBy: string
+}
+
+export async function addWalkIn(input: AddWalkInInput): Promise<void> {
+  await setDoc(doc(collection(db, 'trainingWalkIns')), {
+    clubId: input.clubId,
+    sessionId: input.sessionId,
+    name: input.name,
+    ...(input.notes ? { notes: input.notes } : {}),
+    checkedInAt: serverTimestamp(),
+    addedBy: input.addedBy
+  })
+}
+
+export async function fetchWalkInsForSession(sessionId: string): Promise<(TrainingWalkIn & { id: string })[]> {
+  const snap = await getDocs(query(collection(db, 'trainingWalkIns'), where('sessionId', '==', sessionId)))
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TrainingWalkIn & { id: string })
+}
+
+export async function deleteWalkIn(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'trainingWalkIns', id))
+}
+
+export interface AddTrainerIceLogInput {
+  clubId: string
+  trainerId: string
+  trainerName: string
+  date: string
+  notes?: string
+  loggedBy: string
+}
+
+/**
+ * Logged by an assistant/owner/superadmin when a trainer is seen using
+ * club ice with no booked session at all — a club-oversight tool for
+ * catching unauthorized private lessons. Deliberately NOT readable by the
+ * trainer it's about (see firestore.rules) — this lib module still
+ * exports it since it's part of the training-reservations domain, but
+ * only ice-rink admin UI (not the trainer dashboard) should ever call it.
+ */
+export async function addTrainerIceLogEntry(input: AddTrainerIceLogInput): Promise<void> {
+  await setDoc(doc(collection(db, 'trainerIceLog')), {
+    clubId: input.clubId,
+    trainerId: input.trainerId,
+    trainerName: input.trainerName,
+    date: input.date,
+    ...(input.notes ? { notes: input.notes } : {}),
+    loggedBy: input.loggedBy,
+    loggedAt: serverTimestamp()
+  })
+}
+
+/** Owner/superadmin only — firestore.rules rejects this read for anyone else, including the trainer it's about. */
+export async function fetchTrainerIceLog(clubId: string): Promise<(TrainerIceLogEntry & { id: string })[]> {
+  const snap = await getDocs(query(collection(db, 'trainerIceLog'), where('clubId', '==', clubId)))
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as TrainerIceLogEntry & { id: string })
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export async function deleteTrainerIceLogEntry(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'trainerIceLog', id))
 }
