@@ -613,6 +613,19 @@ Fáza 1 deploy, just unused by any UI until now.
   (`canViewLog`/`fetchTrainerIceLog`), matching `firestore.rules` — an
   assistant who logs an entry can't see the accumulated log, and the
   trainer it's about never can either.
+- **Attendance report** (`lib/trainingReport.ts`, owner/superadmin section
+  of `AdminTrainerIceLogPanel.tsx`) — downloads one .xlsx for a date
+  range (optionally filtered to one trainer) combining two sheets:
+  planned trainings (with who was marked present, pulled from the same
+  `attendance`/`attendanceBySession` data the roster check-in writes) and
+  the private ice log entries for that range — exactly the "both the
+  official calendar and the off-the-books ice use" view an owner asked
+  for. Reuses the `lib/excel.ts` pattern (`XLSX.utils.json_to_sheet` +
+  `XLSX.writeFile`, client-side, no server round trip) and logs a
+  `trainingReportHistory` doc per generation for the audit trail: this
+  pass is generate-and-download only, not re-download — that would need
+  the file itself persisted somewhere (e.g. Firebase Storage), left for
+  later since nothing asked for it yet.
 
 **Planned but not yet built** (this section will be extended as later
 phases land): the "krížové upozornenie z čakačky" cross-notification
