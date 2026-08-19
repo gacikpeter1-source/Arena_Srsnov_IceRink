@@ -685,13 +685,23 @@ a new tab as-is.
 
 **Standing requirement — signed-in identity is always visible.** Whenever
 a staff member is signed in, the shared header (`App.tsx`) shows their
-name and role (`StaffIdentityBadge.tsx`, next to the language switcher —
-"Meno · Rola", plus "+ Tréner" when `isTrainer` is also set). This lives
-once in the shared header rather than per-page, specifically so it
-automatically covers every current and future admin page without each
-one needing its own copy of the same display — do not remove or
-duplicate this per-page; if a page needs different identity info, extend
-`StaffIdentityBadge.tsx` rather than adding a second one.
+name and role. This lives once in the shared header rather than
+per-page, specifically so it automatically covers every current and
+future admin page without each one needing its own copy of the same
+display — do not remove or duplicate this per-page.
+
+The header itself only ever holds the logo/brand, the language switcher,
+and one `HeaderMenu.tsx` dropdown trigger — nav links (Trainings, Manage
+my booking, Contact us) plus the signed-in identity all live inside that
+dropdown instead of as separate header items, after the header got
+visibly crowded once the training-reservations nav links landed
+alongside the existing ones. The trigger itself shows the staff member's
+name when signed in (so identity stays glanceable without opening the
+menu — satisfies the requirement above on its own) or a plain menu icon
+for a signed-out visitor; opening the dropdown additionally shows the
+full "Meno · Rola" line (plus "+ Tréner" when `isTrainer` is also set).
+Any future header-level nav item belongs inside `HeaderMenu.tsx`, not as
+a new direct header child — that's the whole point of consolidating it.
 
 Owners/superadmins edit the club's name and contact info themselves from
 the admin dashboard's "Club settings" panel (`AdminClubSettingsPanel.tsx`,
