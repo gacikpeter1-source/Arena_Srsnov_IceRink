@@ -350,7 +350,7 @@
     "title": "Trainer ice log",
     "hint": "Log a trainer using club ice with no booked session at all — visible only to the club owner/superadmin.",
     "trainer": "Trainer",
-    "selectTrainer": "Select a trainer",
+    "selectTrainer": "Type or pick a trainer's name",
     "notes": "Notes",
     "logEntry": "Log entry",
     "none": "No entries yet.",

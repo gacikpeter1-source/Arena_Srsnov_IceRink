@@ -594,12 +594,22 @@ Fáza 1 deploy, just unused by any UI until now.
   up without registering. No confirmation code lookup, no link to
   `confirmedCount`; just a name (+ optional notes) the trainer can add or
   remove for that specific session.
-- **Trainer ice log** (`AdminTrainerIceLogPanel.tsx`, added to
-  `AdminDashboardPage.tsx` — the ice-rink side, NOT the trainer
-  dashboard) — an assistant/owner/superadmin logs a trainer seen using
-  club ice with no booked session at all. Any active staff member can add
-  an entry (picking a trainer from `fetchTrainers()`, a date, optional
-  notes); only owner/superadmin can read the log back
+- **Trainer ice log** (`AdminTrainerIceLogPanel.tsx`) — an assistant/
+  owner/superadmin logs a trainer seen using club ice with no booked
+  session at all. Lives in `TrainerDashboardPage.tsx` (`/admin/treningy`),
+  not the ice-rink `AdminDashboardPage.tsx` — an assistant's whole reason
+  to be on that page is to log this, so the original placement at the
+  bottom of the ice-rink dashboard buried it; that page's access guard was
+  broadened from "trainers only" to "trainer OR ice-rink staff" so a
+  plain assistant (not a trainer) can reach it too, seeing only this
+  panel while a trainer sees only their own session/series/bundle tools —
+  a dual-role account sees both. The trainer name field is a free-text
+  input backed by a `<datalist>` of registered trainers' names (not a
+  strict dropdown) — typing a name that matches an existing trainer links
+  the entry to their account (`trainerId`), typing anything else still
+  logs fine without one (e.g. a guest/private coach who never signed up),
+  since `TrainerIceLogEntry.trainerId` is optional precisely for this.
+  Only owner/superadmin can read the log back
   (`canViewLog`/`fetchTrainerIceLog`), matching `firestore.rules` — an
   assistant who logs an entry can't see the accumulated log, and the
   trainer it's about never can either.

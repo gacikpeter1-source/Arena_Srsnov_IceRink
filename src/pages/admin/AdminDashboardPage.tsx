@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label'
 import AdminCreateBookingModal from '@/components/AdminCreateBookingModal'
 import EditBookingModal from '@/components/EditBookingModal'
 import AdminStaffPanel from '@/components/AdminStaffPanel'
-import AdminTrainerIceLogPanel from '@/components/AdminTrainerIceLogPanel'
 import AdminQrPanel from '@/components/AdminQrPanel'
 import AdminClubSettingsPanel from '@/components/AdminClubSettingsPanel'
 import AdminScheduleSettingsPanel from '@/components/AdminScheduleSettingsPanel'
@@ -309,10 +308,6 @@ export default function AdminDashboardPage() {
 
       {canManageStaff && user && staff && club && (
         <AdminStaffPanel clubId={club.id} viewerUid={user.uid} viewerRole={staff.role} />
-      )}
-
-      {user && club && (
-        <AdminTrainerIceLogPanel clubId={club.id} loggedBy={user.uid} canViewLog={canManageStaff} />
       )}
 
       {club && rinks.length > 0 && (

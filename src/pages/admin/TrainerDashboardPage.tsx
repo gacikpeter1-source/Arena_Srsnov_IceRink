@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import TrainerRosterModal from '@/components/TrainerRosterModal'
+import AdminTrainerIceLogPanel from '@/components/AdminTrainerIceLogPanel'
 
 const DEFAULT_CUTOFF_HOURS = 2
 
@@ -83,7 +84,13 @@ export default function TrainerDashboardPage() {
 
   useEffect(refresh, [trainerId])
 
-  if (staff && !staff.isTrainer) {
+  // The ice log below is an isStaffMember() concern (assistant/owner/
+  // superadmin), independent of isTrainer — see AdminTrainerIceLogPanel.
+  // A dual-role account sees both sections; someone with neither has no
+  // reason to be on this page at all.
+  const isIceRinkStaff = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
+
+  if (staff && !staff.isTrainer && !isIceRinkStaff) {
     return (
       <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
         <h1>{t('trainerDashboard.notATrainerTitle')}</h1>
@@ -211,7 +218,7 @@ export default function TrainerDashboardPage() {
   return (
     <div className="content-container py-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-white">{t('trainerDashboard.title')}</h1>
+        <h1 className="text-2xl font-bold text-white">{staff?.isTrainer ? t('trainerDashboard.title') : t('trainerIceLog.title')}</h1>
         {staff && staff.role !== 'pending' && (
           <Link to="/admin">
             <Button variant="outline" size="sm">{t('trainerDashboard.backToIceRink')}</Button>
@@ -219,6 +226,7 @@ export default function TrainerDashboardPage() {
         )}
       </div>
 
+      {staff?.isTrainer && (
       <div className="flex gap-2">
         {(['sessions', 'series', 'bundles'] as Tab[]).map((tb) => (
           <Button key={tb} variant={tab === tb ? 'default' : 'outline'} size="sm" onClick={() => setTab(tb)}>
@@ -226,8 +234,9 @@ export default function TrainerDashboardPage() {
           </Button>
         ))}
       </div>
+      )}
 
-      {tab === 'sessions' && (
+      {staff?.isTrainer && tab === 'sessions' && (
         <>
           <Card className="arena-card">
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newSession')}</CardTitle></CardHeader>
@@ -269,7 +278,7 @@ export default function TrainerDashboardPage() {
         </>
       )}
 
-      {tab === 'series' && (
+      {staff?.isTrainer && tab === 'series' && (
         <>
           <Card className="arena-card">
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newSeries')}</CardTitle></CardHeader>
@@ -340,7 +349,7 @@ export default function TrainerDashboardPage() {
         </>
       )}
 
-      {tab === 'bundles' && (
+      {staff?.isTrainer && tab === 'bundles' && (
         <>
           <Card className="arena-card">
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newBundle')}</CardTitle></CardHeader>
@@ -404,6 +413,10 @@ export default function TrainerDashboardPage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {isIceRinkStaff && user && club && (
+        <AdminTrainerIceLogPanel clubId={club.id} loggedBy={user.uid} canViewLog={staff?.role === 'owner' || staff?.role === 'superadmin'} />
       )}
 
       {rosterSession && (
