@@ -164,7 +164,7 @@ export default function AdminDashboardPage() {
           <p className="text-text-secondary">{t('admin.signedInAs', { email: staff?.email })}</p>
         </div>
         <div className="flex gap-2">
-          {staff?.isTrainer && (
+          {(staff?.isTrainer || canManageStaff) && (
             <Link to="/admin/treningy">
               <Button variant="outline">{t('admin.myTrainings')}</Button>
             </Link>
