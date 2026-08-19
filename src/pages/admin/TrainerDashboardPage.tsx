@@ -28,13 +28,20 @@ import AdminTrainerIceLogPanel from '@/components/AdminTrainerIceLogPanel'
 
 const DEFAULT_CUTOFF_HOURS = 2
 
-type Tab = 'sessions' | 'series' | 'bundles'
+type Tab = 'sessions' | 'series' | 'bundles' | 'iceLog'
 
 export default function TrainerDashboardPage() {
   const { t } = useTranslation()
   const { user, staff } = useAuth()
   const { club } = useClubData()
-  const [tab, setTab] = useState<Tab>('sessions')
+  // Defaults to whichever section this account actually has: a trainer
+  // (or owner/superadmin, who can also create sessions — see
+  // isOwnerOrSuperadmin below) lands on Sessions; a plain assistant, who
+  // only has the ice log here, lands there instead.
+  const [tab, setTab] = useState<Tab>(() => {
+    if (staff?.isTrainer || staff?.role === 'owner' || staff?.role === 'superadmin') return 'sessions'
+    return 'iceLog'
+  })
 
   const [sessions, setSessions] = useState<(TrainingSession & { id: string })[]>([])
   const [series, setSeries] = useState<(TrainingSeries & { id: string })[]>([])
@@ -242,6 +249,12 @@ export default function TrainerDashboardPage() {
 
   const bundlesById = new Map(bundles.map((bu) => [bu.id, bu]))
 
+  const availableTabs: Tab[] = [
+    ...(staff?.isTrainer || isOwnerOrSuperadmin ? (['sessions'] as Tab[]) : []),
+    ...(staff?.isTrainer ? (['series', 'bundles'] as Tab[]) : []),
+    ...(isIceRinkStaff ? (['iceLog'] as Tab[]) : [])
+  ]
+
   return (
     <div className="content-container py-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -253,14 +266,16 @@ export default function TrainerDashboardPage() {
         )}
       </div>
 
-      {(staff?.isTrainer || isOwnerOrSuperadmin) && (
-      <div className="flex gap-2">
-        {(staff?.isTrainer ? (['sessions', 'series', 'bundles'] as Tab[]) : (['sessions'] as Tab[])).map((tb) => (
-          <Button key={tb} variant={tab === tb ? 'default' : 'outline'} size="sm" onClick={() => setTab(tb)}>
-            {t(`trainerDashboard.tab.${tb}`)}
-          </Button>
-        ))}
-      </div>
+      {availableTabs.length > 1 && (
+        <select
+          value={tab}
+          onChange={(e) => setTab(e.target.value as Tab)}
+          className="bg-background-dark border border-border text-white rounded-md px-3 py-2 text-sm"
+        >
+          {availableTabs.map((tb) => (
+            <option key={tb} value={tb}>{t(`trainerDashboard.tab.${tb}`)}</option>
+          ))}
+        </select>
       )}
 
       {(staff?.isTrainer || isOwnerOrSuperadmin) && tab === 'sessions' && (
@@ -457,7 +472,7 @@ export default function TrainerDashboardPage() {
         </>
       )}
 
-      {isIceRinkStaff && user && club && (
+      {isIceRinkStaff && tab === 'iceLog' && user && club && (
         <AdminTrainerIceLogPanel clubId={club.id} loggedBy={user.uid} canViewLog={staff?.role === 'owner' || staff?.role === 'superadmin'} />
       )}
 

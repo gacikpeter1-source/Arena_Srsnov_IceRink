@@ -658,6 +658,39 @@ a session's own next-in-line waitlister when a confirmed registration
 cancels (see the capacity/waitlist model note above), and Excel
 import/export for sessions.
 
+**Navigation: "Administrácia" vs. training management.** A trainer
+reaching the training domain via the home hub's "Reserve Ice
+Rink"-equivalent card landed on the *public* `/treningy` calendar (the
+customer-facing view), which has no way to create a session — that tool
+only lived on `/admin/treningy`, reachable solely through
+`/admin` → "Moje tréningy". The fix keeps "Administrácia" scoped to pure
+club/app administration (invite codes, club info, QR codes, staff roster)
+and surfaces training-management as its own consistently-reachable path,
+via three entry points:
+- A banner Card at the top of `TrainingCalendarPage.tsx` — shown only when
+  `staff?.isTrainer` or the signed-in account holds an ice-rink staff role
+  (assistant/owner/superadmin) — with a "Spravovať tréningy" button
+  linking to `/admin/treningy`, so landing on the public calendar while
+  authorized to manage trainings always surfaces the way in.
+- A second, visually distinct link in `HeaderMenu.tsx`'s dropdown
+  (`canManageTrainings`, the same three-way role check), placed right
+  after the existing public "Tréningy" link — so the dropdown offers both
+  "view the public calendar" and "manage trainings" as clearly separate
+  destinations regardless of which page you're currently on.
+- Inside `/admin/treningy` (`TrainerDashboardPage.tsx`) itself, the old
+  Sessions/Series/Bundles button row (plus the ice log panel, previously
+  always rendered beneath it) is now one `<select>` dropdown covering all
+  four areas including a new `'iceLog'` tab — `availableTabs` is still
+  computed the same way each tab always was (Sessions: trainer or
+  owner/superadmin; Series/Bundles: trainer only; Ice log: any ice-rink
+  staff role), just rendered as one consistent menu instead of a mix of a
+  button row and an unconditional panel underneath it.
+
+None of this needed a `firestore.rules`/`firestore.indexes.json` change —
+every permission check it relies on (`isTrainer`, `isOwnerOrSuperadmin`,
+`isIceRinkStaff`) already existed from earlier phases; this pass only
+changed which UI surfaces expose the same already-authorized actions.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
