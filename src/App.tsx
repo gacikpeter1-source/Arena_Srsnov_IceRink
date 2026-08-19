@@ -47,7 +47,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-border">
+      <header className="border-b border-border relative z-20">
         <div className="content-container flex items-center justify-between py-3 gap-3">
           <Link to="/" className="flex items-center gap-2 font-semibold text-white">
             <img src="/icon-192.png" alt="" className="w-7 h-7 rounded-md" />
