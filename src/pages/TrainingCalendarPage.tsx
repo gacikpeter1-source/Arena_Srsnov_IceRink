@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchTrainingSessionsInRange, fetchTrainingBundlesByIds } from '@/lib/training'
@@ -8,6 +8,7 @@ import { fetchTrainers } from '@/lib/staff'
 import { addDays, formatDateISO } from '@/lib/utils'
 import { StaffUser, TrainingBundle, TrainingSession } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import TrainingRegistrationModal from '@/components/TrainingRegistrationModal'
 
 const DAYS_AHEAD = 14
@@ -65,6 +66,19 @@ export default function TrainingCalendarPage() {
 
   return (
     <div className="content-container py-6 space-y-6">
+      {(staff?.isTrainer || isIceRinkStaff) && (
+        <Card className="arena-card border-primary">
+          <CardContent className="pt-4 flex items-center justify-between flex-wrap gap-3">
+            <p className="text-text-secondary text-sm">{t('trainingCalendar.manageNotice')}</p>
+            <Link to="/admin/treningy">
+              <Button size="sm" className="bg-primary hover:bg-primary-gold text-primary-foreground">
+                {t('trainingCalendar.manageButton')}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-white">{t('trainingCalendar.title')}</h1>
         <select

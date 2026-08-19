@@ -23,6 +23,7 @@
     "trainings": "Tréningy",
     "manageBooking": "Moja rezervácia",
     "menu": "Menu",
+    "manageTrainings": "Spravovať tréningy",
     "website": "Webová stránka",
     "contactUs": "Kontaktujte nás"
   },
@@ -263,6 +264,8 @@
     "slotQrDesc": "Vyberte presnú zónu, dátum a čas a vygenerujte kód pre registráciu na jedno naskenovanie — po naskenovaní sa rovno otvorí registračný formulár pre daný termín, bez ďalšieho výberu. Vhodné pre verejné korčuľovanie / voľný vstup."
   },
   "trainingCalendar": {
+    "manageNotice": "Ste tréner alebo personál klubu?",
+    "manageButton": "Spravovať tréningy",
     "title": "Tréningy",
     "allTrainers": "Všetci tréneri",
     "unlimited": "Voľné",
@@ -310,7 +313,7 @@
     "backToIceRink": "Späť na správu ľadovej plochy",
     "notATrainerTitle": "Nie ste tréner",
     "notATrainerNotice": "Váš účet nemá prístup trénera.",
-    "tab": { "sessions": "Tréningy", "series": "Opakované série", "bundles": "Kurzy / kempy" },
+    "tab": { "sessions": "Tréningy", "series": "Opakované série", "bundles": "Kurzy / kempy", "iceLog": "Evidencia na ľade" },
     "newSession": "Nový tréning",
     "newSeries": "Nová opakovaná séria",
     "newBundle": "Nový kurz / kemp",

@@ -23,6 +23,7 @@
     "trainings": "Trainings",
     "manageBooking": "Manage my booking",
     "menu": "Menu",
+    "manageTrainings": "Manage trainings",
     "website": "Website",
     "contactUs": "Contact us"
   },
@@ -263,6 +264,8 @@
     "slotQrDesc": "Pick an exact zone, date, and time to generate a one-tap registration code — scanning it opens the sign-up form directly for that slot, with nothing else to pick. Good for open-ice / walk-in sessions."
   },
   "trainingCalendar": {
+    "manageNotice": "Are you a trainer or club staff?",
+    "manageButton": "Manage trainings",
     "title": "Trainings",
     "allTrainers": "All trainers",
     "unlimited": "Open",
@@ -310,7 +313,7 @@
     "backToIceRink": "Back to ice rink dashboard",
     "notATrainerTitle": "Not a trainer",
     "notATrainerNotice": "Your account doesn't have trainer access.",
-    "tab": { "sessions": "Sessions", "series": "Recurring series", "bundles": "Courses / camps" },
+    "tab": { "sessions": "Sessions", "series": "Recurring series", "bundles": "Courses / camps", "iceLog": "Trainer ice log" },
     "newSession": "New session",
     "newSeries": "New recurring series",
     "newBundle": "New course / camp",
