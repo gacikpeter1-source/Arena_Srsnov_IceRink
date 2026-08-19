@@ -67,8 +67,13 @@ function computeOccurrenceDates(startDate: string, recurrence: TrainingSeriesRec
 
 export interface CreateStandaloneSessionInput {
   clubId: string
-  trainerId: string
-  trainerName: string
+  // Unset by an owner/superadmin creating a session shell without
+  // assigning a trainer yet (see firestore.rules' trainingSessions create
+  // rule, which allows isOwnerOrAbove() regardless of trainerId) — status
+  // becomes 'unassigned' so any approved trainer can later claim it, same
+  // as an Excel-imported row with no trainer name.
+  trainerId?: string
+  trainerName?: string
   date: string
   startTime: string
   durationMinutes: number
@@ -80,15 +85,14 @@ export async function createStandaloneSession(input: CreateStandaloneSessionInpu
   const ref = doc(collection(db, 'trainingSessions'))
   await setDoc(ref, {
     clubId: input.clubId,
-    trainerId: input.trainerId,
-    trainerName: input.trainerName,
+    ...(input.trainerId ? { trainerId: input.trainerId, trainerName: input.trainerName } : {}),
     date: input.date,
     startTime: input.startTime,
     durationMinutes: input.durationMinutes,
     capacity: input.capacity,
     confirmedCount: 0,
     cancellationCutoffHours: input.cancellationCutoffHours,
-    status: 'active',
+    status: input.trainerId ? 'active' : 'unassigned',
     createdAt: serverTimestamp()
   })
   return ref.id
@@ -382,13 +386,18 @@ export interface RegisterForSessionInput {
   email: string
   phone: string
   timezone: string
+  // Staff manually registering a customer (e.g. a phone booking) skip the
+  // pending email-confirm window and go straight to 'confirmed' — staff
+  // already know the contact info is real, mirroring how
+  // AdminCreateBookingModal's ice bookings work (see CLAUDE.md).
+  instantConfirm?: boolean
 }
 
 export interface RegisteredForSession {
   id: string
   confirmationCode: string
   cancellationToken: string
-  status: 'pending' | 'waitlist'
+  status: 'pending' | 'confirmed' | 'waitlist'
   waitlistPosition?: number
 }
 
@@ -432,8 +441,12 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
     }
 
     if (hasSpace) {
-      const pendingExpiresAt = new Date(Date.now() + TRAINING_PENDING_CONFIRMATION_MINUTES * 60 * 1000)
       tx.update(sessionRef, { confirmedCount: session.confirmedCount + 1 })
+      if (input.instantConfirm) {
+        tx.set(regRef, { ...base, status: 'confirmed' })
+        return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
+      }
+      const pendingExpiresAt = new Date(Date.now() + TRAINING_PENDING_CONFIRMATION_MINUTES * 60 * 1000)
       tx.set(regRef, { ...base, status: 'pending', pendingExpiresAt })
       return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const }
     }
@@ -564,13 +577,15 @@ export interface RegisterForBundleInput {
   name: string
   email: string
   phone: string
+  // See RegisterForSessionInput.instantConfirm.
+  instantConfirm?: boolean
 }
 
 export interface RegisteredForBundle {
   id: string
   confirmationCode: string
   cancellationToken: string
-  status: 'pending' | 'waitlist'
+  status: 'pending' | 'confirmed' | 'waitlist'
   waitlistPosition?: number
 }
 
@@ -608,8 +623,12 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
     }
 
     if (hasSpace) {
-      const pendingExpiresAt = new Date(Date.now() + TRAINING_PENDING_CONFIRMATION_MINUTES * 60 * 1000)
       tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + 1 })
+      if (input.instantConfirm) {
+        tx.set(regRef, { ...base, status: 'confirmed' })
+        return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
+      }
+      const pendingExpiresAt = new Date(Date.now() + TRAINING_PENDING_CONFIRMATION_MINUTES * 60 * 1000)
       tx.set(regRef, { ...base, status: 'pending', pendingExpiresAt })
       return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const }
     }

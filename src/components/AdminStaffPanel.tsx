@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { deleteStaffAccount, fetchStaffRoster, setTrainerAccess, updateStaffRole } from '@/lib/staff'
+import { deleteStaffAccount, fetchStaffRoster, roleLabelKey, setTrainerAccess, updateStaffRole } from '@/lib/staff'
 import { fetchTrainerInviteCodes, generateTrainerInviteCode, revokeTrainerInviteCode } from '@/lib/trainerInvites'
 import { StaffRole, StaffUser, TrainerInviteCode } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -10,15 +10,6 @@ interface AdminStaffPanelProps {
   clubId: string
   viewerUid: string
   viewerRole: StaffRole
-}
-
-function roleLabelKey(role: StaffRole) {
-  switch (role) {
-    case 'superadmin': return 'admin.roleSuperadmin'
-    case 'owner': return 'admin.roleOwner'
-    case 'assistant': return 'admin.roleAssistant'
-    default: return 'admin.rolePending'
-  }
 }
 
 export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: AdminStaffPanelProps) {

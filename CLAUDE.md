@@ -627,6 +627,26 @@ Fáza 1 deploy, just unused by any UI until now.
   the file itself persisted somewhere (e.g. Firebase Storage), left for
   later since nothing asked for it yet.
 
+**Owner/superadmin can also create sessions and register customers
+directly** — the role model says superadmin has "full control," but the
+session-creation UI was originally trainer-only, leaving an owner unable
+to act even though `firestore.rules`' `trainingSessions` create rule
+already granted `isOwnerOrAbove()` the right regardless of `trainerId`
+(added in Fáza 1, just never surfaced). `TrainerDashboardPage.tsx`'s
+Sessions tab (not Series/Bundles — those two collections' create rules
+stayed trainer-only, no `isOwnerOrAbove()` branch, so extending them
+would need its own rules change) is now visible to `isOwnerOrSuperadmin`
+too, with a trainer picker (`fetchTrainers()`) in the create-session form
+— assign directly to a specific trainer, or leave it unassigned
+(`status: 'unassigned'`, same as an Excel-imported row with no trainer
+name) for any trainer to claim later. Separately, `TrainingRegistrationModal`
+gained an `asStaff` mode — when any ice-rink staff member (assistant/
+owner/superadmin) is signed in while on the public `/treningy` calendar,
+their registration skips the pending email-confirm window and goes
+straight to `'confirmed'` (`registerForSession`/`registerForBundle`'s new
+`instantConfirm` flag), mirroring how `AdminCreateBookingModal` already
+works for ice bookings — staff already know the contact info is real.
+
 **Planned but not yet built** (this section will be extended as later
 phases land): the "krížové upozornenie z čakačky" cross-notification
 (when a new session opens at a date/time where another trainer's session
@@ -662,6 +682,16 @@ mailto/tel/website links plus the address from `club.contact.{email,
 phone,address,website}` — each field only renders if actually set.
 `Club.contact.website` is a plain string (e.g. `https://...`), opened in
 a new tab as-is.
+
+**Standing requirement — signed-in identity is always visible.** Whenever
+a staff member is signed in, the shared header (`App.tsx`) shows their
+name and role (`StaffIdentityBadge.tsx`, next to the language switcher —
+"Meno · Rola", plus "+ Tréner" when `isTrainer` is also set). This lives
+once in the shared header rather than per-page, specifically so it
+automatically covers every current and future admin page without each
+one needing its own copy of the same display — do not remove or
+duplicate this per-page; if a page needs different identity info, extend
+`StaffIdentityBadge.tsx` rather than adding a second one.
 
 Owners/superadmins edit the club's name and contact info themselves from
 the admin dashboard's "Club settings" panel (`AdminClubSettingsPanel.tsx`,
