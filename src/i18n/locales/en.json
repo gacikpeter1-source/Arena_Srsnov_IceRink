@@ -330,7 +330,31 @@
     "myBundles": "My courses / camps",
     "noneYet": "Nothing here yet.",
     "confirmDelete": "Delete this session?",
-    "confirmDeleteWithRegistrations": "This has registered participants. Delete anyway? They won't be notified."
+    "confirmDeleteWithRegistrations": "This has registered participants. Delete anyway? They won't be notified.",
+    "roster": "Roster",
+    "partOfSeries": "series",
+    "partOfBundle": "course/camp"
+  },
+  "trainerRoster": {
+    "title": "Attendance",
+    "registered": "Registered",
+    "noneRegistered": "No one registered yet.",
+    "waitlisted": "waitlist",
+    "markPresent": "Mark present",
+    "checkedIn": "Present",
+    "walkIns": "Walk-ins",
+    "walkInNamePlaceholder": "Name",
+    "addWalkIn": "Add"
+  },
+  "trainerIceLog": {
+    "title": "Trainer ice log",
+    "hint": "Log a trainer using club ice with no booked session at all — visible only to the club owner/superadmin.",
+    "trainer": "Trainer",
+    "selectTrainer": "Select a trainer",
+    "notes": "Notes",
+    "logEntry": "Log entry",
+    "none": "No entries yet.",
+    "confirmDelete": "Delete this log entry?"
   },
   "trainingEmail": {
     "trainer": "Trainer",

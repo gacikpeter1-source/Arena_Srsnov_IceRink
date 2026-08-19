@@ -571,16 +571,49 @@ on `resource.data`, so a `where('isTrainer','==',true)` query safely
 returns only trainer docs; every other staff doc stays private exactly as
 before.
 
+### Fáza 3: dochádzka, walk-iny, evidencia trénera na ľade
+
+No new `firestore.rules`/`firestore.indexes.json` needed for this phase —
+the attendance, walk-in, and ice-log write rules were already part of the
+Fáza 1 deploy, just unused by any UI until now.
+
+- **Attendance check-in** (`TrainerRosterModal.tsx`, opened via a
+  "Roster"/"Účastníci" button on every row in `TrainerDashboardPage.tsx`'s
+  Sessions tab — including series and bundle occurrences, not just
+  standalone sessions) — the owning trainer marks which registered
+  participants actually showed up. For a bundle-linked session, the
+  roster comes from `trainingBundleRegistrations` (one signup per
+  participant covers the whole bundle) but attendance is still recorded
+  per real session via `attendanceBySession[session.id]`, since someone
+  enrolled in a multi-week course can still miss individual sessions —
+  matches the data model note in `TrainingBundleRegistration`. Marking
+  present shows the trainer the participant's name and confirmation code
+  together (deliberately not anonymized, see the data model section
+  above).
+- **Walk-ins** (`trainingWalkIns`, same modal) — a participant who showed
+  up without registering. No confirmation code lookup, no link to
+  `confirmedCount`; just a name (+ optional notes) the trainer can add or
+  remove for that specific session.
+- **Trainer ice log** (`AdminTrainerIceLogPanel.tsx`, added to
+  `AdminDashboardPage.tsx` — the ice-rink side, NOT the trainer
+  dashboard) — an assistant/owner/superadmin logs a trainer seen using
+  club ice with no booked session at all. Any active staff member can add
+  an entry (picking a trainer from `fetchTrainers()`, a date, optional
+  notes); only owner/superadmin can read the log back
+  (`canViewLog`/`fetchTrainerIceLog`), matching `firestore.rules` — an
+  assistant who logs an entry can't see the accumulated log, and the
+  trainer it's about never can either.
+
 **Planned but not yet built** (this section will be extended as later
-phases land): attendance check-in screens, walk-in and ice-log logging UI,
-the "krížové upozornenie z čakačky" cross-notification (when a new session
-opens at a date/time where another trainer's session already has a
-waitlist, everyone on that waitlist gets emailed a one-click claim link
-into the new session — never a silent auto-move, since a waitlisted
-customer chose a particular trainer and shouldn't end up enrolled with a
-different one without an explicit action), auto-promoting a session's own
-next-in-line waitlister when a confirmed registration cancels (see above),
-and Excel import/export for sessions.
+phases land): the "krížové upozornenie z čakačky" cross-notification
+(when a new session opens at a date/time where another trainer's session
+already has a waitlist, everyone on that waitlist gets emailed a one-click
+claim link into the new session — never a silent auto-move, since a
+waitlisted customer chose a particular trainer and shouldn't end up
+enrolled with a different one without an explicit action), auto-promoting
+a session's own next-in-line waitlister when a confirmed registration
+cancels (see the capacity/waitlist model note above), and Excel
+import/export for sessions.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 

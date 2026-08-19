@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import TrainerRosterModal from '@/components/TrainerRosterModal'
 
 const DEFAULT_CUTOFF_HOURS = 2
 
@@ -38,6 +39,7 @@ export default function TrainerDashboardPage() {
   const [bundles, setBundles] = useState<(TrainingBundle & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [rosterSession, setRosterSession] = useState<(TrainingSession & { id: string }) | null>(null)
 
   // Standalone session form
   const [sDate, setSDate] = useState(formatDateISO(new Date()))
@@ -204,7 +206,7 @@ export default function TrainerDashboardPage() {
     }
   }
 
-  const standaloneSessions = sessions.filter((s) => !s.seriesId && !s.bundleId)
+  const bundlesById = new Map(bundles.map((bu) => [bu.id, bu]))
 
   return (
     <div className="content-container py-6 space-y-6">
@@ -257,10 +259,11 @@ export default function TrainerDashboardPage() {
           </Card>
 
           <SessionsList
-            sessions={standaloneSessions}
+            sessions={sessions}
             loading={loading}
             busyId={busyId}
             onDelete={handleDeleteSession}
+            onOpenRoster={setRosterSession}
             t={t}
           />
         </>
@@ -402,6 +405,16 @@ export default function TrainerDashboardPage() {
           </Card>
         </>
       )}
+
+      {rosterSession && (
+        <TrainerRosterModal
+          isOpen={!!rosterSession}
+          onClose={() => setRosterSession(null)}
+          trainerId={trainerId}
+          session={rosterSession}
+          bundle={rosterSession.bundleId ? bundlesById.get(rosterSession.bundleId) : null}
+        />
+      )}
     </div>
   )
 }
@@ -411,12 +424,14 @@ function SessionsList({
   loading,
   busyId,
   onDelete,
+  onOpenRoster,
   t
 }: {
   sessions: (TrainingSession & { id: string })[]
   loading: boolean
   busyId: string | null
   onDelete: (id: string, confirmedCount: number) => void
+  onOpenRoster: (session: TrainingSession & { id: string }) => void
   t: (key: string) => string
 }) {
   return (
@@ -430,12 +445,21 @@ function SessionsList({
             {sessions.map((s) => (
               <div key={s.id} className="flex justify-between items-center p-2 rounded border border-border">
                 <div>
-                  <p className="text-white">{s.date} · {s.startTime}</p>
+                  <p className="text-white">
+                    {s.date} · {s.startTime}
+                    {s.seriesId && <span className="text-text-muted text-xs"> · {t('trainerDashboard.partOfSeries')}</span>}
+                    {s.bundleId && <span className="text-text-muted text-xs"> · {t('trainerDashboard.partOfBundle')}</span>}
+                  </p>
                   <p className="text-text-secondary text-sm">{s.confirmedCount}/{s.capacity ?? '∞'}</p>
                 </div>
-                <Button size="sm" variant="destructive" disabled={busyId === s.id} onClick={() => onDelete(s.id, s.confirmedCount)}>
-                  {t('common.delete')}
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => onOpenRoster(s)}>
+                    {t('trainerDashboard.roster')}
+                  </Button>
+                  <Button size="sm" variant="destructive" disabled={busyId === s.id} onClick={() => onDelete(s.id, s.confirmedCount)}>
+                    {t('common.delete')}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
