@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { addTrainerIceLogEntry, fetchTrainerIceLog, deleteTrainerIceLogEntry } from '@/lib/training'
+import { generateTrainingReport } from '@/lib/trainingReport'
 import { fetchTrainers } from '@/lib/staff'
-import { formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO } from '@/lib/utils'
 import { StaffUser, TrainerIceLogEntry } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -29,6 +30,11 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const [reportFrom, setReportFrom] = useState(formatDateISO(addDays(new Date(), -14)))
+  const [reportTo, setReportTo] = useState(formatDateISO(new Date()))
+  const [reportTrainer, setReportTrainer] = useState('')
+  const [generatingReport, setGeneratingReport] = useState(false)
 
   const refresh = () => {
     setLoading(true)
@@ -80,6 +86,24 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
     }
   }
 
+  const handleGenerateReport = async () => {
+    setGeneratingReport(true)
+    try {
+      await generateTrainingReport({
+        clubId,
+        dateFrom: reportFrom,
+        dateTo: reportTo,
+        ...(reportTrainer ? { trainerIds: [reportTrainer] } : {}),
+        generatedBy: loggedBy
+      })
+    } catch (err) {
+      console.error('Error generating training report:', err)
+      alert(t('common.error'))
+    } finally {
+      setGeneratingReport(false)
+    }
+  }
+
   return (
     <Card className="arena-card">
       <CardHeader>
@@ -118,6 +142,39 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
             </Button>
           </div>
         </form>
+
+        {canViewLog && (
+          <div className="border-t border-border pt-4 space-y-3">
+            <h3 className="text-white text-sm font-semibold">{t('trainerIceLog.reportTitle')}</h3>
+            <p className="text-text-secondary text-sm">{t('trainerIceLog.reportHint')}</p>
+            <div className="grid gap-3 sm:grid-cols-4 items-end">
+              <div>
+                <Label className="text-white">{t('admin.from')}</Label>
+                <Input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className="bg-background-dark border-border text-white" />
+              </div>
+              <div>
+                <Label className="text-white">{t('admin.to')}</Label>
+                <Input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className="bg-background-dark border-border text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="text-white">{t('trainerIceLog.reportTrainerFilter')}</Label>
+                <select
+                  value={reportTrainer}
+                  onChange={(e) => setReportTrainer(e.target.value)}
+                  className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+                >
+                  <option value="">{t('trainerIceLog.reportAllTrainers')}</option>
+                  {trainers.map((tr) => (
+                    <option key={tr.uid} value={tr.uid}>{tr.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <Button onClick={handleGenerateReport} disabled={generatingReport} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+              {generatingReport ? t('common.saving') : t('trainerIceLog.downloadReport')}
+            </Button>
+          </div>
+        )}
 
         {canViewLog && (
           loading ? (

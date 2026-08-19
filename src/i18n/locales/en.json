@@ -354,7 +354,12 @@
     "notes": "Notes",
     "logEntry": "Log entry",
     "none": "No entries yet.",
-    "confirmDelete": "Delete this log entry?"
+    "confirmDelete": "Delete this log entry?",
+    "reportTitle": "Attendance report",
+    "reportHint": "Downloads an Excel file with both planned trainings (who was marked present) and private ice log entries for the date range — owner/superadmin only.",
+    "reportTrainerFilter": "Trainer",
+    "reportAllTrainers": "All trainers",
+    "downloadReport": "Download report"
   },
   "trainingEmail": {
     "trainer": "Trainer",

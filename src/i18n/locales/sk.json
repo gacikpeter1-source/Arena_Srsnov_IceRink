@@ -354,7 +354,12 @@
     "notes": "Poznámky",
     "logEntry": "Zaznamenať",
     "none": "Zatiaľ žiadne záznamy.",
-    "confirmDelete": "Zmazať tento záznam?"
+    "confirmDelete": "Zmazať tento záznam?",
+    "reportTitle": "Report dochádzky",
+    "reportHint": "Stiahne Excel súbor s naplánovanými tréningami (kto bol označený ako prítomný) aj so súkromnými záznamami evidencie na ľade za zvolené obdobie — len pre majiteľa/superadmina.",
+    "reportTrainerFilter": "Tréner",
+    "reportAllTrainers": "Všetci tréneri",
+    "downloadReport": "Stiahnuť report"
   },
   "trainingEmail": {
     "trainer": "Tréner",
