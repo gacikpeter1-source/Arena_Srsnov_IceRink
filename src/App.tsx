@@ -16,8 +16,7 @@ import AdminSignupPage from './pages/admin/AdminSignupPage'
 import TrainerSignupPage from './pages/admin/TrainerSignupPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import LanguageSwitcher from './components/LanguageSwitcher'
-import ContactUsButton from './components/ContactUsButton'
-import StaffIdentityBadge from './components/StaffIdentityBadge'
+import HeaderMenu from './components/HeaderMenu'
 import { useAuth } from './contexts/AuthContext'
 import { useClubData } from './hooks/useClubData'
 
@@ -54,16 +53,9 @@ export default function App() {
             <img src="/icon-192.png" alt="" className="w-7 h-7 rounded-md" />
             {club?.name ?? t('nav.brand')}
           </Link>
-          <div className="flex items-center gap-4">
-            <StaffIdentityBadge />
-            <Link to="/treningy" className="text-sm text-text-secondary hover:text-primary">
-              {t('nav.trainings')}
-            </Link>
-            <Link to="/my-booking" className="text-sm text-text-secondary hover:text-primary">
-              {t('nav.manageBooking')}
-            </Link>
-            {club && <ContactUsButton club={club} />}
+          <div className="flex items-center gap-2">
             <LanguageSwitcher />
+            <HeaderMenu club={club} />
           </div>
         </div>
       </header>
