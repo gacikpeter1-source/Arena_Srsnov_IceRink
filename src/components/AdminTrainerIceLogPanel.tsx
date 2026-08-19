@@ -25,7 +25,7 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  const [selectedTrainer, setSelectedTrainer] = useState('')
+  const [trainerNameInput, setTrainerNameInput] = useState('')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -41,18 +41,24 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const trainer = trainers.find((tr) => tr.uid === selectedTrainer)
-    if (!trainer) return
+    const name = trainerNameInput.trim()
+    if (!name) return
+    // Matches a registered trainer by exact name (case-insensitive) so the
+    // entry links to their account; a name that doesn't match anyone
+    // still logs fine, just without a trainerId (e.g. a guest/private
+    // coach who never signed up).
+    const matched = trainers.find((tr) => tr.name.toLowerCase() === name.toLowerCase())
     setSubmitting(true)
     try {
       await addTrainerIceLogEntry({
         clubId,
-        trainerId: trainer.uid,
-        trainerName: trainer.name,
+        ...(matched ? { trainerId: matched.uid } : {}),
+        trainerName: matched?.name ?? name,
         date,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         loggedBy
       })
+      setTrainerNameInput('')
       setNotes('')
       refresh()
     } catch (err) {
@@ -84,17 +90,19 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
         <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-4 items-end">
           <div className="sm:col-span-2">
             <Label className="text-white">{t('trainerIceLog.trainer')}</Label>
-            <select
-              value={selectedTrainer}
-              onChange={(e) => setSelectedTrainer(e.target.value)}
-              className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+            <Input
+              list="trainer-ice-log-names"
+              value={trainerNameInput}
+              onChange={(e) => setTrainerNameInput(e.target.value)}
+              placeholder={t('trainerIceLog.selectTrainer')}
+              className="bg-background-dark border-border text-white"
               required
-            >
-              <option value="">{t('trainerIceLog.selectTrainer')}</option>
+            />
+            <datalist id="trainer-ice-log-names">
               {trainers.map((tr) => (
-                <option key={tr.uid} value={tr.uid}>{tr.name}</option>
+                <option key={tr.uid} value={tr.name} />
               ))}
-            </select>
+            </datalist>
           </div>
           <div>
             <Label className="text-white">{t('common.date')}</Label>
@@ -105,7 +113,7 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="bg-background-dark border-border text-white" />
           </div>
           <div className="sm:col-span-4">
-            <Button type="submit" disabled={submitting || !selectedTrainer} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+            <Button type="submit" disabled={submitting || !trainerNameInput.trim()} className="bg-primary hover:bg-primary-gold text-primary-foreground">
               {submitting ? t('common.saving') : t('trainerIceLog.logEntry')}
             </Button>
           </div>

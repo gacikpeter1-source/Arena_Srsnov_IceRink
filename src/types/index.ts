@@ -398,7 +398,10 @@ export interface TrainingWalkIn {
 export interface TrainerIceLogEntry {
   id: string
   clubId: string
-  trainerId: string
+  // Unset when the assistant typed a name that doesn't match any
+  // registered trainer account (e.g. a guest/private coach) — logging by
+  // name alone shouldn't require the trainer to have signed up first.
+  trainerId?: string
   trainerName: string
   date: string
   notes?: string

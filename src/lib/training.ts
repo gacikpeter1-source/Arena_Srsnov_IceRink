@@ -764,7 +764,9 @@ export async function deleteWalkIn(id: string): Promise<void> {
 
 export interface AddTrainerIceLogInput {
   clubId: string
-  trainerId: string
+  // Unset when the assistant typed a free-text name instead of picking a
+  // registered trainer — see TrainerIceLogEntry.
+  trainerId?: string
   trainerName: string
   date: string
   notes?: string
@@ -775,14 +777,15 @@ export interface AddTrainerIceLogInput {
  * Logged by an assistant/owner/superadmin when a trainer is seen using
  * club ice with no booked session at all — a club-oversight tool for
  * catching unauthorized private lessons. Deliberately NOT readable by the
- * trainer it's about (see firestore.rules) — this lib module still
- * exports it since it's part of the training-reservations domain, but
- * only ice-rink admin UI (not the trainer dashboard) should ever call it.
+ * trainer it's about (see firestore.rules) — surfaced in the training-
+ * reservations area (not the ice-rink admin dashboard) since it's a
+ * training-domain concern, but scoped to isStaffMember() there, not
+ * isTrainer(), so a trainer never sees the logging control either.
  */
 export async function addTrainerIceLogEntry(input: AddTrainerIceLogInput): Promise<void> {
   await setDoc(doc(collection(db, 'trainerIceLog')), {
     clubId: input.clubId,
-    trainerId: input.trainerId,
+    ...(input.trainerId ? { trainerId: input.trainerId } : {}),
     trainerName: input.trainerName,
     date: input.date,
     ...(input.notes ? { notes: input.notes } : {}),
