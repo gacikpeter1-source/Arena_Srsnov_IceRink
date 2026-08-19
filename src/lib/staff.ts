@@ -3,6 +3,17 @@ import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase'
 import { StaffRole, StaffUser } from '@/types'
 
+// Shared with the header's signed-in identity badge (App.tsx) and
+// AdminStaffPanel's roster table, so the two never drift.
+export function roleLabelKey(role: StaffRole): string {
+  switch (role) {
+    case 'superadmin': return 'admin.roleSuperadmin'
+    case 'owner': return 'admin.roleOwner'
+    case 'assistant': return 'admin.roleAssistant'
+    default: return 'admin.rolePending'
+  }
+}
+
 export async function fetchStaffRoster(clubId: string): Promise<StaffUser[]> {
   const snap = await getDocs(query(collection(db, 'staff'), where('clubId', '==', clubId)))
   return snap.docs.map((d) => d.data() as StaffUser)

@@ -1,11 +1,20 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { registerForSession, registerForBundle, SessionUnavailableError } from '@/lib/training'
-import { queueTrainingPendingConfirmationEmail, queueBundlePendingConfirmationEmail, queueTrainingWaitlistEmail, queueBundleWaitlistEmail } from '@/lib/email'
+import {
+  queueTrainingPendingConfirmationEmail,
+  queueBundlePendingConfirmationEmail,
+  queueTrainingWaitlistEmail,
+  queueBundleWaitlistEmail,
+  queueTrainingConfirmationEmail,
+  queueBundleConfirmationEmail
+} from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { Club, TrainingBundle, TrainingSession } from '@/types'
 
@@ -18,14 +27,18 @@ interface TrainingRegistrationModalProps {
   // the bundle (one signup covers every session it contains), not this
   // one occurrence (see TrainingBundle vs TrainingSeries in types).
   bundle?: (TrainingBundle & { id: string }) | null
+  // Signed-in ice-rink staff registering a customer manually (e.g. a
+  // phone booking) skip the pending email-confirm window and go straight
+  // to 'confirmed' — mirrors AdminCreateBookingModal for ice bookings.
+  asStaff?: boolean
 }
 
-export default function TrainingRegistrationModal({ isOpen, onClose, club, session, bundle }: TrainingRegistrationModalProps) {
+export default function TrainingRegistrationModal({ isOpen, onClose, club, session, bundle, asStaff }: TrainingRegistrationModalProps) {
   const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ status: 'pending' | 'waitlist' } | null>(null)
+  const [result, setResult] = useState<{ status: 'pending' | 'confirmed' | 'waitlist' } | null>(null)
 
   const lang = isSupportedLanguage(i18n.language) ? i18n.language : 'en'
 
@@ -47,9 +60,30 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           bundleId: bundle.id,
           name: formData.name,
           email: formData.email,
-          phone: formData.phone
+          phone: formData.phone,
+          instantConfirm: asStaff
         })
-        if (registered.status === 'pending') {
+        if (registered.status === 'confirmed') {
+          const sessionsSnap = await getDocs(query(collection(db, 'trainingSessions'), where('bundleId', '==', bundle.id)))
+          const bundleSessions = sessionsSnap.docs
+            .map((d) => d.data() as TrainingSession)
+            .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
+          await queueBundleConfirmationEmail(
+            club,
+            {
+              registrationId: registered.id,
+              cancellationToken: registered.cancellationToken,
+              confirmationCode: registered.confirmationCode,
+              title: bundle.title,
+              trainerName: bundle.trainerName,
+              name: formData.name,
+              email: formData.email,
+              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes }))
+            },
+            window.location.origin,
+            lang
+          )
+        } else if (registered.status === 'pending') {
           await queueBundlePendingConfirmationEmail(
             club,
             { registrationId: registered.id, cancellationToken: registered.cancellationToken, name: formData.name, email: formData.email, title: bundle.title, trainerName: bundle.trainerName },
@@ -67,9 +101,27 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          timezone: club.timezone
+          timezone: club.timezone,
+          instantConfirm: asStaff
         })
-        if (registered.status === 'pending') {
+        if (registered.status === 'confirmed') {
+          await queueTrainingConfirmationEmail(
+            club,
+            {
+              registrationId: registered.id,
+              cancellationToken: registered.cancellationToken,
+              confirmationCode: registered.confirmationCode,
+              date: session.date,
+              startTime: session.startTime,
+              durationMinutes: session.durationMinutes,
+              trainerName: session.trainerName ?? '',
+              name: formData.name,
+              email: formData.email
+            },
+            window.location.origin,
+            lang
+          )
+        } else if (registered.status === 'pending') {
           await queueTrainingPendingConfirmationEmail(
             club,
             { registrationId: registered.id, cancellationToken: registered.cancellationToken, name: formData.name, email: formData.email, date: session.date, startTime: session.startTime, durationMinutes: session.durationMinutes, trainerName: session.trainerName ?? '' },
@@ -90,17 +142,21 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
   }
 
   if (result) {
+    const titleKey =
+      result.status === 'confirmed' ? 'trainingRegistration.confirmedTitle'
+      : result.status === 'pending' ? 'trainingRegistration.pendingTitle'
+      : 'trainingRegistration.waitlistTitle'
+    const noticeKey =
+      result.status === 'confirmed' ? 'trainingRegistration.confirmedNotice'
+      : result.status === 'pending' ? 'trainingRegistration.pendingNotice'
+      : 'trainingRegistration.waitlistNotice'
     return (
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="bg-background-card max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white text-center text-2xl">
-              {result.status === 'pending' ? t('trainingRegistration.pendingTitle') : t('trainingRegistration.waitlistTitle')}
-            </DialogTitle>
+            <DialogTitle className="text-white text-center text-2xl">{t(titleKey)}</DialogTitle>
           </DialogHeader>
-          <p className="text-text-secondary text-center">
-            {result.status === 'pending' ? t('trainingRegistration.pendingNotice') : t('trainingRegistration.waitlistNotice')}
-          </p>
+          <p className="text-text-secondary text-center">{t(noticeKey)}</p>
           <DialogFooter>
             <Button onClick={handleClose} className="w-full">{t('common.close')}</Button>
           </DialogFooter>
@@ -118,6 +174,7 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
         <div className="text-text-secondary text-sm space-y-1 mb-2">
           <p>{bundle ? bundle.trainerName : session.trainerName}</p>
           {!bundle && <p>{t('common.dateAtTime', { date: session.date, startTime: session.startTime })}</p>}
+          {asStaff && <p className="text-primary">{t('trainingRegistration.staffModeNotice')}</p>}
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <p className="text-status-danger text-sm">{error}</p>}

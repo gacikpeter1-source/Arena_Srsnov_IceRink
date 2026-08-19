@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchTrainingSessionsInRange, fetchTrainingBundlesByIds } from '@/lib/training'
 import { fetchTrainers } from '@/lib/staff'
@@ -15,6 +16,8 @@ const PALETTE = ['#FDB913', '#3b82f6', '#22c55e', '#ec4899', '#a855f7', '#f97316
 export default function TrainingCalendarPage() {
   const { t, i18n } = useTranslation()
   const { club } = useClubData()
+  const { staff } = useAuth()
+  const isIceRinkStaff = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
   const [searchParams, setSearchParams] = useSearchParams()
   const [sessions, setSessions] = useState<(TrainingSession & { id: string })[]>([])
   const [bundles, setBundles] = useState<Map<string, TrainingBundle & { id: string }>>(new Map())
@@ -134,6 +137,7 @@ export default function TrainingCalendarPage() {
           club={club}
           session={selectedSession}
           bundle={selectedSession.bundleId ? bundles.get(selectedSession.bundleId) : null}
+          asStaff={isIceRinkStaff}
         />
       )}
     </div>

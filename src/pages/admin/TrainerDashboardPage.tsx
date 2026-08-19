@@ -16,8 +16,9 @@ import {
   TrainingBundleSessionInput
 } from '@/lib/training'
 import { useClubData } from '@/hooks/useClubData'
+import { fetchTrainers } from '@/lib/staff'
 import { formatDateISO } from '@/lib/utils'
-import { TrainingBundle, TrainingFrequency, TrainingSeries, TrainingSession } from '@/types'
+import { StaffUser, TrainingBundle, TrainingFrequency, TrainingSeries, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +49,13 @@ export default function TrainerDashboardPage() {
   const [sDuration, setSDuration] = useState(60)
   const [sCapacity, setSCapacity] = useState<string>('10')
   const [creatingSession, setCreatingSession] = useState(false)
+  // Owner/superadmin creating a session isn't necessarily the trainer it's
+  // for — see the trainer picker in the form below. Defaults to
+  // themselves when they're also a trainer, purely for convenience; they
+  // can still pick someone else or clear it to leave the session
+  // unassigned.
+  const [sTrainerId, setSTrainerId] = useState(staff?.isTrainer ? (user?.uid ?? '') : '')
+  const [availableTrainers, setAvailableTrainers] = useState<StaffUser[]>([])
 
   // Series form
   const [seTitle, setSeTitle] = useState('')
@@ -89,6 +97,18 @@ export default function TrainerDashboardPage() {
   // A dual-role account sees both sections; someone with neither has no
   // reason to be on this page at all.
   const isIceRinkStaff = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
+  // firestore.rules' trainingSessions create rule allows isOwnerOrAbove()
+  // regardless of trainerId — narrower than isIceRinkStaff (excludes
+  // assistant, matching the rule exactly) — so an owner/superadmin gets
+  // the session-creation form too, with a trainer picker since they're
+  // not necessarily the trainer it's for. Series/bundles stay trainer-
+  // only: their create rules don't have an isOwnerOrAbove() branch.
+  const isOwnerOrSuperadmin = staff?.role === 'owner' || staff?.role === 'superadmin'
+
+  useEffect(() => {
+    if (isOwnerOrSuperadmin) fetchTrainers().then(setAvailableTrainers)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwnerOrSuperadmin])
 
   if (staff && !staff.isTrainer && !isIceRinkStaff) {
     return (
@@ -107,10 +127,17 @@ export default function TrainerDashboardPage() {
     if (!club || !trainerId) return
     setCreatingSession(true)
     try {
+      // A trainer creating their own session always assigns themselves.
+      // An owner/superadmin uses the picker instead — a chosen trainer
+      // assigns directly, an empty pick leaves it 'unassigned' for any
+      // trainer to claim later (see createStandaloneSession).
+      const chosen = availableTrainers.find((tr) => tr.uid === sTrainerId)
+      const effectiveTrainerId = isOwnerOrSuperadmin ? chosen?.uid : trainerId
+      const effectiveTrainerName = isOwnerOrSuperadmin ? chosen?.name : trainerName
       await createStandaloneSession({
         clubId: club.id,
-        trainerId,
-        trainerName,
+        trainerId: effectiveTrainerId,
+        trainerName: effectiveTrainerName,
         date: sDate,
         startTime: sTime,
         durationMinutes: sDuration,
@@ -226,9 +253,9 @@ export default function TrainerDashboardPage() {
         )}
       </div>
 
-      {staff?.isTrainer && (
+      {(staff?.isTrainer || isOwnerOrSuperadmin) && (
       <div className="flex gap-2">
-        {(['sessions', 'series', 'bundles'] as Tab[]).map((tb) => (
+        {(staff?.isTrainer ? (['sessions', 'series', 'bundles'] as Tab[]) : (['sessions'] as Tab[])).map((tb) => (
           <Button key={tb} variant={tab === tb ? 'default' : 'outline'} size="sm" onClick={() => setTab(tb)}>
             {t(`trainerDashboard.tab.${tb}`)}
           </Button>
@@ -236,12 +263,27 @@ export default function TrainerDashboardPage() {
       </div>
       )}
 
-      {staff?.isTrainer && tab === 'sessions' && (
+      {(staff?.isTrainer || isOwnerOrSuperadmin) && tab === 'sessions' && (
         <>
           <Card className="arena-card">
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newSession')}</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleCreateSession} className="grid gap-3 sm:grid-cols-4">
+                {isOwnerOrSuperadmin && (
+                  <div className="sm:col-span-4">
+                    <Label className="text-white">{t('trainerDashboard.assignToTrainer')}</Label>
+                    <select
+                      value={sTrainerId}
+                      onChange={(e) => setSTrainerId(e.target.value)}
+                      className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+                    >
+                      <option value="">{t('trainerDashboard.unassignedOption')}</option>
+                      {availableTrainers.map((tr) => (
+                        <option key={tr.uid} value={tr.uid}>{tr.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <Label className="text-white">{t('common.date')}</Label>
                   <Input type="date" value={sDate} onChange={(e) => setSDate(e.target.value)} className="bg-background-dark border-border text-white" required />

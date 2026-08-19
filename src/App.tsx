@@ -17,6 +17,7 @@ import TrainerSignupPage from './pages/admin/TrainerSignupPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import ContactUsButton from './components/ContactUsButton'
+import StaffIdentityBadge from './components/StaffIdentityBadge'
 import { useAuth } from './contexts/AuthContext'
 import { useClubData } from './hooks/useClubData'
 
@@ -54,6 +55,7 @@ export default function App() {
             {club?.name ?? t('nav.brand')}
           </Link>
           <div className="flex items-center gap-4">
+            <StaffIdentityBadge />
             <Link to="/treningy" className="text-sm text-text-secondary hover:text-primary">
               {t('nav.trainings')}
             </Link>
