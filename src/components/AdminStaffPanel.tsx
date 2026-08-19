@@ -142,14 +142,22 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                       (viewerRole === 'superadmin' && (s.role === 'owner' || s.role === 'assistant')) ||
                       (viewerRole === 'owner' && s.role === 'assistant')
                     )
-                    // Same boundary firestore.rules and deleteStaffAccount both
-                    // enforce server-side: a superadmin can touch any row but
-                    // its own, an owner only pending/assistant rows — used
-                    // both for the isTrainer toggle (independent of `role`,
-                    // see StaffUser) and the real account delete.
+                    // Matches deleteStaffAccount's own server-side check
+                    // (a caller can never delete themselves while signed in
+                    // as that account) — the boundary firestore.rules
+                    // enforces is otherwise: a superadmin can touch any row,
+                    // an owner only pending/assistant rows.
                     const canManageRow = !isSelf && (
                       viewerRole === 'superadmin' || (viewerRole === 'owner' && (s.role === 'pending' || s.role === 'assistant'))
                     )
+                    // isTrainer is independent of `role` (see StaffUser) and
+                    // has no self-delete-style hazard, so a superadmin can
+                    // toggle it on their OWN row too — firestore.rules'
+                    // isSuperAdmin() branch has no self-exclusion either,
+                    // this just matches the UI to what the rule already
+                    // allows (an owner still can't touch their own row).
+                    const canManageTrainer =
+                      viewerRole === 'superadmin' || (viewerRole === 'owner' && !isSelf && (s.role === 'pending' || s.role === 'assistant'))
 
                     return (
                       <tr key={s.uid} className="border-b border-border">
@@ -161,7 +169,7 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                             {s.isTrainer ? (
                               <>
                                 <span className="text-primary">{t('admin.roleTrainer')}</span>
-                                {canManageRow && (
+                                {canManageTrainer && (
                                   <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetTrainerAccess(s.uid, false)}>
                                     {t('admin.revokeTrainer')}
                                   </Button>
@@ -170,7 +178,7 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                             ) : s.pendingRole === 'trainer' ? (
                               <>
                                 <span className="text-xs text-primary">{t('admin.wantsToBeTrainer')}</span>
-                                {canManageRow && (
+                                {canManageTrainer && (
                                   <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetTrainerAccess(s.uid, true)}>
                                     {t('admin.grantTrainer')}
                                   </Button>
@@ -179,7 +187,7 @@ export default function AdminStaffPanel({ clubId, viewerUid, viewerRole }: Admin
                             ) : (
                               <>
                                 <span className="text-text-muted">—</span>
-                                {canManageRow && (
+                                {canManageTrainer && (
                                   <Button size="sm" variant="outline" disabled={busy} onClick={() => handleSetTrainerAccess(s.uid, true)}>
                                     {t('admin.assignTrainer')}
                                   </Button>
