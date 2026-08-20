@@ -647,15 +647,47 @@ straight to `'confirmed'` (`registerForSession`/`registerForBundle`'s new
 `instantConfirm` flag), mirroring how `AdminCreateBookingModal` already
 works for ice bookings — staff already know the contact info is real.
 
+**Automatic waitlist promotion.** When a `'confirmed'`/`'pending'`
+registration for a session or bundle is cancelled and a real spot is
+freed, `cancelSessionRegistration`/`cancelBundleRegistration`
+(`lib/training.ts`) now try to promote whoever's been waiting longest —
+straight from `'waitlist'` to `'confirmed'`, no re-click required, since
+this is the *same* session/bundle the customer already signed up for
+(unlike the still-unbuilt cross-notification below, which crosses between
+different trainers and always needs an explicit claim). Firestore's
+client SDK can only read documents by reference inside a transaction, not
+run a query, so "who's next" (lowest `waitlistPosition`) is found via a
+plain query first; each candidate is then tried in its own small
+transaction that re-checks the session/bundle still has space and the
+candidate is still `'waitlist'` before committing — a candidate who lost
+a race (e.g. self-cancelled their waitlist spot moments earlier) is
+skipped in favor of the next one rather than failing the whole
+promotion. Needed a new public `firestore.rules` transition
+(`'waitlist' -> 'confirmed'`, status-only) on both
+`trainingRegistrations` and `trainingBundleRegistrations` — the customer
+whose unrelated cancel triggers the promotion doesn't own the promoted
+doc and needs no special permission to write to it, same public trust
+boundary the existing `confirmedCount`-only update rule already accepts.
+
+Promotion is never silent: the caller (`TrainingCancelPage.tsx`) queues
+the promoted registrant the same confirmation email (with calendar
+attachment/cancel link/QR) an instant-confirm registration gets. That
+email needs a language to render in, but there's no browser session of
+the *promoted* customer present to read `i18n.language` from — only the
+canceller's. So `TrainingRegistration`/`TrainingBundleRegistration`
+gained an optional `language` field, captured from the registrant's own
+browser at signup time (`TrainingRegistrationModal.tsx` passes
+`language: lang` into `registerForSession`/`registerForBundle`) and read
+back for the promotion email; a registration from before this field
+existed falls back to `'sk'`.
+
 **Planned but not yet built** (this section will be extended as later
 phases land): the "krížové upozornenie z čakačky" cross-notification
 (when a new session opens at a date/time where another trainer's session
 already has a waitlist, everyone on that waitlist gets emailed a one-click
 claim link into the new session — never a silent auto-move, since a
 waitlisted customer chose a particular trainer and shouldn't end up
-enrolled with a different one without an explicit action), auto-promoting
-a session's own next-in-line waitlister when a confirmed registration
-cancels (see the capacity/waitlist model note above), and Excel
+enrolled with a different one without an explicit action), and Excel
 import/export for sessions.
 
 **Navigation: "Administrácia" vs. training management.** A trainer
