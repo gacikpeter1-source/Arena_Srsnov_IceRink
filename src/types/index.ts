@@ -1,3 +1,5 @@
+import type { SupportedLanguage } from '@/i18n'
+
 export interface Club {
   id: string
   name: string
@@ -344,6 +346,11 @@ export interface TrainingRegistration {
   // the trainer sees this participant's name and confirmationCode
   // together (not anonymized).
   attendance?: { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }
+  // Captured from the registrant's browser at signup so a later automatic
+  // waitlist promotion (no browser session to read from) still emails
+  // them in their own language. Unset on registrations from before this
+  // field existed — callers fall back to 'sk'.
+  language?: SupportedLanguage
 
   createdAt: Date
   cancelledAt?: Date
@@ -371,6 +378,8 @@ export interface TrainingBundleRegistration {
   pendingExpiresAt?: Date
   waitlistPosition?: number
   attendanceBySession?: Record<string, { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }>
+  // See TrainingRegistration.language.
+  language?: SupportedLanguage
 
   createdAt: Date
   cancelledAt?: Date

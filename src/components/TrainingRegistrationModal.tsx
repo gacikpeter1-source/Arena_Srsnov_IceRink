@@ -61,7 +61,8 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          instantConfirm: asStaff
+          instantConfirm: asStaff,
+          language: lang
         })
         if (registered.status === 'confirmed') {
           const sessionsSnap = await getDocs(query(collection(db, 'trainingSessions'), where('bundleId', '==', bundle.id)))
@@ -102,7 +103,8 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           email: formData.email,
           phone: formData.phone,
           timezone: club.timezone,
-          instantConfirm: asStaff
+          instantConfirm: asStaff,
+          language: lang
         })
         if (registered.status === 'confirmed') {
           await queueTrainingConfirmationEmail(

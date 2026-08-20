@@ -289,6 +289,15 @@ service cloud.firestore {
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && resource.data.status == 'pending'
         && request.resource.data.status in ['confirmed', 'expired'];
+      // Automatic waitlist promotion (a system action triggered by an
+      // unrelated cancellation freeing a spot — see
+      // promoteNextWaitlistedSessionRegistration in lib/training.ts) — the
+      // customer performing that cancel doesn't own this doc and needs no
+      // special permission to trigger it, same public trust boundary as
+      // the confirmedCount adjustment above.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status == 'waitlist'
+        && request.resource.data.status == 'confirmed';
       // Trainer marking attendance on their own session's registrations.
       allow update: if isTrainer()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendance'])
@@ -310,6 +319,10 @@ service cloud.firestore {
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && resource.data.status == 'pending'
         && request.resource.data.status in ['confirmed', 'expired'];
+      // See the matching waitlist-promotion rule on trainingRegistrations above.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.status == 'waitlist'
+        && request.resource.data.status == 'confirmed';
       allow update: if isTrainer()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendanceBySession'])
         && get(/databases/$(database)/documents/trainingBundles/$(resource.data.bundleId)).data.trainerId == request.auth.uid;

@@ -25,6 +25,7 @@ import {
 } from '@/types'
 import { addDays, formatDateISO, generateConfirmationCode, generateToken } from './utils'
 import { zonedTimeToUtc } from './ics'
+import type { SupportedLanguage } from '@/i18n'
 
 // ---------------------------------------------------------------------
 // Trainer-facing creation/management — standalone sessions, recurring
@@ -391,6 +392,10 @@ export interface RegisterForSessionInput {
   // already know the contact info is real, mirroring how
   // AdminCreateBookingModal's ice bookings work (see CLAUDE.md).
   instantConfirm?: boolean
+  // The registrant's active browser language, stored on the registration
+  // so a later automatic waitlist promotion can still email them in it —
+  // see TrainingRegistration.language.
+  language?: SupportedLanguage
 }
 
 export interface RegisteredForSession {
@@ -437,6 +442,7 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
       cancellationToken,
       tokenExpiresAt,
       startAtUtc: zonedTimeToUtc(session.date, session.startTime, input.timezone),
+      ...(input.language ? { language: input.language } : {}),
       createdAt: serverTimestamp()
     }
 
@@ -499,19 +505,70 @@ export async function confirmSessionRegistration(
 }
 
 /**
+ * After a cancellation frees a real spot, promotes whoever's been waiting
+ * longest straight from 'waitlist' to 'confirmed' — never a silent auto-
+ * move with no notice: the caller (TrainingCancelPage) queues the same
+ * confirmation email an instant-confirm registration gets, using the
+ * `language` captured at the promoted registrant's own signup time (there's
+ * no browser session of theirs present to read it from now). This is
+ * distinct from the still-unbuilt cross-notification feature (see
+ * CLAUDE.md's "Planned but not yet built") — that one crosses between
+ * different trainers' sessions/waitlists and always needs an explicit
+ * claim click; this one is the same session freeing up its own spot, so
+ * there's no ambiguity about what the customer signed up for.
+ *
+ * Firestore's client SDK can only read documents by reference inside a
+ * transaction, not run a query (same constraint documented on
+ * reclaimExpiredSessionRegistrations above) — so "who's next" is found via
+ * a plain query first, then each candidate is tried in a small transaction
+ * that re-checks both docs are still in the expected state before
+ * committing. A candidate that lost a race (self-cancelled their waitlist
+ * spot in the meantime) is skipped in favor of the next one, rather than
+ * failing the whole promotion.
+ */
+async function promoteNextWaitlistedSessionRegistration(
+  sessionId: string
+): Promise<(TrainingRegistration & { id: string }) | null> {
+  const waitlistSnap = await getDocs(
+    query(collection(db, 'trainingRegistrations'), where('sessionId', '==', sessionId), where('status', '==', 'waitlist'))
+  )
+  const candidates = waitlistSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as TrainingRegistration & { id: string })
+    .sort((a, b) => (a.waitlistPosition ?? 0) - (b.waitlistPosition ?? 0))
+
+  const sessionRef = doc(db, 'trainingSessions', sessionId)
+  for (const candidate of candidates) {
+    const regRef = doc(db, 'trainingRegistrations', candidate.id)
+    const promoted = await runTransaction(db, async (tx) => {
+      const sessionSnap = await tx.get(sessionRef)
+      const regSnap = await tx.get(regRef)
+      if (!sessionSnap.exists() || !regSnap.exists() || regSnap.data().status !== 'waitlist') return false
+      const session = sessionSnap.data()
+      if (session.capacity !== null && session.confirmedCount >= session.capacity) return false
+      tx.update(sessionRef, { confirmedCount: session.confirmedCount + 1 })
+      tx.update(regRef, { status: 'confirmed' })
+      return true
+    })
+    if (promoted) return { ...candidate, status: 'confirmed' }
+  }
+  return null
+}
+
+/**
  * Cancels a session registration, releasing its reserved spot if it was
  * 'confirmed' or 'pending' (both hold a real spot — see the capacity-model
- * note above; a 'waitlist' registration never reserved one). Does not
- * auto-promote the next waitlisted person — that needs its own public
- * write-rule (a waitlist -> confirmed transition isn't currently permitted
- * by firestore.rules) and overlaps with the still-unbuilt cross-
- * notification feature (see CLAUDE.md's "Planned but not yet built"), so
- * it's deliberately left for that later pass.
+ * note above; a 'waitlist' registration never reserved one). When a real
+ * spot was freed, also attempts to promote the next waitlisted registration
+ * for the same session — returns it (or null if there was no one waiting,
+ * or the promotion lost a race) so the caller can send the "you got a
+ * spot" email.
  */
-export async function cancelSessionRegistration(registrationId: string): Promise<void> {
+export async function cancelSessionRegistration(
+  registrationId: string
+): Promise<(TrainingRegistration & { id: string }) | null> {
   const regRef = doc(db, 'trainingRegistrations', registrationId)
 
-  await runTransaction(db, async (tx) => {
+  const sessionId = await runTransaction(db, async (tx) => {
     const regSnap = await tx.get(regRef)
     if (!regSnap.exists()) throw new Error('Registration not found')
     const registration = regSnap.data()
@@ -525,7 +582,10 @@ export async function cancelSessionRegistration(registrationId: string): Promise
     if (heldSpot && sessionSnap?.exists()) {
       tx.update(sessionRef, { confirmedCount: Math.max(0, (sessionSnap.data().confirmedCount ?? 0) - 1) })
     }
+    return heldSpot ? (registration.sessionId as string) : null
   })
+
+  return sessionId ? promoteNextWaitlistedSessionRegistration(sessionId) : null
 }
 
 export async function fetchSessionRegistrationsByEmail(
@@ -579,6 +639,8 @@ export interface RegisterForBundleInput {
   phone: string
   // See RegisterForSessionInput.instantConfirm.
   instantConfirm?: boolean
+  // See RegisterForSessionInput.language.
+  language?: SupportedLanguage
 }
 
 export interface RegisteredForBundle {
@@ -619,6 +681,7 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
       confirmationCode,
       cancellationToken,
       tokenExpiresAt,
+      ...(input.language ? { language: input.language } : {}),
       createdAt: serverTimestamp()
     }
 
@@ -674,10 +737,42 @@ export async function confirmBundleRegistration(
   })
 }
 
-export async function cancelBundleRegistration(registrationId: string): Promise<void> {
+/** Bundle counterpart of promoteNextWaitlistedSessionRegistration — same rationale/mechanism, scoped to trainingBundles/trainingBundleRegistrations. */
+async function promoteNextWaitlistedBundleRegistration(
+  bundleId: string
+): Promise<(TrainingBundleRegistration & { id: string }) | null> {
+  const waitlistSnap = await getDocs(
+    query(collection(db, 'trainingBundleRegistrations'), where('bundleId', '==', bundleId), where('status', '==', 'waitlist'))
+  )
+  const candidates = waitlistSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as TrainingBundleRegistration & { id: string })
+    .sort((a, b) => (a.waitlistPosition ?? 0) - (b.waitlistPosition ?? 0))
+
+  const bundleRef = doc(db, 'trainingBundles', bundleId)
+  for (const candidate of candidates) {
+    const regRef = doc(db, 'trainingBundleRegistrations', candidate.id)
+    const promoted = await runTransaction(db, async (tx) => {
+      const bundleSnap = await tx.get(bundleRef)
+      const regSnap = await tx.get(regRef)
+      if (!bundleSnap.exists() || !regSnap.exists() || regSnap.data().status !== 'waitlist') return false
+      const bundle = bundleSnap.data()
+      if (bundle.capacity !== null && bundle.confirmedCount >= bundle.capacity) return false
+      tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + 1 })
+      tx.update(regRef, { status: 'confirmed' })
+      return true
+    })
+    if (promoted) return { ...candidate, status: 'confirmed' }
+  }
+  return null
+}
+
+/** See cancelSessionRegistration — same shape, scoped to bundle registrations/bundles. */
+export async function cancelBundleRegistration(
+  registrationId: string
+): Promise<(TrainingBundleRegistration & { id: string }) | null> {
   const regRef = doc(db, 'trainingBundleRegistrations', registrationId)
 
-  await runTransaction(db, async (tx) => {
+  const bundleId = await runTransaction(db, async (tx) => {
     const regSnap = await tx.get(regRef)
     if (!regSnap.exists()) throw new Error('Registration not found')
     const registration = regSnap.data()
@@ -691,7 +786,10 @@ export async function cancelBundleRegistration(registrationId: string): Promise<
     if (heldSpot && bundleSnap?.exists()) {
       tx.update(bundleRef, { confirmedCount: Math.max(0, (bundleSnap.data().confirmedCount ?? 0) - 1) })
     }
+    return heldSpot ? (registration.bundleId as string) : null
   })
+
+  return bundleId ? promoteNextWaitlistedBundleRegistration(bundleId) : null
 }
 
 export async function fetchBundleRegistrationsByEmail(
