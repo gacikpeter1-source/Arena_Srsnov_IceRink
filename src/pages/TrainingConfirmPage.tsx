@@ -9,6 +9,7 @@ import { doc, getDocs, collection, query, where, getDoc } from 'firebase/firesto
 import { db } from '@/lib/firebase'
 import { TrainingBundle, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import BackButton from '@/components/BackButton'
 
 type State = 'confirming' | 'confirmed' | 'expired' | 'invalid' | 'error'
 
@@ -112,6 +113,7 @@ export default function TrainingConfirmPage({ kind }: TrainingConfirmPageProps) 
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
+      <BackButton fallback="/" />
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white">{t('trainingConfirm.title')}</CardTitle>

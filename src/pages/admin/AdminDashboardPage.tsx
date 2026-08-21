@@ -18,6 +18,7 @@ import AdminQrPanel from '@/components/AdminQrPanel'
 import AdminClubSettingsPanel from '@/components/AdminClubSettingsPanel'
 import AdminScheduleSettingsPanel from '@/components/AdminScheduleSettingsPanel'
 import AdminDaySchedulePanel from '@/components/AdminDaySchedulePanel'
+import BackButton from '@/components/BackButton'
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
@@ -158,6 +159,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="content-container py-6 space-y-6">
+      <BackButton fallback="/" />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1>{t('admin.dashboardTitle')}</h1>

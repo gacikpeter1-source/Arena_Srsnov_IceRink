@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import BookingModal from '@/components/BookingModal'
 import RinkDiagram from '@/components/RinkDiagram'
 import AvailabilityGrid from '@/components/AvailabilityGrid'
+import BackButton from '@/components/BackButton'
 
 function generateDayOptions(count: number) {
   const today = new Date()
@@ -192,6 +193,7 @@ export default function BookingPage() {
 
   return (
     <div className="content-container py-6 space-y-6">
+      <BackButton fallback="/" />
       <div>
         <h1>{club.name}</h1>
         <p className="text-text-secondary">{t('home.subtitle')}</p>

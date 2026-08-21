@@ -1,5 +1,6 @@
 {
   "common": {
+    "back": "Back",
     "loading": "Loading...",
     "close": "Close",
     "cancel": "Cancel",
@@ -32,7 +33,7 @@
     "reserveRink": "Reserve Ice Rink",
     "reserveRinkDesc": "Book the full rink or a zone for a time slot.",
     "trainingReservations": "Training Reservations",
-    "trainingReservationsDesc": "Sign up for hockey training sessions.",
+    "trainingReservationsDesc": "Register for a training session with a coach.",
     "tournaments": "Tournaments",
     "tournamentsDesc": "Browse and register for tournaments.",
     "comingSoon": "Coming soon"

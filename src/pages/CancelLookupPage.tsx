@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import BackButton from '@/components/BackButton'
 
 export default function CancelLookupPage() {
   const { t, i18n } = useTranslation()
@@ -75,6 +76,7 @@ export default function CancelLookupPage() {
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
+      <BackButton fallback="/" />
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white">{t('manageBooking.findTitle')}</CardTitle>

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import AddToCalendarButtons from '@/components/AddToCalendarButtons'
 import { IcsEventInput } from '@/lib/ics'
+import BackButton from '@/components/BackButton'
 
 type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'error'
 
@@ -122,6 +123,7 @@ export default function SeriesCancelPage() {
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
+      <BackButton fallback="/" />
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white">{t('manageSeries.title')}</CardTitle>

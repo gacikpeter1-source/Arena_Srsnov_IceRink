@@ -10,6 +10,7 @@ import { StaffUser, TrainingBundle, TrainingSession } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TrainingRegistrationModal from '@/components/TrainingRegistrationModal'
+import BackButton from '@/components/BackButton'
 
 const DAYS_AHEAD = 14
 const PALETTE = ['#FDB913', '#3b82f6', '#22c55e', '#ec4899', '#a855f7', '#f97316', '#06b6d4', '#ef4444']
@@ -66,6 +67,7 @@ export default function TrainingCalendarPage() {
 
   return (
     <div className="content-container py-6 space-y-6">
+      <BackButton fallback="/" />
       {(staff?.isTrainer || isIceRinkStaff) && (
         <Card className="arena-card border-primary">
           <CardContent className="pt-4 flex items-center justify-between flex-wrap gap-3">

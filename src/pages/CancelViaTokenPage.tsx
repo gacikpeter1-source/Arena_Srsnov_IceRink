@@ -11,6 +11,7 @@ import { Booking, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import AddToCalendarButtons from '@/components/AddToCalendarButtons'
+import BackButton from '@/components/BackButton'
 
 type State =
   | 'loading'
@@ -90,6 +91,7 @@ export default function CancelViaTokenPage() {
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
+      <BackButton fallback="/" />
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white">{t('manageBooking.manageTitle')}</CardTitle>
