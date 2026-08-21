@@ -734,17 +734,57 @@ via three entry points:
   destinations regardless of which page you're currently on.
 - Inside `/admin/treningy` (`TrainerDashboardPage.tsx`) itself, the old
   Sessions/Series/Bundles button row (plus the ice log panel, previously
-  always rendered beneath it) is now one `<select>` dropdown covering all
-  four areas including a new `'iceLog'` tab — `availableTabs` is still
-  computed the same way each tab always was (Sessions: trainer or
-  owner/superadmin; Series/Bundles: trainer only; Ice log: any ice-rink
-  staff role), just rendered as one consistent menu instead of a mix of a
-  button row and an unconditional panel underneath it.
+  always rendered beneath it) became one `<select>` dropdown — since
+  superseded by the ice-attendance split below, which pulled the ice log
+  back out into its own page, so this dropdown now only ever covers
+  Sessions/Series/Bundles.
 
 None of this needed a `firestore.rules`/`firestore.indexes.json` change —
 every permission check it relies on (`isTrainer`, `isOwnerOrSuperadmin`,
 `isIceRinkStaff`) already existed from earlier phases; this pass only
 changed which UI surfaces expose the same already-authorized actions.
+
+**Ice attendance split into its own page.** `/admin/treningy`
+(`TrainerDashboardPage.tsx`) had become a mixed bag: an owner explained
+that landing on it first showed "Evidencia trénerov na ľade" for a plain
+assistant, when the page's actual purpose is a trainer/owner/superadmin
+manually creating trainings. The ice log/attendance concern moved to its
+own route, `/admin/treningy/evidencia`
+(`IceAttendancePage.tsx` + `AdminTrainerIceLogPanel.tsx`), reachable by
+any ice-rink staff role (assistant/owner/superadmin) — `TrainerDashboardPage`
+now redirects a plain assistant (isIceRinkStaff but neither a trainer nor
+owner/superadmin) straight there via `<Navigate>`, since they have no
+Sessions/Series/Bundles tab to land on otherwise; a trainer/owner/
+superadmin still reaches it through a small "Evidencia na ľade" link next
+to the existing "Späť na správu ľadovej plochy" button.
+
+The new page adds a genuinely new feature on top of the pre-existing
+private ice log (a trainer using ice with no booked session at all):
+an **ice-attendance checklist** for that day's *scheduled* trainings — a
+simple list (date picker + one row per session: time, trainer name, a
+checkbox) letting an assistant/owner/superadmin confirm the assigned
+trainer was actually physically present, independent of customer
+attendance. This is deliberately NOT the same thing as a session's
+existing `confirmedCount`/customer `attendance` — it's a new
+`trainerPresentConfirmed?: boolean` field on `TrainingSession` (unset =
+not yet confirmed either way, not "absent"), settable via
+`setSessionTrainerPresence` (`lib/training.ts`) and a matching public
+`firestore.rules` transition scoped to `isStaffMember()` and
+`trainerPresentConfirmed` alone (mirrors the existing `confirmedCount`-
+only public update rule's shape). Purely a payroll-support record — an
+owner pulling the combined attendance report (see the Fáza 3 report
+above) can now see a "Trainer Present" Yes/No column per planned
+training alongside who was marked present and the private ice log, e.g.
+to know what to actually pay a trainer for.
+
+The pre-existing private-use log form (trainer name via datalist/free-
+text, date, notes — unchanged) is no longer always rendered: a "Zápis
+trénera na ľade" button sits right under the page header and toggles it
+open, prefilling today's checklist date and the current local time (a
+new optional `time` field on `TrainerIceLogEntry`) — logging is for a
+trainer the assistant is seeing on the ice right now, not backfilling a
+past date. The full log list and the Excel report generator underneath
+stay owner/superadmin-only (`canViewLog`), unchanged from Fáza 3.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 

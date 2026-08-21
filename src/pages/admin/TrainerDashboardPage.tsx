@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import {
@@ -24,25 +24,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import TrainerRosterModal from '@/components/TrainerRosterModal'
-import AdminTrainerIceLogPanel from '@/components/AdminTrainerIceLogPanel'
 import BackButton from '@/components/BackButton'
 
 const DEFAULT_CUTOFF_HOURS = 2
 
-type Tab = 'sessions' | 'series' | 'bundles' | 'iceLog'
+type Tab = 'sessions' | 'series' | 'bundles'
 
 export default function TrainerDashboardPage() {
   const { t } = useTranslation()
   const { user, staff } = useAuth()
   const { club } = useClubData()
-  // Defaults to whichever section this account actually has: a trainer
-  // (or owner/superadmin, who can also create sessions — see
-  // isOwnerOrSuperadmin below) lands on Sessions; a plain assistant, who
-  // only has the ice log here, lands there instead.
-  const [tab, setTab] = useState<Tab>(() => {
-    if (staff?.isTrainer || staff?.role === 'owner' || staff?.role === 'superadmin') return 'sessions'
-    return 'iceLog'
-  })
+  const [tab, setTab] = useState<Tab>('sessions')
 
   const [sessions, setSessions] = useState<(TrainingSession & { id: string })[]>([])
   const [series, setSeries] = useState<(TrainingSeries & { id: string })[]>([])
@@ -100,10 +92,10 @@ export default function TrainerDashboardPage() {
 
   useEffect(refresh, [trainerId])
 
-  // The ice log below is an isStaffMember() concern (assistant/owner/
-  // superadmin), independent of isTrainer — see AdminTrainerIceLogPanel.
-  // A dual-role account sees both sections; someone with neither has no
-  // reason to be on this page at all.
+  // Ice attendance now lives on its own page (IceAttendancePage, linked
+  // below) rather than as a tab here — this page is purely about a
+  // trainer/owner/superadmin manually creating trainings. isIceRinkStaff
+  // still gates the link to that page (assistant/owner/superadmin).
   const isIceRinkStaff = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
   // firestore.rules' trainingSessions create rule allows isOwnerOrAbove()
   // regardless of trainerId — narrower than isIceRinkStaff (excludes
@@ -126,6 +118,15 @@ export default function TrainerDashboardPage() {
         <Link to="/admin"><Button variant="outline">{t('trainerDashboard.backToIceRink')}</Button></Link>
       </div>
     )
+  }
+
+  // This page is now purely about a trainer/owner/superadmin manually
+  // creating trainings (see availableTabs below) — a plain assistant
+  // (isIceRinkStaff but neither a trainer nor owner/superadmin) has
+  // nothing to do here at all, so they land straight on the ice-
+  // attendance page instead of an empty dashboard.
+  if (staff && !staff.isTrainer && !isOwnerOrSuperadmin) {
+    return <Navigate to="/admin/treningy/evidencia" replace />
   }
 
   const parseCapacity = (v: string): number | null => (v.trim() === '' ? null : Math.max(0, parseInt(v, 10) || 0))
@@ -252,20 +253,26 @@ export default function TrainerDashboardPage() {
 
   const availableTabs: Tab[] = [
     ...(staff?.isTrainer || isOwnerOrSuperadmin ? (['sessions'] as Tab[]) : []),
-    ...(staff?.isTrainer ? (['series', 'bundles'] as Tab[]) : []),
-    ...(isIceRinkStaff ? (['iceLog'] as Tab[]) : [])
+    ...(staff?.isTrainer ? (['series', 'bundles'] as Tab[]) : [])
   ]
 
   return (
     <div className="content-container py-6 space-y-6">
       <BackButton fallback="/treningy" />
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-white">{staff?.isTrainer ? t('trainerDashboard.title') : t('trainerIceLog.title')}</h1>
-        {staff && staff.role !== 'pending' && (
-          <Link to="/admin">
-            <Button variant="outline" size="sm">{t('trainerDashboard.backToIceRink')}</Button>
-          </Link>
-        )}
+        <h1 className="text-2xl font-bold text-white">{t('trainerDashboard.title')}</h1>
+        <div className="flex gap-2">
+          {isIceRinkStaff && (
+            <Link to="/admin/treningy/evidencia">
+              <Button variant="outline" size="sm">{t('trainerDashboard.iceAttendanceLink')}</Button>
+            </Link>
+          )}
+          {staff && staff.role !== 'pending' && (
+            <Link to="/admin">
+              <Button variant="outline" size="sm">{t('trainerDashboard.backToIceRink')}</Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {availableTabs.length > 1 && (
@@ -472,10 +479,6 @@ export default function TrainerDashboardPage() {
             </CardContent>
           </Card>
         </>
-      )}
-
-      {isIceRinkStaff && tab === 'iceLog' && user && club && (
-        <AdminTrainerIceLogPanel clubId={club.id} loggedBy={user.uid} canViewLog={staff?.role === 'owner' || staff?.role === 'superadmin'} />
       )}
 
       {rosterSession && (

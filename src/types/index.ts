@@ -314,6 +314,13 @@ export interface TrainingSession {
   seriesId?: string
   bundleId?: string
   status: 'unassigned' | 'active' | 'cancelled'
+  // Confirmed by an assistant/owner/superadmin on the ice-attendance
+  // checklist page — marks that the assigned trainer was physically
+  // present for this scheduled session, independent of customer
+  // attendance (see TrainingRegistration.attendance). Purely a
+  // payroll-support record for the owner; unset = not yet confirmed
+  // either way, not "trainer was absent".
+  trainerPresentConfirmed?: boolean
   createdAt: Date
 }
 
@@ -413,6 +420,10 @@ export interface TrainerIceLogEntry {
   trainerId?: string
   trainerName: string
   date: string
+  // Defaults to the current local time when the logging form is opened —
+  // the assistant is logging ice use they're witnessing right now, not a
+  // past event.
+  time?: string
   notes?: string
   loggedBy: string // uid of the assistant who logged it
   loggedAt: Date
