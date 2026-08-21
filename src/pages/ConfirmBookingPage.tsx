@@ -11,6 +11,7 @@ import { Booking, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AddToCalendarButtons from '@/components/AddToCalendarButtons'
 import { IcsEventInput } from '@/lib/ics'
+import BackButton from '@/components/BackButton'
 
 type State = 'confirming' | 'confirmed' | 'expired' | 'invalid' | 'error'
 
@@ -92,6 +93,7 @@ export default function ConfirmBookingPage() {
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
+      <BackButton fallback="/" />
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white">{t('confirmBooking.title')}</CardTitle>

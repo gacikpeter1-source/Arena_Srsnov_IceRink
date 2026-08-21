@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import TrainerRosterModal from '@/components/TrainerRosterModal'
 import AdminTrainerIceLogPanel from '@/components/AdminTrainerIceLogPanel'
+import BackButton from '@/components/BackButton'
 
 const DEFAULT_CUTOFF_HOURS = 2
 
@@ -257,6 +258,7 @@ export default function TrainerDashboardPage() {
 
   return (
     <div className="content-container py-6 space-y-6">
+      <BackButton fallback="/treningy" />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-white">{staff?.isTrainer ? t('trainerDashboard.title') : t('trainerIceLog.title')}</h1>
         {staff && staff.role !== 'pending' && (

@@ -15,6 +15,7 @@ import { isSupportedLanguage } from '@/i18n'
 import { TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import BackButton from '@/components/BackButton'
 
 type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'locked' | 'pending' | 'waitlist' | 'already_cancelled' | 'cancelled' | 'error'
 
@@ -172,6 +173,7 @@ export default function TrainingCancelPage({ kind }: TrainingCancelPageProps) {
 
   return (
     <div className="content-container py-6 max-w-md mx-auto">
+      <BackButton fallback="/" />
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white">{t('trainingCancel.title')}</CardTitle>

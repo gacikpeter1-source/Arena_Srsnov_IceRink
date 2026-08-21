@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { fetchTrainers } from '@/lib/staff'
 import { StaffUser } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
+import BackButton from '@/components/BackButton'
 
 export default function TrainerDirectoryPage() {
   const { t } = useTranslation()
@@ -16,6 +17,7 @@ export default function TrainerDirectoryPage() {
 
   return (
     <div className="content-container py-6 space-y-6">
+      <BackButton fallback="/treningy" />
       <h1 className="text-2xl font-bold text-white">{t('trainerDirectory.title')}</h1>
 
       {loading ? (

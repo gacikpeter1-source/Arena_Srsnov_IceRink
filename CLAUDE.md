@@ -313,6 +313,29 @@ Bookings written before this field existed have no cutoff to check and
 fall back to the pre-feature (always-allowed) behavior rather than being
 permanently locked out.
 
+## Back navigation
+Every routed page except the hub home (`/`) renders `BackButton.tsx` — a
+small chevron-arrow control — at the top of its content. Needed because
+this app is PWA-installable (see the Stack section): once installed to a
+home screen, standalone display mode has no browser chrome at all, so
+there's no native back button once a customer is a few taps deep (e.g.
+booking confirmation → cancel page → back to the hub).
+
+It prefers real browser-session history (`navigate(-1)`, gated on
+react-router's own history-index stamp on `window.history.state` being
+> 0) over a fixed destination, so — per an explicit product requirement —
+returning from just having created a training lands back on the list you
+were already viewing, not a fixed page. It only falls back to a per-page
+default route when there's no in-app history to go back to at all (a
+fresh visit via a shared link, QR code, or emailed confirmation/cancel
+link, which is how most of these sub-pages are actually reached). Each
+page picks its own fallback matching its place in the information
+architecture — e.g. `/treningy/treneri` falls back to `/treningy`,
+`/admin/treningy` falls back to `/treningy` (its training-domain parent,
+not `/admin`, per the "Administrácia vs. training management" navigation
+note above), and most customer-facing pages (confirmation/cancel links,
+`/book`) fall back to the hub home `/`.
+
 ## Availability visibility
 Two ways to see occupancy without opening each day one at a time (both in
 `BookingPage.tsx`):

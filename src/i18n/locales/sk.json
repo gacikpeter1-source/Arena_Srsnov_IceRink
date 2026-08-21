@@ -1,5 +1,6 @@
 {
   "common": {
+    "back": "Späť",
     "loading": "Načítava sa...",
     "close": "Zavrieť",
     "cancel": "Zrušiť",
@@ -32,7 +33,7 @@
     "reserveRink": "Rezervovať ľadovú plochu",
     "reserveRinkDesc": "Rezervujte celú plochu alebo zónu na časový úsek.",
     "trainingReservations": "Rezervácia tréningov",
-    "trainingReservationsDesc": "Prihláste sa na hokejové tréningy.",
+    "trainingReservationsDesc": "Registruj sa na tréning s trénerom.",
     "tournaments": "Turnaje",
     "tournamentsDesc": "Prehliadajte a registrujte sa na turnaje.",
     "comingSoon": "Už čoskoro"
