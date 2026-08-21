@@ -262,6 +262,11 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trainerId', 'trainerName', 'status']);
       // Public registration flow atomically adjusts confirmedCount only.
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['confirmedCount']);
+      // Ice-attendance checklist: any ice-rink staff member (not just the
+      // owning trainer) confirms the trainer was physically present —
+      // see setSessionTrainerPresence in lib/training.ts.
+      allow update: if isStaffMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trainerPresentConfirmed']);
       allow update, delete: if isOwnerOrAbove();
       allow delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
     }

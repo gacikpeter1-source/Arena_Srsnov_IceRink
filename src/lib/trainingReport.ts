@@ -19,7 +19,8 @@ const SESSION_HEADERS = {
   capacity: 'Capacity',
   confirmed: 'Confirmed',
   present: 'Present',
-  presentNames: 'Present Names'
+  presentNames: 'Present Names',
+  trainerPresent: 'Trainer Present'
 } as const
 
 const ICE_LOG_HEADERS = {
@@ -100,7 +101,8 @@ export async function generateTrainingReport(input: GenerateTrainingReportInput)
       [SESSION_HEADERS.capacity]: capacity ?? 'Unlimited',
       [SESSION_HEADERS.confirmed]: confirmedCount,
       [SESSION_HEADERS.present]: presentNames.length,
-      [SESSION_HEADERS.presentNames]: presentNames.join(', ')
+      [SESSION_HEADERS.presentNames]: presentNames.join(', '),
+      [SESSION_HEADERS.trainerPresent]: s.trainerPresentConfirmed ? 'Yes' : 'No'
     }
   })
 

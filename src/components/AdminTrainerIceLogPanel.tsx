@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { addTrainerIceLogEntry, fetchTrainerIceLog, deleteTrainerIceLogEntry } from '@/lib/training'
+import {
+  addTrainerIceLogEntry,
+  fetchTrainerIceLog,
+  deleteTrainerIceLogEntry,
+  fetchTrainingSessionsInRange,
+  setSessionTrainerPresence
+} from '@/lib/training'
 import { generateTrainingReport } from '@/lib/trainingReport'
 import { fetchTrainers } from '@/lib/staff'
 import { addDays, formatDateISO } from '@/lib/utils'
-import { StaffUser, TrainerIceLogEntry } from '@/types'
+import { StaffUser, TrainerIceLogEntry, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -19,6 +25,11 @@ interface AdminTrainerIceLogPanelProps {
   canViewLog: boolean
 }
 
+function currentLocalTime(): string {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
 export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }: AdminTrainerIceLogPanelProps) {
   const { t } = useTranslation()
   const [trainers, setTrainers] = useState<StaffUser[]>([])
@@ -26,8 +37,19 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  // Ice-attendance checklist — that day's scheduled trainings, each with a
+  // checkbox confirming the assigned trainer actually showed up. Separate
+  // from the ice-log form below, which is for a trainer using the ice
+  // with no scheduled session at all.
+  const [checklistDate, setChecklistDate] = useState(formatDateISO(new Date()))
+  const [scheduledSessions, setScheduledSessions] = useState<(TrainingSession & { id: string })[]>([])
+  const [checklistLoading, setChecklistLoading] = useState(true)
+  const [togglingSessionId, setTogglingSessionId] = useState<string | null>(null)
+
+  const [logFormOpen, setLogFormOpen] = useState(false)
   const [trainerNameInput, setTrainerNameInput] = useState('')
   const [date, setDate] = useState(formatDateISO(new Date()))
+  const [time, setTime] = useState(currentLocalTime())
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -45,6 +67,34 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
 
   useEffect(refresh, [clubId, canViewLog])
 
+  useEffect(() => {
+    setChecklistLoading(true)
+    fetchTrainingSessionsInRange(clubId, checklistDate, checklistDate)
+      .then((sessions) => setScheduledSessions(sessions.filter((s) => s.trainerId)))
+      .finally(() => setChecklistLoading(false))
+  }, [clubId, checklistDate])
+
+  const handleTogglePresence = async (session: TrainingSession & { id: string }) => {
+    const next = !session.trainerPresentConfirmed
+    setTogglingSessionId(session.id)
+    setScheduledSessions((prev) => prev.map((s) => (s.id === session.id ? { ...s, trainerPresentConfirmed: next } : s)))
+    try {
+      await setSessionTrainerPresence(session.id, next)
+    } catch (err) {
+      console.error('Error updating trainer presence:', err)
+      setScheduledSessions((prev) => prev.map((s) => (s.id === session.id ? { ...s, trainerPresentConfirmed: !next } : s)))
+      alert(t('common.error'))
+    } finally {
+      setTogglingSessionId(null)
+    }
+  }
+
+  const openLogForm = () => {
+    setDate(checklistDate)
+    setTime(currentLocalTime())
+    setLogFormOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const name = trainerNameInput.trim()
@@ -61,11 +111,13 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
         ...(matched ? { trainerId: matched.uid } : {}),
         trainerName: matched?.name ?? name,
         date,
+        ...(time ? { time } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         loggedBy
       })
       setTrainerNameInput('')
       setNotes('')
+      setLogFormOpen(false)
       refresh()
     } catch (err) {
       console.error('Error logging trainer ice use:', err)
@@ -109,39 +161,75 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
       <CardHeader>
         <CardTitle className="text-white">{t('trainerIceLog.title')}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-text-secondary text-sm">{t('trainerIceLog.hint')}</p>
-        <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-4 items-end">
-          <div className="sm:col-span-2">
-            <Label className="text-white">{t('trainerIceLog.trainer')}</Label>
-            <Input
-              list="trainer-ice-log-names"
-              value={trainerNameInput}
-              onChange={(e) => setTrainerNameInput(e.target.value)}
-              placeholder={t('trainerIceLog.selectTrainer')}
-              className="bg-background-dark border-border text-white"
-              required
-            />
-            <datalist id="trainer-ice-log-names">
-              {trainers.map((tr) => (
-                <option key={tr.uid} value={tr.name} />
+      <CardContent className="space-y-6">
+        <Button type="button" onClick={() => (logFormOpen ? setLogFormOpen(false) : openLogForm())} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+          {t('trainerIceLog.logButton')}
+        </Button>
+
+        {logFormOpen && (
+          <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-4 items-end border border-border rounded-lg p-3">
+            <div className="sm:col-span-2">
+              <Label className="text-white">{t('trainerIceLog.trainer')}</Label>
+              <Input
+                list="trainer-ice-log-names"
+                value={trainerNameInput}
+                onChange={(e) => setTrainerNameInput(e.target.value)}
+                placeholder={t('trainerIceLog.selectTrainer')}
+                className="bg-background-dark border-border text-white"
+                required
+              />
+              <datalist id="trainer-ice-log-names">
+                {trainers.map((tr) => (
+                  <option key={tr.uid} value={tr.name} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <Label className="text-white">{t('common.date')}</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-background-dark border-border text-white" required />
+            </div>
+            <div>
+              <Label className="text-white">{t('trainerIceLog.time')}</Label>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="bg-background-dark border-border text-white" />
+            </div>
+            <div className="sm:col-span-4">
+              <Label className="text-white">{t('trainerIceLog.notes')}</Label>
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="bg-background-dark border-border text-white" />
+            </div>
+            <div className="sm:col-span-4">
+              <Button type="submit" disabled={submitting || !trainerNameInput.trim()} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+                {submitting ? t('common.saving') : t('trainerIceLog.logEntry')}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        <div className="border-t border-border pt-4 space-y-3">
+          <h3 className="text-white text-sm font-semibold">{t('trainerIceLog.checklistTitle')}</h3>
+          <p className="text-text-secondary text-sm">{t('trainerIceLog.checklistHint')}</p>
+          <Input type="date" value={checklistDate} onChange={(e) => setChecklistDate(e.target.value)} className="bg-background-dark border-border text-white max-w-xs" />
+          {checklistLoading ? (
+            <p className="text-text-muted">{t('common.loading')}</p>
+          ) : scheduledSessions.length === 0 ? (
+            <p className="text-text-muted text-sm">{t('trainerIceLog.noScheduled')}</p>
+          ) : (
+            <div className="space-y-2">
+              {scheduledSessions.map((session) => (
+                <label key={session.id} className="flex items-center gap-3 p-2 rounded border border-border cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!session.trainerPresentConfirmed}
+                    disabled={togglingSessionId === session.id}
+                    onChange={() => handleTogglePresence(session)}
+                    className="h-4 w-4"
+                  />
+                  <span className="text-white">{session.startTime} — {session.trainerName}</span>
+                  <span className="text-text-muted text-sm ml-auto">{t('trainerIceLog.trainerPresentLabel')}</span>
+                </label>
               ))}
-            </datalist>
-          </div>
-          <div>
-            <Label className="text-white">{t('common.date')}</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-background-dark border-border text-white" required />
-          </div>
-          <div>
-            <Label className="text-white">{t('trainerIceLog.notes')}</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="bg-background-dark border-border text-white" />
-          </div>
-          <div className="sm:col-span-4">
-            <Button type="submit" disabled={submitting || !trainerNameInput.trim()} className="bg-primary hover:bg-primary-gold text-primary-foreground">
-              {submitting ? t('common.saving') : t('trainerIceLog.logEntry')}
-            </Button>
-          </div>
-        </form>
+            </div>
+          )}
+        </div>
 
         {canViewLog && (
           <div className="border-t border-border pt-4 space-y-3">
@@ -186,7 +274,7 @@ export default function AdminTrainerIceLogPanel({ clubId, loggedBy, canViewLog }
               {entries.map((entry) => (
                 <div key={entry.id} className="flex justify-between items-center p-2 rounded border border-border">
                   <div>
-                    <p className="text-white">{entry.trainerName} — {entry.date}</p>
+                    <p className="text-white">{entry.trainerName} — {entry.date}{entry.time ? ` ${entry.time}` : ''}</p>
                     {entry.notes && <p className="text-text-secondary text-sm">{entry.notes}</p>}
                   </div>
                   <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry.id)}>

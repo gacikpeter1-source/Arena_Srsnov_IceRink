@@ -252,6 +252,16 @@ export async function deleteTrainingSession(sessionId: string): Promise<void> {
   await deleteDoc(doc(db, 'trainingSessions', sessionId))
 }
 
+/**
+ * Ice-attendance checklist: an assistant/owner/superadmin confirms the
+ * assigned trainer actually showed up for this scheduled session,
+ * independent of customer attendance (see TrainingSession.
+ * trainerPresentConfirmed) — a payroll-support record only.
+ */
+export async function setSessionTrainerPresence(sessionId: string, present: boolean): Promise<void> {
+  await updateDoc(doc(db, 'trainingSessions', sessionId), { trainerPresentConfirmed: present })
+}
+
 export async function deleteTrainingSeries(seriesId: string): Promise<void> {
   const sessions = await getDocs(query(collection(db, 'trainingSessions'), where('seriesId', '==', seriesId)))
   await Promise.all(sessions.docs.map((d) => deleteDoc(d.ref)))
@@ -886,6 +896,8 @@ export interface AddTrainerIceLogInput {
   trainerId?: string
   trainerName: string
   date: string
+  // See TrainerIceLogEntry.time.
+  time?: string
   notes?: string
   loggedBy: string
 }
@@ -905,6 +917,7 @@ export async function addTrainerIceLogEntry(input: AddTrainerIceLogInput): Promi
     ...(input.trainerId ? { trainerId: input.trainerId } : {}),
     trainerName: input.trainerName,
     date: input.date,
+    ...(input.time ? { time: input.time } : {}),
     ...(input.notes ? { notes: input.notes } : {}),
     loggedBy: input.loggedBy,
     loggedAt: serverTimestamp()
