@@ -786,6 +786,39 @@ trainer the assistant is seeing on the ice right now, not backfilling a
 past date. The full log list and the Excel report generator underneath
 stay owner/superadmin-only (`canViewLog`), unchanged from Fáza 3.
 
+### Fáza 4: month/week/list calendar views
+
+The public training calendar (`TrainingCalendarPage.tsx`, `/treningy`) was
+a single flat 14-day list with no way to browse further out or see a
+week at a glance — a customer asked specifically for a monthly overview
+(highlighted days, click a day for its trainings), a weekly view (one
+column per day), and to keep the existing list. All three now live
+behind a view switcher, defaulting to month view:
+
+- **Month** (`TrainingMonthCalendar.tsx`) — a standard Monday-first grid
+  for the visible month; a day's number is highlighted
+  (`bg-primary/20`) when it has at least one scheduled training, and
+  clicking any day (highlighted or not) shows that day's trainings in a
+  panel below the grid. Never shows "free ice" slots — there's no such
+  concept in the training domain to begin with (unlike the ice-booking
+  calendar), so this requirement was automatically satisfied by only
+  ever rendering actual `TrainingSession` docs.
+- **Week** (`TrainingWeekCalendar.tsx`) — seven columns, Monday first,
+  each holding only that day's own trainings; a day with nothing planned
+  is simply an empty column (horizontally scrollable on narrow screens,
+  same `overflow-x-auto` pattern as the ice-booking `AvailabilityGrid`).
+- **List** — unchanged, the original next-14-days card list.
+
+`TrainingSessionCard.tsx` factors out the individual clickable training
+card (trainer/bundle name, time, capacity badge) since all three views
+render the same card, just in different containers. Month/week views
+each manage their own navigation cursor (`monthCursor`/`weekCursor`) and
+only fetch `fetchTrainingSessionsInRange` for their own visible
+range — the list view keeps fetching the next 14 days as before — so
+switching views triggers a fresh fetch scoped to whatever's actually on
+screen rather than pre-loading everything. `getMonthStart`/`getMonthEnd`
+(`lib/utils.ts`) join the existing `getWeekStart` for this.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

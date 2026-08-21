@@ -5,15 +5,20 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchTrainingSessionsInRange, fetchTrainingBundlesByIds } from '@/lib/training'
 import { fetchTrainers } from '@/lib/staff'
-import { addDays, formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO, getMonthEnd, getMonthStart, getWeekStart } from '@/lib/utils'
 import { StaffUser, TrainingBundle, TrainingSession } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TrainingRegistrationModal from '@/components/TrainingRegistrationModal'
+import TrainingSessionCard from '@/components/TrainingSessionCard'
+import TrainingMonthCalendar from '@/components/TrainingMonthCalendar'
+import TrainingWeekCalendar from '@/components/TrainingWeekCalendar'
 import BackButton from '@/components/BackButton'
 
-const DAYS_AHEAD = 14
+const LIST_DAYS_AHEAD = 14
 const PALETTE = ['#FDB913', '#3b82f6', '#22c55e', '#ec4899', '#a855f7', '#f97316', '#06b6d4', '#ef4444']
+
+type ViewMode = 'month' | 'week' | 'list'
 
 export default function TrainingCalendarPage() {
   const { t, i18n } = useTranslation()
@@ -27,22 +32,40 @@ export default function TrainingCalendarPage() {
   const [loading, setLoading] = useState(true)
   const [selectedSession, setSelectedSession] = useState<(TrainingSession & { id: string }) | null>(null)
 
+  const [viewMode, setViewMode] = useState<ViewMode>('month')
+  const [monthCursor, setMonthCursor] = useState(() => getMonthStart(new Date()))
+  const [weekCursor, setWeekCursor] = useState(() => getWeekStart(new Date()))
+  const [selectedMonthDate, setSelectedMonthDate] = useState(() => formatDateISO(new Date()))
+
   const trainerFilter = searchParams.get('trainer') ?? ''
+
+  useEffect(() => {
+    fetchTrainers().then(setTrainers)
+  }, [])
 
   useEffect(() => {
     if (!club) return
     setLoading(true)
-    const startDate = formatDateISO(new Date())
-    const endDate = formatDateISO(addDays(new Date(), DAYS_AHEAD))
-    Promise.all([fetchTrainingSessionsInRange(club.id, startDate, endDate), fetchTrainers()])
-      .then(async ([sessionResults, trainerResults]) => {
+    let startDate: string
+    let endDate: string
+    if (viewMode === 'month') {
+      startDate = formatDateISO(getMonthStart(monthCursor))
+      endDate = formatDateISO(getMonthEnd(monthCursor))
+    } else if (viewMode === 'week') {
+      startDate = formatDateISO(weekCursor)
+      endDate = formatDateISO(addDays(weekCursor, 6))
+    } else {
+      startDate = formatDateISO(new Date())
+      endDate = formatDateISO(addDays(new Date(), LIST_DAYS_AHEAD - 1))
+    }
+    fetchTrainingSessionsInRange(club.id, startDate, endDate)
+      .then(async (sessionResults) => {
         setSessions(sessionResults)
-        setTrainers(trainerResults)
         const bundleIds = sessionResults.filter((s) => s.bundleId).map((s) => s.bundleId as string)
         setBundles(await fetchTrainingBundlesByIds(bundleIds))
       })
       .finally(() => setLoading(false))
-  }, [club])
+  }, [club, viewMode, monthCursor, weekCursor])
 
   const colorByTrainer = useMemo(() => {
     const map = new Map<string, string>()
@@ -61,9 +84,14 @@ export default function TrainingCalendarPage() {
     return map
   }, [filteredSessions])
 
-  const dates = Array.from({ length: DAYS_AHEAD }, (_, i) => formatDateISO(addDays(new Date(), i)))
+  const listDates = Array.from({ length: LIST_DAYS_AHEAD }, (_, i) => formatDateISO(addDays(new Date(), i)))
 
   const closeModal = () => setSelectedSession(null)
+
+  const viewButtonClass = (mode: ViewMode) =>
+    `px-3 py-1.5 rounded-md text-sm transition-colors ${
+      viewMode === mode ? 'bg-primary text-primary-foreground' : 'text-text-secondary hover:text-primary'
+    }`
 
   return (
     <div className="content-container py-6 space-y-6">
@@ -95,11 +123,46 @@ export default function TrainingCalendarPage() {
         </select>
       </div>
 
+      <div className="flex gap-1 bg-background-dark border border-border rounded-md p-1 w-fit">
+        <button type="button" className={viewButtonClass('month')} onClick={() => setViewMode('month')}>
+          {t('trainingCalendar.viewMonth')}
+        </button>
+        <button type="button" className={viewButtonClass('week')} onClick={() => setViewMode('week')}>
+          {t('trainingCalendar.viewWeek')}
+        </button>
+        <button type="button" className={viewButtonClass('list')} onClick={() => setViewMode('list')}>
+          {t('trainingCalendar.viewList')}
+        </button>
+      </div>
+
       {loading ? (
         <p className="text-text-muted">{t('common.loading')}</p>
+      ) : viewMode === 'month' ? (
+        <TrainingMonthCalendar
+          monthCursor={monthCursor}
+          onChangeMonth={(next) => {
+            setMonthCursor(next)
+            setSelectedMonthDate(formatDateISO(next))
+          }}
+          byDate={byDate}
+          bundles={bundles}
+          colorByTrainer={colorByTrainer}
+          selectedDate={selectedMonthDate}
+          onSelectDate={setSelectedMonthDate}
+          onSelectSession={setSelectedSession}
+        />
+      ) : viewMode === 'week' ? (
+        <TrainingWeekCalendar
+          weekStart={weekCursor}
+          onChangeWeek={setWeekCursor}
+          byDate={byDate}
+          bundles={bundles}
+          colorByTrainer={colorByTrainer}
+          onSelectSession={setSelectedSession}
+        />
       ) : (
         <div className="space-y-4">
-          {dates.map((date) => {
+          {listDates.map((date) => {
             const daySessions = byDate.get(date) ?? []
             if (daySessions.length === 0) return null
             return (
@@ -109,38 +172,21 @@ export default function TrainingCalendarPage() {
                     {new Date(`${date}T00:00:00`).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })}
                   </h2>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {daySessions.map((s) => {
-                      const bundle = s.bundleId ? bundles.get(s.bundleId) : null
-                      const capacity = bundle ? bundle.capacity : s.capacity
-                      const confirmedCount = bundle ? bundle.confirmedCount : s.confirmedCount
-                      const isFull = capacity !== null && confirmedCount >= capacity
-                      const color = colorByTrainer.get(s.trainerId ?? '') ?? PALETTE[0]
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={() => setSelectedSession(s)}
-                          className="text-left p-3 rounded-lg border border-border bg-background-dark hover:border-primary transition-colors"
-                          style={{ borderLeftColor: color, borderLeftWidth: 4 }}
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
-                              <p className="text-white font-medium">{bundle ? bundle.title : s.trainerName}</p>
-                              <p className="text-text-secondary text-sm">{s.startTime} · {t('common.minutes', { count: s.durationMinutes })}</p>
-                              {bundle && <p className="text-text-muted text-xs">{s.trainerName}</p>}
-                            </div>
-                            <span className={`text-xs font-medium ${isFull ? 'text-status-danger' : 'text-status-success'}`}>
-                              {capacity === null ? t('trainingCalendar.unlimited') : `${confirmedCount}/${capacity}`}
-                            </span>
-                          </div>
-                        </button>
-                      )
-                    })}
+                    {daySessions.map((s) => (
+                      <TrainingSessionCard
+                        key={s.id}
+                        session={s}
+                        bundle={s.bundleId ? (bundles.get(s.bundleId) ?? null) : null}
+                        color={colorByTrainer.get(s.trainerId ?? '') ?? PALETTE[0]}
+                        onClick={() => setSelectedSession(s)}
+                      />
+                    ))}
                   </div>
                 </CardContent>
               </Card>
             )
           })}
-          {dates.every((d) => (byDate.get(d) ?? []).length === 0) && (
+          {listDates.every((d) => (byDate.get(d) ?? []).length === 0) && (
             <p className="text-text-muted">{t('trainingCalendar.noSessions')}</p>
           )}
         </div>
