@@ -271,6 +271,12 @@
     "allTrainers": "All trainers",
     "unlimited": "Open",
     "noSessions": "No trainings scheduled in the next two weeks.",
+    "noSessionsThisDay": "No trainings scheduled for this day.",
+    "viewMonth": "Month",
+    "viewWeek": "Week",
+    "viewList": "List",
+    "previous": "Previous",
+    "next": "Next",
     "eventTitle": "{{club}} training with {{trainer}}"
   },
   "trainerDirectory": {

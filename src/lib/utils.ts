@@ -14,6 +14,18 @@ export function getWeekStart(date: Date): Date {
   return d
 }
 
+export function getMonthStart(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export function getMonthEnd(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth() + 1, 0)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date)
   d.setDate(d.getDate() + days)

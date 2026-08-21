@@ -271,6 +271,12 @@
     "allTrainers": "Všetci tréneri",
     "unlimited": "Voľné",
     "noSessions": "V najbližších dvoch týždňoch nie sú naplánované žiadne tréningy.",
+    "noSessionsThisDay": "V tento deň nie sú naplánované žiadne tréningy.",
+    "viewMonth": "Mesiac",
+    "viewWeek": "Týždeň",
+    "viewList": "Zoznam",
+    "previous": "Predchádzajúce",
+    "next": "Nasledujúce",
     "eventTitle": "Tréning {{club}} s trénerom {{trainer}}"
   },
   "trainerDirectory": {
