@@ -26,6 +26,7 @@ import { useClubData } from './hooks/useClubData'
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 const TrainerDashboardPage = lazy(() => import('./pages/admin/TrainerDashboardPage'))
 const IceAttendancePage = lazy(() => import('./pages/admin/IceAttendancePage'))
+const TournamentsPage = lazy(() => import('./pages/admin/TournamentsPage'))
 
 function Footer() {
   const { t } = useTranslation()
@@ -104,6 +105,16 @@ export default function App() {
               <ProtectedRoute>
                 <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
                   <IceAttendancePage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/turnaje"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <TournamentsPage />
                 </Suspense>
               </ProtectedRoute>
             }

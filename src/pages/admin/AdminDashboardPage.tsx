@@ -80,6 +80,10 @@ export default function AdminDashboardPage() {
   }
 
   const canManageStaff = staff?.role === 'owner' || staff?.role === 'superadmin'
+  // Same access model as TournamentsPage.tsx's own guard — any of these
+  // roles can quickly plan a tournament.
+  const canManageTournaments =
+    staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const handleCancel = async (booking: Booking & { id: string }) => {
     if (!confirm(t('admin.confirmCancel'))) return
@@ -169,6 +173,11 @@ export default function AdminDashboardPage() {
           {(staff?.isTrainer || canManageStaff) && (
             <Link to="/admin/treningy">
               <Button variant="outline">{t('admin.myTrainings')}</Button>
+            </Link>
+          )}
+          {canManageTournaments && (
+            <Link to="/admin/turnaje">
+              <Button variant="outline">{t('nav.manageTournaments')}</Button>
             </Link>
           )}
           <Button variant="outline" onClick={logout}>{t('admin.signOut')}</Button>
