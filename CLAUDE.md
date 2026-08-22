@@ -819,6 +819,65 @@ switching views triggers a fresh fetch scoped to whatever's actually on
 screen rather than pre-loading everything. `getMonthStart`/`getMonthEnd`
 (`lib/utils.ts`) join the existing `getWeekStart` for this.
 
+## Tournaments
+A quick-planning tool for a trainer/assistant/owner/superadmin to
+schedule tournament matches — deliberately no bracket/results/standings
+system yet, just a name (`Tournament`) plus a flat list of matches
+(`TournamentMatch`), built at `/admin/turnaje`
+(`TournamentsPage.tsx`) and reachable via `HeaderMenu.tsx`'s dropdown and
+`AdminDashboardPage.tsx`, gated to the same three roles as training
+management (`isTrainer`/assistant/owner/superadmin). Internal tool only
+for this pass — no public schedule page yet (the hub's "Tournaments" card
+still points at the external `tournamentsUrl` placeholder until one
+exists).
+
+**Variable format, reusing the existing zone system.** A trainer picks
+how the rink is divided for a match's time slot — whole rink, half, or
+third — reusing `DivisionMode` and the real `Zone` docs the ice-booking
+domain already has, not a separate concept. Picking "third" shows one
+team-pair row per third-zone (1, 2, or all 3 can be filled in — an empty
+row is simply skipped), so "vo všetkých tretinách naraz" (all three
+thirds at once) is just filling in all 3 rows, giving 3 independent
+`TournamentMatch` docs sharing the same date/time/rink. `RinkDiagram.tsx`
+(the same component/image `/book` uses) previews the chosen division,
+highlighting whichever row currently has focus — reused as-is per an
+explicit product request to keep the visual consistent with the
+ice-booking flow rather than building a second diagram.
+
+**Blocking real ice is a per-match choice, not automatic.** A tournament
+might run entirely on the club's own ice, or on a different surface this
+app doesn't manage a calendar for at all (a hokejbal/football pitch) —
+so blocking is only offered when `location: 'rink'`, and even then is an
+explicit checkbox (`blocksIce`). When checked, `createTournamentMatch`
+(`lib/tournaments.ts`) calls the exact same `createBooking` transaction
+customers/staff already use for ice bookings — the match's rink/zone/time
+becomes a real `Booking` doc, atomically preventing a double-booking via
+`/book`, and shows up in the admin bookings list/exports like any other
+staff-created booking (booking `name` is set to `"{tournaments.bookingLabel}: 
+{tournament name}"` so it reads clearly there). Left unchecked, the
+match is purely a planning record — same principle as training sessions
+never touching ice bookings — for when ice is secured outside the app or
+the tournament is elsewhere (`location: 'other'`, a free-text venue name,
+no zone/blocking concept applies at all). Deleting a match that blocked
+ice cancels the underlying booking first (`deleteTournamentMatch`) so the
+slot reopens; deleting a whole tournament cascades the same cleanup
+across all its matches.
+
+No new `firestore.indexes.json` entries needed — `tournaments`/
+`tournamentMatches` are only ever queried by a single equality filter
+(`clubId`/`tournamentId`), sorted client-side. `firestore.rules` gates
+both collections to `isTrainer() || isStaffMember()` for
+create/read, with update/delete narrowed to the creating trainer or any
+ice-rink staff member (mirrors `trainingSessions`' existing pattern) —
+the `blocksIce` booking write itself needs no new rule since `bookings`
+creation is already fully public.
+
+**Planned but not yet built:** Excel import for teams/matches (deferred
+the same way ice bookings' and trainings' Excel import shipped after
+their manual-entry flow, not alongside it), and a public tournament
+schedule page for customers/parents once this internal tool has been
+used enough to validate the format.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
@@ -879,17 +938,19 @@ the core of the final product. `/` is a branded hub home screen (club
 logo, name, tagline) with cards linking to each club service:
 - "Reserve Ice Rink" — this app's own booking flow, at `/book`, always 
   enabled
-- "Training Reservations" — external link to the Arena-Srsnov training 
-  app, from `clubs.integrations.trainingReservationsUrl`
-- "Tournaments" — external link to a future tournament system, from 
-  `clubs.integrations.tournamentsUrl`
-Both integration URLs are optional on the `Club` config; unset shows 
-the card as "coming soon" rather than a dead link. This keeps the 
-integration config-driven and per-club, consistent with the 
-multi-tenant requirement — no code changes needed once those URLs 
-exist. Current assumption: integration is via external links out to 
-separately-deployed apps, not a merged single codebase. Revisit if 
-that assumption turns out wrong.
+- "Training Reservations" — this app's own training domain, at 
+  `/treningy` (see the "Training reservations" section below) — no 
+  longer an external link, superseded once that domain was rebuilt 
+  natively in this app
+- "Tournaments" — still an external link to a future tournament system, 
+  from `clubs.integrations.tournamentsUrl` (unset shows "coming soon"), 
+  since only the internal trainer/staff planning tool exists so far (see 
+  the "Tournaments" section below) — no public schedule page yet for 
+  this card to point at
+Current assumption: integration is via external links out to 
+separately-deployed apps, not a merged single codebase, until a domain 
+gets rebuilt natively like Training Reservations and Tournaments' 
+internal tool did.
 
 Superseded original plan (kept for history): Arena-Srsnov would own 
 the production domain and link to this app instead, joined via 

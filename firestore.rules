@@ -358,6 +358,26 @@ service cloud.firestore {
       allow read, write: if isOwnerOrAbove();
     }
 
+    // A quickly-planned tournament (see CLAUDE.md's "Tournaments" section)
+    // — trainer/assistant/owner/superadmin only, not customer-facing yet.
+    // Any of them can create; managing (update/delete) someone else's
+    // tournament is restricted to ice-rink staff, same pattern as
+    // trainingSessions above (a plain trainer only manages their own).
+    match /tournaments/{tournamentId} {
+      allow read: if isTrainer() || isStaffMember();
+      allow create: if isTrainer() || isStaffMember();
+      allow update, delete: if (isTrainer() && resource.data.createdBy == request.auth.uid) || isStaffMember();
+    }
+
+    // One scheduled match within a tournament — see TournamentMatch.
+    // Blocking real ice (blocksIce) writes a normal `bookings` doc via
+    // the existing public-write path, so no extra rule is needed there.
+    match /tournamentMatches/{matchId} {
+      allow read: if isTrainer() || isStaffMember();
+      allow create: if isTrainer() || isStaffMember();
+      allow update, delete: if (isTrainer() && resource.data.createdBy == request.auth.uid) || isStaffMember();
+    }
+
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.
     // Anyone may enqueue a notification; only the extension (which bypasses
     // rules) reads or deletes.

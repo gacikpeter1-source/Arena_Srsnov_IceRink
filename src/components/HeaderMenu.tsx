@@ -44,8 +44,9 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
     : ''
 
   // Any of these three roles has real tools on /admin/treningy (create
-  // sessions, roster/attendance, or the ice log) — see
-  // TrainerDashboardPage.tsx's own access guard, which this mirrors.
+  // sessions, roster/attendance, or the ice log) and /admin/turnaje
+  // (quick tournament planning) — see TrainerDashboardPage.tsx's and
+  // TournamentsPage.tsx's own access guards, which this mirrors.
   const canManageTrainings =
     staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
@@ -88,6 +89,15 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               className="block px-4 py-2 text-sm text-primary hover:text-primary-gold hover:bg-background-dark"
             >
               {t('nav.manageTrainings')}
+            </Link>
+          )}
+          {canManageTrainings && (
+            <Link
+              to="/admin/turnaje"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-primary hover:text-primary-gold hover:bg-background-dark"
+            >
+              {t('nav.manageTournaments')}
             </Link>
           )}
           <Link

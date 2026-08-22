@@ -442,3 +442,50 @@ export interface TrainingReportHistory {
   format: 'xlsx' | 'csv'
   filename: string
 }
+
+// A quickly-planned tournament (see CLAUDE.md's "Tournaments" section) —
+// just a name; the real content is its TournamentMatch docs. Kept
+// separate so several matches sharing a name/date range can be managed
+// or deleted together.
+export interface Tournament {
+  id: string
+  clubId: string
+  name: string
+  createdBy: string // uid of the trainer/assistant/owner/superadmin who created it
+  createdByName: string
+  createdAt: Date
+}
+
+// One scheduled match. Reuses DivisionMode (full/half/third) for
+// `format` — a trainer picks how the rink is divided for this time slot
+// exactly like the ice-booking zone system, so a "third" format lets up
+// to 3 matches run in parallel, one per third-zone.
+export interface TournamentMatch {
+  id: string
+  tournamentId: string
+  clubId: string
+  date: string
+  startTime: string
+  durationMinutes: number
+  teamA: string
+  teamB: string
+  format: DivisionMode
+  // 'rink' = played on this club's own ice (rinkId/zoneId set); 'other' =
+  // a different venue entirely (e.g. a hokejbal/football pitch this club
+  // doesn't manage a calendar for) — venueName set instead, no
+  // rink/zone/blocking concept applies.
+  location: 'rink' | 'other'
+  rinkId?: string
+  zoneId?: string
+  venueName?: string
+  // Only meaningful when location === 'rink' — whether this match's
+  // rink/zone/time was atomically reserved via the same booking
+  // mechanism customers use (see lib/tournaments.ts), so it can't be
+  // double-booked from the public /book page. A trainer can leave this
+  // off to keep the slot open to the public, e.g. when ice is already
+  // secured outside the app for this tournament.
+  blocksIce: boolean
+  bookingId?: string // set when blocksIce created a real Booking doc
+  createdBy: string
+  createdAt: Date
+}
