@@ -285,3 +285,59 @@ export function parseScheduleWorkbook(buffer: ArrayBuffer): ParsedScheduleImport
 
   return { rows, errors }
 }
+
+// Tournament team import — one team name per row. This parser only flags
+// a name repeated within the same file (an obvious copy-paste mistake);
+// the caller (lib/tournaments.ts's createTournamentTeam) separately
+// checks each name case-insensitively against the tournament's already-
+// saved teams, since that check needs a live Firestore read this parser
+// doesn't have access to.
+const TEAM_HEADERS = {
+  name: 'Team Name'
+} as const
+
+const TEAM_IMPORT_HEADERS = [TEAM_HEADERS.name]
+
+export function downloadTeamImportTemplate(filename = 'tournament-teams-template.xlsx'): void {
+  const ws = XLSX.utils.aoa_to_sheet([TEAM_IMPORT_HEADERS])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Teams')
+  XLSX.writeFile(wb, filename)
+}
+
+export interface TeamImportRow {
+  name: string
+}
+
+export interface ParsedTeamImport {
+  rows: TeamImportRow[]
+  errors: ImportRowError[]
+}
+
+export function parseTeamsWorkbook(buffer: ArrayBuffer): ParsedTeamImport {
+  const wb = XLSX.read(buffer)
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+
+  const rows: TeamImportRow[] = []
+  const errors: ImportRowError[] = []
+  const seenNames = new Set<string>()
+
+  raw.forEach((r, i) => {
+    const rowNumber = i + 2
+    const name = String(r[TEAM_HEADERS.name] ?? '').trim()
+    if (!name) {
+      errors.push({ rowNumber, message: `Missing "${TEAM_HEADERS.name}"` })
+      return
+    }
+    const key = name.toLowerCase()
+    if (seenNames.has(key)) {
+      errors.push({ rowNumber, message: `Duplicate team name "${name}" in this file` })
+      return
+    }
+    seenNames.add(key)
+    rows.push({ name })
+  })
+
+  return { rows, errors }
+}

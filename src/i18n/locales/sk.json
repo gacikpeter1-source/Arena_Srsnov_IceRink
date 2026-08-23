@@ -420,7 +420,15 @@
     "matchList": "Zápasy",
     "noMatches": "Zatiaľ žiadne zápasy.",
     "blockedBadge": "Blokuje verejné rezervácie",
-    "confirmDeleteMatch": "Zmazať tento zápas?"
+    "confirmDeleteMatch": "Zmazať tento zápas?",
+    "teams": "Tímy",
+    "teamNamePlaceholder": "Názov tímu",
+    "addTeam": "Pridať tím",
+    "duplicateTeamName": "Tím s názvom \"{{name}}\" už v tomto turnaji existuje.",
+    "downloadTeamTemplate": "Stiahnuť Excel šablónu",
+    "noTeams": "Zatiaľ žiadne tímy.",
+    "confirmDeleteTeam": "Zmazať tento tím?",
+    "importRow": "Riadok {{row}}"
   },
   "trainingEmail": {
     "trainer": "Tréner",
