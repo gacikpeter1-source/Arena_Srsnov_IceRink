@@ -57,7 +57,13 @@ export default function TournamentBracketView({ matches, readOnly, scoreInputs, 
                         {m.scoreA} : {m.scoreB}
                       </span>
                     )}
-                    {!m.isBye && !decided && m.startTime && <span className="text-text-muted text-xs">{m.startTime}</span>}
+                    {!decided && m.status === 'live' && (
+                      <span className="flex items-center gap-1 text-status-danger text-sm font-semibold">
+                        <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
+                        {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                      </span>
+                    )}
+                    {!m.isBye && !decided && m.status !== 'live' && m.startTime && <span className="text-text-muted text-xs">{m.startTime}</span>}
                   </div>
                   {playable && onScoreChange && onSaveResult && (
                     <div className="flex items-center gap-2">

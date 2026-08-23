@@ -1,16 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { useClubData } from '@/hooks/useClubData'
-import { fetchTournaments, fetchTournamentMatches, computeGroupStandings } from '@/lib/tournaments'
+import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState } from '@/lib/tournaments'
 import { Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import TournamentBracketView from '@/components/TournamentBracketView'
 import BackButton from '@/components/BackButton'
 
+const POLL_MS = 6000
+
 /**
  * Public, no-login tournament schedule — the last missing piece from
- * CLAUDE.md's "Tournaments" section. Read-only: no score entry anywhere,
- * since a customer/parent has no way (and no need) to record a result.
+ * CLAUDE.md's "Tournaments" section, now doubling as a spectator "big
+ * screen" view (a cafe/lobby TV, or a QR code scanned from a phone) since
+ * it polls for live updates rather than fetching once. Read-only: no
+ * score entry anywhere, since a customer/parent has no way (and no need)
+ * to record a result — staff drive the live state from
+ * TournamentLiveControlPanel.tsx on the admin side.
+ *
+ * `?tournament=<id>` (from the admin QR code) deep-links straight past
+ * the picker into one tournament, matching this app's established QR
+ * pattern of one route handling every case via query params.
+ *
  * Standings and bracket shapes are derived straight from each
  * TournamentMatch doc's own denormalized team names/ids rather than
  * fetching TournamentTeam docs at all — the public firestore.rules read
@@ -20,16 +32,17 @@ import BackButton from '@/components/BackButton'
 export default function TournamentSchedulePage() {
   const { t } = useTranslation()
   const { club, rinks, zones } = useClubData()
+  const [searchParams] = useSearchParams()
+  const tournamentParam = searchParams.get('tournament')
 
   const [tournaments, setTournaments] = useState<(Tournament & { id: string })[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(tournamentParam)
   const [matches, setMatches] = useState<(TournamentMatch & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [matchesLoading, setMatchesLoading] = useState(false)
 
   useEffect(() => {
     if (!club) return
-    setLoading(true)
     fetchTournaments(club.id)
       .then((fetched) => {
         setTournaments(fetched)
@@ -44,10 +57,14 @@ export default function TournamentSchedulePage() {
       return
     }
     setMatchesLoading(true)
-    fetchTournamentMatches(activeId)
-      .then(setMatches)
-      .finally(() => setMatchesLoading(false))
+    const refresh = () => fetchTournamentMatches(activeId).then(setMatches)
+    refresh().finally(() => setMatchesLoading(false))
+    const interval = setInterval(refresh, POLL_MS)
+    return () => clearInterval(interval)
   }, [activeId])
+
+  const realMatches = matches.filter((m) => !m.isBye)
+  const liveMatches = realMatches.filter((m) => deriveMatchState(m) === 'live')
 
   const groupMatches = matches.filter((m) => m.schema === 'groups')
   const playoffMatches = matches.filter((m) => m.schema === 'groupsPlayoff')
@@ -117,6 +134,29 @@ export default function TournamentSchedulePage() {
             <p className="text-text-muted text-sm">{t('tournaments.noMatches')}</p>
           ) : (
             <div className="space-y-6">
+              {liveMatches.length > 0 && (
+                <Card className="arena-card border-status-danger">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-white text-lg">
+                      <span className="h-2.5 w-2.5 rounded-full bg-status-danger animate-pulse" />
+                      {t('tournaments.liveNow')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {liveMatches.map((m) => (
+                      <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded border border-border">
+                        <p className="text-white text-lg font-semibold">
+                          {m.teamA} <span className="text-text-muted text-sm font-normal">vs</span> {m.teamB}
+                        </p>
+                        <p className="text-status-danger text-2xl font-bold">
+                          {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                        </p>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
               {groupIds.length > 0 && (
                 <Card className="arena-card">
                   <CardHeader>
@@ -155,21 +195,29 @@ export default function TournamentSchedulePage() {
                           </table>
                         </div>
                         <div className="space-y-1">
-                          {(groupMatchesByGroup.get(g) ?? []).map((m) => (
-                            <div key={m.id} className="flex flex-wrap justify-between items-center gap-2 p-2 rounded border border-border">
-                              <p className="text-white text-sm">
-                                {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
-                              </p>
-                              <div className="flex items-center gap-3">
-                                <span className="text-text-muted text-xs">{m.date} · {m.startTime}</span>
-                                {m.scoreA != null && m.scoreB != null ? (
-                                  <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
-                                ) : (
-                                  <span className="text-text-muted text-xs">{t('tournaments.notPlayedYet')}</span>
-                                )}
+                          {(groupMatchesByGroup.get(g) ?? []).map((m) => {
+                            const state = deriveMatchState(m)
+                            return (
+                              <div key={m.id} className="flex flex-wrap justify-between items-center gap-2 p-2 rounded border border-border">
+                                <p className="text-white text-sm">
+                                  {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
+                                </p>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-text-muted text-xs">{m.date} · {m.startTime}</span>
+                                  {state === 'finished' ? (
+                                    <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
+                                  ) : state === 'live' ? (
+                                    <span className="flex items-center gap-1 text-status-danger text-sm font-semibold">
+                                      <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
+                                      {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                                    </span>
+                                  ) : (
+                                    <span className="text-text-muted text-xs">{t('tournaments.notPlayedYet')}</span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     ))}
@@ -208,6 +256,7 @@ export default function TournamentSchedulePage() {
                     {otherMatches.map((m) => {
                       const rink = rinks.find((r) => r.id === m.rinkId)
                       const zone = zones.find((z) => z.id === m.zoneId)
+                      const state = deriveMatchState(m)
                       return (
                         <div key={m.id} className="flex justify-between items-center flex-wrap gap-2 p-2 rounded border border-border">
                           <div>
@@ -220,6 +269,15 @@ export default function TournamentSchedulePage() {
                               {m.location === 'rink' ? `${rink?.name ?? ''} — ${zone?.name ?? ''}` : m.venueName || t('tournaments.locationOther')}
                             </p>
                           </div>
+                          {state === 'finished' && (
+                            <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
+                          )}
+                          {state === 'live' && (
+                            <span className="flex items-center gap-1 text-status-danger text-sm font-semibold">
+                              <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
+                              {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                            </span>
+                          )}
                         </div>
                       )
                     })}

@@ -22,6 +22,8 @@ import TournamentTeamsPanel from '@/components/TournamentTeamsPanel'
 import TournamentRoundRobinGenerator from '@/components/TournamentRoundRobinGenerator'
 import TournamentKnockoutGenerator from '@/components/TournamentKnockoutGenerator'
 import TournamentGroupsGenerator from '@/components/TournamentGroupsGenerator'
+import TournamentLiveControlPanel from '@/components/TournamentLiveControlPanel'
+import QrCodeDisplay from '@/components/QrCodeDisplay'
 import BackButton from '@/components/BackButton'
 
 const FORMATS: DivisionMode[] = ['full', 'half', 'third']
@@ -262,6 +264,22 @@ export default function TournamentsPage() {
 
       {activeTournament && club && (
         <>
+          <Card className="arena-card">
+            <CardHeader>
+              <CardTitle className="text-white text-lg">{t('tournaments.publicScreenTitle')}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-start gap-4">
+              <QrCodeDisplay
+                value={`${window.location.origin}/turnaje?tournament=${activeTournament.id}`}
+                filename={`turnaj-${activeTournament.name}.png`}
+                label={activeTournament.name}
+              />
+              <p className="text-text-secondary text-sm max-w-md">{t('tournaments.publicScreenHint')}</p>
+            </CardContent>
+          </Card>
+
+          <TournamentLiveControlPanel tournamentId={activeTournament.id} rinks={rinks} zones={zones} />
+
           <TournamentTeamsPanel tournamentId={activeTournament.id} clubId={club.id} />
           <TournamentRoundRobinGenerator tournamentId={activeTournament.id} club={club} rinks={rinks} zones={zones} />
           <TournamentKnockoutGenerator tournamentId={activeTournament.id} club={club} rinks={rinks} zones={zones} />

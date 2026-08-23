@@ -519,6 +519,17 @@ export interface TournamentMatch {
   // bracket slot) — decided immediately at generation time with no real
   // match played, no ice blocked.
   isBye?: boolean
+  // Live match-day state — unset means "not started" (every match created
+  // before this field existed, or one whose result was recorded the old
+  // one-shot way, without ever going through the live-control panel).
+  // 'live' is written by setMatchStatus when staff start it; the score is
+  // then updated in place via updateLiveMatchScore with no validation, no
+  // draw check and no auto-advance, since a game in progress can be tied.
+  // 'finished' is only ever written together with a real score, by
+  // setTournamentMatchResult/setPlainMatchResult — see lib/tournaments.ts's
+  // deriveMatchState for how a UI should read this alongside scoreA/
+  // scoreB/winnerTeamId to cover matches finished the old way too.
+  status?: 'scheduled' | 'live' | 'finished'
   // Set once a knockout match is decided (played, or a bye) — the
   // winning team's id, used to auto-advance them into nextMatchId.
   winnerTeamId?: string
