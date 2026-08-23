@@ -1077,11 +1077,18 @@ logo, name, tagline) with cards linking to each club service:
   `/treningy` (see the "Training reservations" section below) — no 
   longer an external link, superseded once that domain was rebuilt 
   natively in this app
-- "Tournaments" — still an external link to a future tournament system, 
-  from `clubs.integrations.tournamentsUrl` (unset shows "coming soon"), 
-  since only the internal trainer/staff planning tool exists so far (see 
-  the "Tournaments" section below) — no public schedule page yet for 
-  this card to point at
+- "Tournaments" — the hub card checks the same trainer/assistant/owner/
+  superadmin role check `TournamentsPage.tsx` itself gates on
+  (`canManageTournaments`): a signed-in account with any of those roles
+  gets routed straight to the internal `/admin/turnaje` planning tool,
+  same as the "Training Reservations" card. Only a signed-out or
+  role-less visitor still falls back to the external
+  `clubs.integrations.tournamentsUrl` placeholder (unset shows "coming
+  soon"), since there's no public tournament schedule page yet for the
+  general public to land on (see the "Tournaments" section below). Fixed
+  after the card first shipped hardcoded to the external URL only — an
+  owner/trainer signing in still saw "coming soon" with no way to reach
+  the tool they could already use directly at `/admin/turnaje`.
 Current assumption: integration is via external links out to 
 separately-deployed apps, not a merged single codebase, until a domain 
 gets rebuilt natively like Training Reservations and Tournaments' 
