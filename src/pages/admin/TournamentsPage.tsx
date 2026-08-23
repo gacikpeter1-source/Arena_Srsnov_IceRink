@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import RinkDiagram from '@/components/RinkDiagram'
 import TournamentTeamsPanel from '@/components/TournamentTeamsPanel'
 import TournamentRoundRobinGenerator from '@/components/TournamentRoundRobinGenerator'
+import TournamentKnockoutGenerator from '@/components/TournamentKnockoutGenerator'
 import BackButton from '@/components/BackButton'
 
 const FORMATS: DivisionMode[] = ['full', 'half', 'third']
@@ -262,6 +263,7 @@ export default function TournamentsPage() {
         <>
           <TournamentTeamsPanel tournamentId={activeTournament.id} clubId={club.id} />
           <TournamentRoundRobinGenerator tournamentId={activeTournament.id} club={club} rinks={rinks} zones={zones} />
+          <TournamentKnockoutGenerator tournamentId={activeTournament.id} club={club} rinks={rinks} zones={zones} />
 
           <Card className="arena-card">
             <CardHeader>

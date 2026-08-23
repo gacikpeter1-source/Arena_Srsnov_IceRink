@@ -123,6 +123,8 @@ export interface CreateTournamentMatchInput {
   teamBId?: string
   // Which generated time-slot this belongs to — see TournamentMatch.round.
   round?: number
+  // See TournamentMatch.schema — unset for a manually-added match.
+  schema?: 'roundRobin' | 'knockout'
   format: DivisionMode
   location: 'rink' | 'other'
   // Required when location === 'rink'.
@@ -175,6 +177,7 @@ export async function createTournamentMatch(input: CreateTournamentMatchInput): 
     ...(input.teamAId ? { teamAId: input.teamAId } : {}),
     ...(input.teamBId ? { teamBId: input.teamBId } : {}),
     ...(input.round != null ? { round: input.round } : {}),
+    ...(input.schema ? { schema: input.schema } : {}),
     format: input.format,
     location: input.location,
     ...(input.location === 'rink' ? { rinkId: input.rinkId, zoneId: input.zoneId } : {}),
@@ -330,6 +333,7 @@ export async function createRoundRobinSchedule(input: CreateRoundRobinScheduleIn
         teamAId: pair.teamAId,
         teamBId: pair.teamBId,
         round: slot.index,
+        schema: 'roundRobin',
         format: input.format,
         location: 'rink',
         rinkId: input.rinkId,
@@ -342,4 +346,281 @@ export async function createRoundRobinSchedule(input: CreateRoundRobinScheduleIn
     }
   }
   return created
+}
+
+// ---------------------------------------------------------------------
+// Knockout ("pavúk") schedule generation (Fáza C) — single elimination
+// with byes/seeding and result-driven auto-advancement. See CLAUDE.md's
+// "Tournaments" section for the full design rationale.
+// ---------------------------------------------------------------------
+
+function nextPowerOfTwo(n: number): number {
+  let p = 1
+  while (p < n) p *= 2
+  return p
+}
+
+/**
+ * Standard tournament bracket seeding order (1v16, 8v9, 5v12, 4v13, ... for
+ * 16) via the usual recursive-doubling construction — keeps similarly-
+ * skilled teams apart until later rounds instead of clustering them.
+ */
+function seedOrder(size: number): number[] {
+  let seeds = [1, 2]
+  while (seeds.length < size) {
+    const m = seeds.length * 2 + 1
+    const next: number[] = []
+    for (const s of seeds) next.push(s, m - s)
+    seeds = next
+  }
+  return seeds.slice(0, size)
+}
+
+export class KnockoutDrawError extends Error {
+  constructor() {
+    super('A knockout match cannot end in a draw.')
+    this.name = 'KnockoutDrawError'
+  }
+}
+
+export interface KnockoutTeamSlot {
+  id: string | null
+  name: string | null // null = not yet known (fed by a future round's result)
+}
+
+export interface KnockoutPreviewMatch {
+  matchNumber: number
+  round: number
+  teamA: KnockoutTeamSlot
+  teamB: KnockoutTeamSlot
+  isBye: boolean
+  startTime: string | null // null for a bye — never actually played, so never scheduled
+  zoneIndex: number | null // position within its time slot, maps to zoneIds[zoneIndex] at creation
+}
+
+export interface KnockoutPreview {
+  rounds: KnockoutPreviewMatch[][] // rounds[0] = first round, last = final
+  bracketSize: number
+  byeCount: number
+  // Every distinct scheduled time slot across the whole bracket, in
+  // order — lets the UI offer the same "edit this specific gap" control
+  // buildRoundRobinPreview's slots give it, keyed the same way
+  // gapOverrides expects.
+  slots: { index: number; startTime: string }[]
+}
+
+/**
+ * Builds the full bracket structure — every round, byes already resolved
+ * and propagated, every real match assigned a time slot — with zero
+ * Firestore access, so the UI can recompute it live as the trainer edits
+ * team order/rink/format/times/breaks, same as buildRoundRobinPreview.
+ *
+ * Byes go to the top seeds first (the standard convention): with
+ * `bracketSize - teams.length` byes, seed 1 gets a bye before seed 2,
+ * etc., which falls out naturally from pairing the seed order 1-for-1
+ * against `teams` (a seed beyond `teams.length` has no real team).
+ */
+export function buildKnockoutPreview(
+  teams: { id: string; name: string }[],
+  matchesPerSlot: number,
+  startTime: string,
+  durationMinutes: number,
+  defaultBreakMinutes: number,
+  gapOverrides: Record<number, number> = {}
+): KnockoutPreview {
+  const bracketSize = nextPowerOfTwo(teams.length)
+  const seeds = seedOrder(bracketSize)
+  const slotTeams: KnockoutTeamSlot[] = seeds.map((s) => {
+    const team = teams[s - 1]
+    return team ? { id: team.id, name: team.name } : { id: null, name: null }
+  })
+  const numRounds = Math.log2(bracketSize)
+
+  const matches: { teamA: KnockoutTeamSlot; teamB: KnockoutTeamSlot; isBye: boolean }[][] = []
+  let size = bracketSize / 2
+  for (let r = 0; r < numRounds; r++) {
+    matches.push(Array.from({ length: size }, () => ({ teamA: { id: null, name: null }, teamB: { id: null, name: null }, isBye: false })))
+    size /= 2
+  }
+  for (let i = 0; i < matches[0].length; i++) {
+    matches[0][i].teamA = slotTeams[2 * i]
+    matches[0][i].teamB = slotTeams[2 * i + 1]
+  }
+
+  // Resolve byes round by round, propagating the sole known team into the
+  // next round's slot before that round is examined in turn.
+  for (let r = 0; r < numRounds; r++) {
+    for (let i = 0; i < matches[r].length; i++) {
+      const m = matches[r][i]
+      const aKnown = m.teamA.id != null
+      const bKnown = m.teamB.id != null
+      if (aKnown !== bKnown) {
+        m.isBye = true
+        const winner = aKnown ? m.teamA : m.teamB
+        if (r + 1 < numRounds) {
+          const nextIndex = Math.floor(i / 2)
+          const slotKey = i % 2 === 0 ? 'teamA' : 'teamB'
+          matches[r + 1][nextIndex][slotKey] = winner
+        }
+      }
+    }
+  }
+
+  // Stable match numbering by bracket position — independent of
+  // scheduling order, so a "Winner of Match N" label always names the
+  // same match regardless of how real matches get chunked into slots.
+  let matchNumber = 0
+  const numberOf: number[][] = matches.map((round) => round.map(() => ++matchNumber))
+
+  // Schedule real (non-bye) matches into time slots, chunked by
+  // matchesPerSlot within each round — never crossing a round boundary,
+  // since two pairs from different rounds could share a team.
+  let cursorMinutes = timeToMinutes(startTime)
+  let slotIndex = 0
+  const startTimeOf: (string | null)[][] = matches.map((round) => round.map(() => null))
+  const zoneIndexOf: (number | null)[][] = matches.map((round) => round.map(() => null))
+  const slots: { index: number; startTime: string }[] = []
+  for (let r = 0; r < matches.length; r++) {
+    const realIndices = matches[r].map((_, i) => i).filter((i) => !matches[r][i].isBye)
+    for (let chunkStart = 0; chunkStart < realIndices.length; chunkStart += Math.max(1, matchesPerSlot)) {
+      const chunk = realIndices.slice(chunkStart, chunkStart + Math.max(1, matchesPerSlot))
+      const slotStartTime = minutesToTime(cursorMinutes)
+      chunk.forEach((i, zoneIdx) => {
+        startTimeOf[r][i] = slotStartTime
+        zoneIndexOf[r][i] = zoneIdx
+      })
+      slots.push({ index: slotIndex, startTime: slotStartTime })
+      cursorMinutes += durationMinutes + (gapOverrides[slotIndex] ?? defaultBreakMinutes)
+      slotIndex++
+    }
+  }
+
+  const rounds: KnockoutPreviewMatch[][] = matches.map((round, r) =>
+    round.map((m, i) => ({
+      matchNumber: numberOf[r][i],
+      round: r,
+      teamA: m.teamA,
+      teamB: m.teamB,
+      isBye: m.isBye,
+      startTime: startTimeOf[r][i],
+      zoneIndex: zoneIndexOf[r][i]
+    }))
+  )
+
+  return { rounds, bracketSize, byeCount: bracketSize - teams.length, slots }
+}
+
+export interface CreateKnockoutBracketInput {
+  tournamentId: string
+  clubId: string
+  date: string
+  rinkId: string
+  zoneIds: string[] // slotIndex-ordered zone ids for the chosen format
+  format: DivisionMode
+  durationMinutes: number
+  blocksIce: boolean
+  createdBy: string
+  bookingContact?: { name: string; email: string; phone: string; timezone: string }
+  preview: KnockoutPreview
+  // Renders the display text for a not-yet-known slot (e.g. "Winner of
+  // Match #3") — supplied by the caller since this library stays
+  // i18n-free; the resolved string is what actually gets persisted onto
+  // TournamentMatch.teamA/teamB, same as any other free-text match name.
+  resolvePlaceholder: (matchNumber: number) => string
+}
+
+/**
+ * Writes the entire bracket in one pass. Every match's Firestore ref is
+ * pre-generated before any write happens, so nextMatchId can be wired
+ * from an earlier round to a later one without needing a second update —
+ * and since buildKnockoutPreview already resolved+propagated byes, a bye
+ * match's own winnerTeamId and the next round's inherited team are both
+ * known and written directly, with no follow-up write needed either.
+ */
+export async function createKnockoutBracket(input: CreateKnockoutBracketInput): Promise<number> {
+  const { rounds } = input.preview
+  const refs = rounds.map((round) => round.map(() => doc(collection(db, 'tournamentMatches'))))
+  let created = 0
+
+  for (let r = 0; r < rounds.length; r++) {
+    for (let i = 0; i < rounds[r].length; i++) {
+      const m = rounds[r][i]
+      const nextRef = r + 1 < refs.length ? refs[r + 1][Math.floor(i / 2)] : null
+      const nextMatchSlot: 'A' | 'B' | undefined = nextRef ? (i % 2 === 0 ? 'A' : 'B') : undefined
+
+      const teamAKnown = m.teamA.id != null
+      const teamBKnown = m.teamB.id != null
+      const teamAName = m.teamA.name ?? input.resolvePlaceholder(m.matchNumber)
+      const teamBName = m.teamB.name ?? input.resolvePlaceholder(m.matchNumber)
+
+      let bookingId: string | undefined
+      const shouldBlock = input.blocksIce && !m.isBye && teamAKnown && teamBKnown && m.startTime && m.zoneIndex != null
+      if (shouldBlock && input.bookingContact) {
+        const createdBooking = await createBooking({
+          clubId: input.clubId,
+          rinkId: input.rinkId,
+          zoneId: input.zoneIds[m.zoneIndex!],
+          date: input.date,
+          startTime: m.startTime!,
+          durationMinutes: input.durationMinutes,
+          name: input.bookingContact.name,
+          email: input.bookingContact.email,
+          phone: input.bookingContact.phone,
+          timezone: input.bookingContact.timezone
+        })
+        bookingId = createdBooking.id
+      }
+
+      await setDoc(refs[r][i], {
+        tournamentId: input.tournamentId,
+        clubId: input.clubId,
+        date: input.date,
+        startTime: m.startTime ?? '00:00',
+        durationMinutes: input.durationMinutes,
+        teamA: teamAName,
+        teamB: teamBName,
+        ...(teamAKnown ? { teamAId: m.teamA.id } : {}),
+        ...(teamBKnown ? { teamBId: m.teamB.id } : {}),
+        matchNumber: m.matchNumber,
+        round: m.round,
+        schema: 'knockout',
+        isBye: m.isBye,
+        ...(m.isBye ? { winnerTeamId: (teamAKnown ? m.teamA.id : m.teamB.id) as string } : {}),
+        format: input.format,
+        location: 'rink',
+        ...(!m.isBye && m.zoneIndex != null ? { rinkId: input.rinkId, zoneId: input.zoneIds[m.zoneIndex] } : {}),
+        blocksIce: !!bookingId,
+        ...(bookingId ? { bookingId } : {}),
+        ...(nextRef ? { nextMatchId: nextRef.id, nextMatchSlot } : {}),
+        createdBy: input.createdBy,
+        createdAt: serverTimestamp()
+      })
+      created++
+    }
+  }
+  return created
+}
+
+/**
+ * Records a knockout match's result and auto-advances the winner into
+ * the next match's slot (see nextMatchId/nextMatchSlot, set at bracket
+ * generation time) — a knockout can't end in a draw, since there'd be no
+ * way to decide who advances.
+ */
+export async function setTournamentMatchResult(matchId: string, scoreA: number, scoreB: number): Promise<void> {
+  if (scoreA === scoreB) throw new KnockoutDrawError()
+  const snap = await getDoc(doc(db, 'tournamentMatches', matchId))
+  if (!snap.exists()) throw new Error('Match not found')
+  const match = snap.data() as TournamentMatch
+  if (!match.teamAId || !match.teamBId) throw new Error('Both teams must be known before recording a result')
+
+  const winnerTeamId = scoreA > scoreB ? match.teamAId : match.teamBId
+  const winnerName = scoreA > scoreB ? match.teamA : match.teamB
+
+  await updateDoc(doc(db, 'tournamentMatches', matchId), { scoreA, scoreB, winnerTeamId })
+  if (match.nextMatchId && match.nextMatchSlot) {
+    const field = match.nextMatchSlot === 'A' ? 'teamAId' : 'teamBId'
+    const nameField = match.nextMatchSlot === 'A' ? 'teamA' : 'teamB'
+    await updateDoc(doc(db, 'tournamentMatches', match.nextMatchId), { [field]: winnerTeamId, [nameField]: winnerName })
+  }
 }
