@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
+import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -47,6 +48,15 @@ function ServiceCard({ title, description, href, external }: ServiceCardProps) {
 export default function HubHomePage() {
   const { t } = useTranslation()
   const { club, loading, error } = useClubData()
+  const { staff } = useAuth()
+  // Same access model as TournamentsPage.tsx's own guard — a signed-in
+  // trainer/staff member gets the real internal planning tool instead of
+  // the still-unbuilt public schedule, so the hub card shouldn't stay
+  // permanently disabled for them just because tournamentsUrl was never
+  // configured (that placeholder is only ever meant for the general
+  // public, who have nothing to see here yet).
+  const canManageTournaments =
+    staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
   if (loading) {
     return <div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>
@@ -84,8 +94,8 @@ export default function HubHomePage() {
         <ServiceCard
           title={t('hub.tournaments')}
           description={t('hub.tournamentsDesc')}
-          href={club.integrations?.tournamentsUrl}
-          external
+          href={canManageTournaments ? '/admin/turnaje' : club.integrations?.tournamentsUrl}
+          external={!canManageTournaments}
         />
       </div>
     </div>
