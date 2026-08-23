@@ -50,11 +50,10 @@ export default function HubHomePage() {
   const { club, loading, error } = useClubData()
   const { staff } = useAuth()
   // Same access model as TournamentsPage.tsx's own guard — a signed-in
-  // trainer/staff member gets the real internal planning tool instead of
-  // the still-unbuilt public schedule, so the hub card shouldn't stay
-  // permanently disabled for them just because tournamentsUrl was never
-  // configured (that placeholder is only ever meant for the general
-  // public, who have nothing to see here yet).
+  // trainer/staff member gets the real internal planning tool, everyone
+  // else gets the real public schedule page (/turnaje) now that both
+  // exist — no more falling back to the never-configured external
+  // tournamentsUrl placeholder for anyone.
   const canManageTournaments =
     staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
@@ -94,8 +93,7 @@ export default function HubHomePage() {
         <ServiceCard
           title={t('hub.tournaments')}
           description={t('hub.tournamentsDesc')}
-          href={canManageTournaments ? '/admin/turnaje' : club.integrations?.tournamentsUrl}
-          external={!canManageTournaments}
+          href={canManageTournaments ? '/admin/turnaje' : '/turnaje'}
         />
       </div>
     </div>

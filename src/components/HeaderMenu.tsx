@@ -91,6 +91,13 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               {t('nav.manageTrainings')}
             </Link>
           )}
+          <Link
+            to="/turnaje"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2 text-sm text-text-secondary hover:text-primary hover:bg-background-dark"
+          >
+            {t('nav.tournaments')}
+          </Link>
           {canManageTrainings && (
             <Link
               to="/admin/turnaje"

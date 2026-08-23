@@ -9,6 +9,7 @@ import ConfirmBookingPage from './pages/ConfirmBookingPage'
 import SeriesCancelPage from './pages/SeriesCancelPage'
 import TrainingCalendarPage from './pages/TrainingCalendarPage'
 import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
+import TournamentSchedulePage from './pages/TournamentSchedulePage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/treningy/zrusit/:regId/:token" element={<TrainingCancelPage kind="session" />} />
           <Route path="/treningy/kurz/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="bundle" />} />
           <Route path="/treningy/kurz/zrusit/:regId/:token" element={<TrainingCancelPage kind="bundle" />} />
+          <Route path="/turnaje" element={<TournamentSchedulePage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
           <Route path="/admin/signup-trainer" element={<TrainerSignupPage />} />
