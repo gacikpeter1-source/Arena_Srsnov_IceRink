@@ -1126,6 +1126,65 @@ existing "Tréningy" one, and the old single tournaments nav key
 was renamed `nav.manageTournaments` → "Spravovať turnaje" to make room
 for it, matching the existing "Tréningy" / "Spravovať tréningy" pairing.
 
+### Live scoreboard (match-day control + spectator screen)
+
+A club asked to put a tournament's live state up on a screen (a cafe TV,
+or a phone via the QR code above) — which zone/group is playing, the
+live score, and where every team stands — updated by whichever
+trainer/assistant/owner is scoring at rinkside. Two pieces:
+
+**`TournamentMatch.status`** (`'scheduled' | 'live' | 'finished'`,
+unset ~ `'scheduled'`) is new, alongside two schema-neutral writers in
+`lib/tournaments.ts`: `setMatchStatus` (a plain status flip, used to mark
+a match started) and `updateLiveMatchScore` (a raw `scoreA`/`scoreB`
+write with **no** draw check, no `winnerTeamId`, no auto-advance) — so a
+knockout match can sit at a tied score while still in progress without
+tripping the knockout-can't-draw rule that only applies to a *final*
+result. `setTournamentMatchResult`/`setPlainMatchResult` (the latter a
+newly-extracted, schema-neutral twin of the group-stage writer
+`setGroupMatchResult` now delegates to) are unchanged in what they
+validate, but now also stamp `status: 'finished'` — they remain the
+*only* way a match becomes finished, and calling either again afterward
+is how a correction is made: "skóre sa dá upraviť aj po ukončení zápasu"
+means re-running the same finalize path, which for a knockout/play-off
+match also re-derives the winner and re-writes `nextMatchId`'s slot if
+the correction flips who advanced. `deriveMatchState` is the one place
+that reads `status` back out, tolerant of every match that predates this
+field: a match with a real recorded score reads as `'finished'` even
+though `status` was never written for it (the old one-shot "Uložiť
+výsledok" flow, or a resolved bye), so nothing already shipped needed a
+migration.
+
+**`TournamentLiveControlPanel.tsx`** (mounted on `TournamentsPage.tsx`,
+above the three schedule-generator panels) is the match-day control
+room — every real match (byes excluded) grouped into "Práve sa hrá" /
+"Nadchádzajúce" / "Dokončené" via `deriveMatchState`, each row showing a
+"Odštartovať zápas" button while scheduled, then a +/- stepper per team
+plus "Ukončiť zápas" once live, with the stepper staying live even after
+finishing (any click routes through the finalize path so post-finish
+corrections keep advancing the bracket correctly, as above). It
+deliberately does **not** replace the pre-existing one-shot score entry
+already built into `TournamentBracketView`/`TournamentGroupsGenerator` —
+those stay a valid, simpler way to log a final score with no live
+theatrics; this panel is purely for the scoreboard workflow. Polling
+(every 5s, via a plain `setInterval` — this app has no real-time listener
+anywhere, and introducing `onSnapshot` for just this one screen wasn't
+worth breaking that consistency) keeps a second staff member's device and
+the spectator screen elsewhere roughly in sync without a manual refresh.
+
+**The public `/turnaje` page now polls too** (every 6s) instead of
+fetching once, and gained a "Práve sa hrá" section pinned above
+everything else — team names and a large pulsing live score for every
+`'live'` match — plus small inline live badges wherever a match already
+appears in the group match list or the flat "other matches" list.
+`TournamentBracketView` grew the same live badge for an undecided bracket
+match with `status === 'live'`, shared by both the admin's own bracket
+views and the public read-only one. `?tournament=<id>` (matching this
+app's established "one route, query params pick the case" QR pattern —
+see the "QR codes" section) lets the admin's QR code jump straight past
+the tournament picker into one specific tournament, so pointing a phone
+or a mounted screen at the code needs no further taps.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

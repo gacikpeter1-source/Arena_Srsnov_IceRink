@@ -548,14 +548,58 @@ export function computeGroupStandings(
 }
 
 /**
- * Records a group-stage match's result — unlike setTournamentMatchResult,
- * a draw is valid (group standings have a points column for exactly this)
- * and there's no nextMatchId to auto-advance into, since which teams
- * advance to the play-off is a separate explicit trainer action once the
- * whole group is done.
+ * Records a final score with no draw restriction and no auto-advance —
+ * used for any match outside the knockout/groupsPlayoff bracket schemas
+ * (a group match, a round-robin match, or a manually-added one), where
+ * there's no nextMatchId to feed and a draw is a perfectly normal result.
+ * Also usable to correct an already-finished match's score, same as
+ * setTournamentMatchResult below.
+ */
+export async function setPlainMatchResult(matchId: string, scoreA: number, scoreB: number): Promise<void> {
+  await updateDoc(doc(db, 'tournamentMatches', matchId), { scoreA, scoreB, status: 'finished' })
+}
+
+/**
+ * Group-stage-specific name for setPlainMatchResult — a draw is valid
+ * (group standings have a points column for exactly this) and there's no
+ * nextMatchId to auto-advance into, since which teams advance to the
+ * play-off is a separate explicit trainer action once the whole group is
+ * done. Kept as its own export since TournamentGroupsGenerator.tsx reads
+ * better calling this than the schema-neutral name.
  */
 export async function setGroupMatchResult(matchId: string, scoreA: number, scoreB: number): Promise<void> {
+  return setPlainMatchResult(matchId, scoreA, scoreB)
+}
+
+/**
+ * Live match-day controls (see CLAUDE.md's "Live scoreboard" note) — a
+ * plain status flip (used to mark a match as started) and a raw score
+ * write with no validation, no draw check, no status change and no
+ * auto-advance, so a knockout match can safely sit at a tied score while
+ * still in progress. Only setTournamentMatchResult/setPlainMatchResult
+ * (above/below) ever transition a match to 'finished', since only they
+ * know how to validate + advance for their own schema.
+ */
+export async function setMatchStatus(matchId: string, status: 'scheduled' | 'live' | 'finished'): Promise<void> {
+  await updateDoc(doc(db, 'tournamentMatches', matchId), { status })
+}
+
+export async function updateLiveMatchScore(matchId: string, scoreA: number, scoreB: number): Promise<void> {
   await updateDoc(doc(db, 'tournamentMatches', matchId), { scoreA, scoreB })
+}
+
+/**
+ * Reads a match's live-control state, tolerating every match that existed
+ * before the `status` field did: a match with a real score already
+ * recorded (the old one-shot "Uložiť výsledok" flow, or a resolved
+ * knockout bye) reads as 'finished' even though `status` was never
+ * written for it; everything else without an explicit 'live'/'finished'
+ * status reads as 'scheduled'.
+ */
+export function deriveMatchState(m: Pick<TournamentMatch, 'status' | 'winnerTeamId' | 'scoreA' | 'scoreB'>): 'scheduled' | 'live' | 'finished' {
+  if (m.status === 'live') return 'live'
+  if (m.status === 'finished' || m.winnerTeamId != null || (m.scoreA != null && m.scoreB != null)) return 'finished'
+  return 'scheduled'
 }
 
 // ---------------------------------------------------------------------
@@ -832,7 +876,7 @@ export async function setTournamentMatchResult(matchId: string, scoreA: number, 
   const winnerTeamId = scoreA > scoreB ? match.teamAId : match.teamBId
   const winnerName = scoreA > scoreB ? match.teamA : match.teamB
 
-  await updateDoc(doc(db, 'tournamentMatches', matchId), { scoreA, scoreB, winnerTeamId })
+  await updateDoc(doc(db, 'tournamentMatches', matchId), { scoreA, scoreB, winnerTeamId, status: 'finished' })
   if (match.nextMatchId && match.nextMatchSlot) {
     const field = match.nextMatchSlot === 'A' ? 'teamAId' : 'teamBId'
     const nameField = match.nextMatchSlot === 'A' ? 'teamA' : 'teamB'

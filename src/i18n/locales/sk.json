@@ -471,7 +471,16 @@
     "generatePlayoff": "Vygenerovať play-off",
     "publicTitle": "Turnaje",
     "publicNone": "Momentálne nie je naplánovaný žiadny turnaj.",
-    "notPlayedYet": "ešte sa nehralo"
+    "notPlayedYet": "ešte sa nehralo",
+    "liveControlTitle": "Ovládanie zápasov naživo",
+    "liveNow": "Práve sa hrá",
+    "upcomingMatches": "Nadchádzajúce zápasy",
+    "finishedMatches": "Dokončené zápasy",
+    "startMatch": "Odštartovať zápas",
+    "finishMatch": "Ukončiť zápas",
+    "finishedBadge": "Dokončené — skóre môžete ešte upraviť",
+    "publicScreenTitle": "Obrazovka pre divákov",
+    "publicScreenHint": "Naskenovaním tohto QR kódu sa otvorí verejný prehľad turnaja, ktorý sa dá zobraziť napr. na obrazovke v kaviarni — automaticky sa aktualizuje podľa toho, ako zapisujete skóre nižšie."
   },
   "trainingEmail": {
     "trainer": "Tréner",
