@@ -428,7 +428,16 @@
     "downloadTeamTemplate": "Stiahnuť Excel šablónu",
     "noTeams": "Zatiaľ žiadne tímy.",
     "confirmDeleteTeam": "Zmazať tento tím?",
-    "importRow": "Riadok {{row}}"
+    "importRow": "Riadok {{row}}",
+    "roundRobinTitle": "Každý s každým — generovanie rozpisu",
+    "needAtLeastTwoTeams": "Pridajte aspoň 2 tímy, aby sa dal vygenerovať rozpis.",
+    "seedOrder": "Poradie žrebovania",
+    "shuffleTeams": "Náhodne premiešať",
+    "defaultBreak": "Predvolená prestávka (min)",
+    "previewHint": "Náhľad — {{count}} zápasov. Prestávku medzi kolami môžete upraviť nižšie.",
+    "breakAfterMinutes": "Prestávka po tomto kole (min)",
+    "generateRoundRobin": "Vygenerovať zápasy",
+    "roundRobinCreated": "Vytvorených {{count}} zápasov."
   },
   "trainingEmail": {
     "trainer": "Tréner",

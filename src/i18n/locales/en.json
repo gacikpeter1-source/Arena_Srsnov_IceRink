@@ -428,7 +428,16 @@
     "downloadTeamTemplate": "Download Excel template",
     "noTeams": "No teams yet.",
     "confirmDeleteTeam": "Delete this team?",
-    "importRow": "Row {{row}}"
+    "importRow": "Row {{row}}",
+    "roundRobinTitle": "Round robin — generate schedule",
+    "needAtLeastTwoTeams": "Add at least 2 teams to generate a schedule.",
+    "seedOrder": "Draw order",
+    "shuffleTeams": "Shuffle randomly",
+    "defaultBreak": "Default break (min)",
+    "previewHint": "Preview — {{count}} matches. Adjust the break between rounds below.",
+    "breakAfterMinutes": "Break after this round (min)",
+    "generateRoundRobin": "Generate matches",
+    "roundRobinCreated": "Created {{count}} matches."
   },
   "trainingEmail": {
     "trainer": "Trainer",
