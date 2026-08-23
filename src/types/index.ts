@@ -456,6 +456,23 @@ export interface Tournament {
   createdAt: Date
 }
 
+// A team entered into a tournament — added manually or via Excel import
+// (see lib/excel.ts's parseTeamsWorkbook). Names must be unique within a
+// tournament (case-insensitive, enforced in lib/tournaments.ts's
+// createTournamentTeam) since later phases reference teams by identity
+// to auto-generate schedules/brackets — a silent duplicate would make
+// that ambiguous.
+export interface TournamentTeam {
+  id: string
+  tournamentId: string
+  clubId: string
+  name: string
+  // Manual seeding order (1-based) for bracket/group draw — unset until
+  // a later phase's seeding UI sets it; random draw doesn't need it.
+  seed?: number
+  createdAt: Date
+}
+
 // One scheduled match. Reuses DivisionMode (full/half/third) for
 // `format` — a trainer picks how the rink is divided for this time slot
 // exactly like the ice-booking zone system, so a "third" format lets up

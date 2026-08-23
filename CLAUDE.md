@@ -872,11 +872,43 @@ ice-rink staff member (mirrors `trainingSessions`' existing pattern) —
 the `blocksIce` booking write itself needs no new rule since `bookings`
 creation is already fully public.
 
-**Planned but not yet built:** Excel import for teams/matches (deferred
-the same way ice bookings' and trainings' Excel import shipped after
-their manual-entry flow, not alongside it), and a public tournament
-schedule page for customers/parents once this internal tool has been
-used enough to validate the format.
+### Fáza A: team roster
+
+A tournament schema/bracket system needs a settled team list to generate
+matches from, so that's the first slice: `TournamentTeam` docs (name,
+optional manual `seed` for later draw phases), added manually
+(`TournamentTeamsPanel.tsx`, mounted under a selected tournament in
+`TournamentsPage.tsx`) or via Excel import (`lib/excel.ts`'s
+`parseTeamsWorkbook`/`downloadTeamImportTemplate`, one name per row —
+same `{rows, errors}` shape as the existing booking/schedule importers).
+
+Team names must be unique within a tournament (case-insensitive) since a
+later phase auto-generates schedules/brackets by team identity, where a
+silent duplicate would make the pairing ambiguous — enforced in
+`createTournamentTeam` (`lib/tournaments.ts`), which re-fetches the
+tournament's current teams and throws `DuplicateTeamNameError` rather
+than silently creating a second team with the same name. The Excel
+parser separately flags a name repeated *within the uploaded file itself*
+(an obvious copy-paste mistake) before any writes happen; a name that
+collides with an already-saved team is instead caught per-row when the
+import loop calls `createTournamentTeam`, so one bad row doesn't abort
+the rest of the import.
+
+Access mirrors `tournaments`/`tournamentMatches`
+(`isTrainer() || isStaffMember()`) but without the creator-only
+restriction on update/delete — any trainer/staff who can see the
+tournament can manage its roster, since a club tournament is typically a
+shared effort across whoever's helping run it, unlike an individual
+trainer's own training sessions. `deleteTournament` now also cascades to
+delete a tournament's teams, alongside the existing match/booking
+cleanup.
+
+**Planned but not yet built:** the actual schedule/bracket generation
+that consumes this team list — round-robin (Fáza B), knockout with
+bye/seeding and result-driven auto-advancement (Fáza C), and groups +
+playoff combining both (Fáza D) — plus a public tournament schedule page
+for customers/parents once the internal tool has been used enough to
+validate the format.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 

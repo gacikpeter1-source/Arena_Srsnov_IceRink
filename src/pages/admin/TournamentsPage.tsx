@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import RinkDiagram from '@/components/RinkDiagram'
+import TournamentTeamsPanel from '@/components/TournamentTeamsPanel'
 import BackButton from '@/components/BackButton'
 
 const FORMATS: DivisionMode[] = ['full', 'half', 'third']
@@ -256,8 +257,10 @@ export default function TournamentsPage() {
         </CardContent>
       </Card>
 
-      {activeTournament && (
+      {activeTournament && club && (
         <>
+          <TournamentTeamsPanel tournamentId={activeTournament.id} clubId={club.id} />
+
           <Card className="arena-card">
             <CardHeader>
               <CardTitle className="text-white text-lg">{t('tournaments.addMatch', { name: activeTournament.name })}</CardTitle>

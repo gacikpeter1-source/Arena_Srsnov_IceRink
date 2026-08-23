@@ -420,7 +420,15 @@
     "matchList": "Matches",
     "noMatches": "No matches yet.",
     "blockedBadge": "Blocks public bookings",
-    "confirmDeleteMatch": "Delete this match?"
+    "confirmDeleteMatch": "Delete this match?",
+    "teams": "Teams",
+    "teamNamePlaceholder": "Team name",
+    "addTeam": "Add team",
+    "duplicateTeamName": "A team named \"{{name}}\" already exists in this tournament.",
+    "downloadTeamTemplate": "Download Excel template",
+    "noTeams": "No teams yet.",
+    "confirmDeleteTeam": "Delete this team?",
+    "importRow": "Row {{row}}"
   },
   "trainingEmail": {
     "trainer": "Trainer",

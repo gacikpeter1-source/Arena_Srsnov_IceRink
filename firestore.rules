@@ -378,6 +378,15 @@ service cloud.firestore {
       allow update, delete: if (isTrainer() && resource.data.createdBy == request.auth.uid) || isStaffMember();
     }
 
+    // A team entered into a tournament (see TournamentTeam) — any
+    // trainer/staff who can see the tournament can manage its roster,
+    // no per-team creator restriction (the whole club staff typically
+    // collaborates on one shared club tournament).
+    match /tournamentTeams/{teamId} {
+      allow read: if isTrainer() || isStaffMember();
+      allow create, update, delete: if isTrainer() || isStaffMember();
+    }
+
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.
     // Anyone may enqueue a notification; only the extension (which bypasses
     // rules) reads or deletes.
