@@ -486,6 +486,15 @@ export interface TournamentMatch {
   durationMinutes: number
   teamA: string
   teamB: string
+  // Set when this match was auto-generated from the tournament's
+  // TournamentTeam roster (round-robin/knockout/groups) — unset for a
+  // manually-added free-text match, which only ever had names typed in.
+  teamAId?: string
+  teamBId?: string
+  // Which generated time-slot this belongs to (0-based) — round-robin
+  // and later knockout/groups phases use this purely for display
+  // grouping, not for any advancement logic.
+  round?: number
   format: DivisionMode
   // 'rink' = played on this club's own ice (rinkId/zoneId set); 'other' =
   // a different venue entirely (e.g. a hokejbal/football pitch this club

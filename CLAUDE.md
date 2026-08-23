@@ -903,12 +903,62 @@ trainer's own training sessions. `deleteTournament` now also cascades to
 delete a tournament's teams, alongside the existing match/booking
 cleanup.
 
-**Planned but not yet built:** the actual schedule/bracket generation
-that consumes this team list — round-robin (Fáza B), knockout with
-bye/seeding and result-driven auto-advancement (Fáza C), and groups +
-playoff combining both (Fáza D) — plus a public tournament schedule page
-for customers/parents once the internal tool has been used enough to
-validate the format.
+### Fáza B: round-robin schedule generation
+
+The first schema: "každý s každým" — every team plays every other team
+exactly once. `circleMethodRounds` (`lib/tournaments.ts`, internal) is
+the standard circle-method pairing algorithm — one team fixed, the rest
+rotate one position each round, producing `teams.length - 1` rounds of
+`teams.length / 2` pairs; an odd team count is handled by padding with a
+`null` "bye" slot that's simply dropped from that round's real pairs (the
+team paired against it sits that round out).
+
+**Rounds map directly onto the ice-division system.** A round's pairs
+are, by construction, always disjoint (every team appears at most once
+per round) — so any subset of them can safely run in parallel. This
+lines up exactly with `DivisionMode`: picking "third" gives 3 parallel
+zones, so a round with 3 pairs plays as one simultaneous time slot, one
+pair per zone; a round with more pairs than available zones (e.g. 4 pairs
+on a "third" format) spills into consecutive slots — `buildRoundRobinPreview`
+chunks each round's pairs into groups of at most `matchesPerSlot`,
+**never crossing a round boundary** (chunking across rounds could put two
+pairs sharing a team into the same slot, which the round structure alone
+doesn't protect against once you leave a single round).
+
+**Live, pure preview before anything is written.** `buildRoundRobinPreview`
+takes zero Firestore dependencies — team order, rink format, start
+time, match duration, and break minutes go in, a full list of time slots
+comes out — so `TournamentRoundRobinGenerator.tsx` recomputes it on every
+keystroke via `useMemo` and lets the trainer freely try different rinks/
+times/durations before committing. Only clicking "Generate" actually
+calls `createRoundRobinSchedule`, which loops `createTournamentMatch`
+per pair (inheriting its existing `blocksIce` behavior — one real
+`Booking` per match when checked, same as a manually-added match).
+
+**Breaks: one default, individually overridable.** The trainer sets one
+`defaultBreakMinutes` applied between every generated slot, but each gap
+in the live preview has its own editable input (`gapOverrides`, keyed by
+slot index) — e.g. stretching just the gap after the morning session to
+fit a lunch break, without changing the default for every other gap.
+
+**Seeding order is cosmetic for round-robin itself** (everyone plays
+everyone regardless of starting order) but the trainer can still shuffle
+randomly or reorder manually (up/down arrows — no drag-and-drop
+dependency) via `TournamentRoundRobinGenerator.tsx`, and the chosen order
+is persisted onto each `TournamentTeam.seed` (`setTeamSeedOrder`) so a
+later phase's bracket seeding — where order *does* determine who plays
+whom — starts from the same order rather than from scratch.
+
+Two new fields on `TournamentMatch` support this and later phases:
+`teamAId`/`teamBId` (set only for a roster-generated match; a manually
+free-typed match from Fáza 1's single-match form leaves them unset) and
+`round` (which generated slot a match belongs to — display/grouping only
+so far, no advancement logic reads it yet).
+
+**Planned but not yet built:** knockout with bye/seeding and result-
+driven auto-advancement (Fáza C), groups + playoff combining both
+(Fáza D), and a public tournament schedule page for customers/parents
+once the internal tool has been used enough to validate the format.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
