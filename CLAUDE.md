@@ -1009,9 +1009,84 @@ matches exist. A new `TournamentMatch.schema` field (`'roundRobin' |
 future combined format (Fáza D) tell its group-stage matches apart from
 its playoff bracket without a second collection.
 
-**Planned but not yet built:** groups + playoff combining both schemas
-(Fáza D), and a public tournament schedule page for customers/parents
-once the internal tool has been used enough to validate the format.
+### Fáza D: groups + play-off
+
+The third schema (`TournamentMatch.schema === 'groups'` for the group
+stage, `'groupsPlayoff'` for the bracket that follows) — teams are split
+into lettered groups ("A", "B", ...), each group plays a full
+round-robin among only its own members, then the trainer chooses how
+many teams advance from each group into a knockout bracket built from
+live standings. `TournamentGroupsGenerator.tsx` mounts alongside the
+round-robin/knockout generators on `TournamentsPage.tsx` and manages both
+stages itself, matching the existing "one component covers pre- and
+post-generation" pattern `TournamentKnockoutGenerator.tsx` already used.
+
+**Group assignment, both ways per the trainer's request.** A new
+`TournamentTeam.groupId` field (set via `setTeamGroups`, same "only
+written at generation time" timing `setTeamSeedOrder` already uses)
+records which group a team lands in. "Automaticky rozdeliť do skupín"
+snake-distributes the current team order across `groupCount` groups
+(1→A, 2→B, 3→C, 4→C, 5→B, 6→A for 3 groups) so consecutive seeds don't
+all land in one group; each team also gets its own `<select>` right next
+to its name so the trainer can manually override any individual
+assignment afterward — auto-assign is a starting point, not a
+constraint.
+
+**Scheduling interleaves groups instead of running them one after
+another.** `buildGroupsPreview` (`lib/tournaments.ts`) computes each
+group's own `circleMethodRounds` schedule independently, then combines
+round *r* across every group into one shared time band before chunking
+into zone-slots — safe to combine arbitrarily because groups partition
+the teams, so two pairs from *different* groups can never share a player
+the way two pairs from the same round-robin's *own* different rounds
+could. This is what lets a 3-team group and a 5-team group run
+alongside each other without leaving a zone idle just because the
+smaller group finished its own rounds first. `createGroupsSchedule`
+writes the result exactly like `createRoundRobinSchedule` does, just
+tagging each match with its `groupId`.
+
+**Draws are allowed in the group stage, unlike a knockout match.**
+`setGroupMatchResult` records `scoreA`/`scoreB` with no draw check and no
+`nextMatchId` advancement — group standings have a points column for
+exactly this outcome. `computeGroupStandings` (pure, `lib/
+tournaments.ts`) is the standard 3/1/0 win/draw/loss points table sorted
+by points → goal difference → goals scored → name, computed live from
+whatever results exist so far (an in-progress group's table is simply
+partial, not blocked from rendering).
+
+**The play-off is generated from standings, not the raw roster.** The
+trainer picks how many teams advance per group ("Postupujú prví N z
+každej skupiny"); the advancing list is ordered rank-first (every
+group's 1st-place team, then every group's 2nd-place team, ...,
+alphabetically by group within each rank) and fed straight into the
+*same* `buildKnockoutPreview`/`createKnockoutBracket` Fáza C already
+built — the only new thing is an optional `schema` parameter on
+`createKnockoutBracket` (defaults to `'knockout'`) so this bracket is
+written as `'groupsPlayoff'` instead, keeping it out of the standalone
+"pavúk" generator's own match list even though both produce an
+identical bracket shape. This rank-first ordering keeps group winners
+spread across the bracket (seed 1 and seed 2 still can't meet before the
+final) but doesn't *guarantee* two teams from the same group avoid a
+rematch in the first round for an arbitrary number of groups — a known,
+documented simplification rather than a full anti-collision seeding
+algorithm, consistent with how much precision the rest of this
+tool aims for.
+
+Recording a play-off result reuses `setTournamentMatchResult` as-is
+(draws rejected, auto-advances the winner via `nextMatchId`) — the
+bracket-rendering JSX itself was extracted into a shared
+`TournamentBracketView.tsx` component so `TournamentKnockoutGenerator.tsx`
+(the standalone bracket) and this groups+play-off bracket don't carry two
+copies of the same round-grouped, score-entry-row markup.
+
+No `firestore.rules`/`firestore.indexes.json` changes were needed — the
+existing `tournamentMatches`/`tournamentTeams` rules already allow any
+`isTrainer() || isStaffMember()` to create/read/update regardless of
+`schema` or the new `groupId` field.
+
+**Planned but not yet built:** a public tournament schedule page for
+customers/parents, once the internal tool has been used enough to
+validate the format.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
+import TournamentBracketView from './TournamentBracketView'
 
 interface TournamentKnockoutGeneratorProps {
   tournamentId: string
@@ -147,6 +148,10 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
     }
   }
 
+  const handleScoreChange = (matchId: string, side: 'a' | 'b', value: string) => {
+    setScoreInputs((prev) => ({ ...prev, [matchId]: { a: side === 'a' ? value : prev[matchId]?.a ?? '', b: side === 'b' ? value : prev[matchId]?.b ?? '' } }))
+  }
+
   const handleSaveResult = async (match: TournamentMatch & { id: string }) => {
     const input = scoreInputs[match.id]
     const scoreA = parseInt(input?.a ?? '', 10)
@@ -178,14 +183,6 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
   }
 
   if (matches.length > 0) {
-    const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
-    matches.forEach((m) => {
-      const r = m.round ?? 0
-      if (!rounds.has(r)) rounds.set(r, [])
-      rounds.get(r)!.push(m)
-    })
-    const roundNumbers = Array.from(rounds.keys()).sort((a, b) => a - b)
-
     return (
       <Card className="arena-card">
         <CardHeader>
@@ -193,64 +190,13 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
         </CardHeader>
         <CardContent className="space-y-4">
           {errorMessage && <p className="text-status-danger text-sm">{errorMessage}</p>}
-          {roundNumbers.map((r) => (
-            <div key={r} className="space-y-2">
-              <h3 className="text-white text-sm font-semibold">{t('tournaments.roundLabel', { n: r + 1 })}</h3>
-              {rounds
-                .get(r)!
-                .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0))
-                .map((m) => {
-                  const decided = !!m.winnerTeamId
-                  const playable = !m.isBye && !decided && !!m.teamAId && !!m.teamBId
-                  return (
-                    <div key={m.id} className="p-2 rounded border border-border space-y-2">
-                      <div className="flex justify-between items-center flex-wrap gap-2">
-                        <p className={m.isBye ? 'text-text-muted text-sm' : 'text-white text-sm'}>
-                          {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
-                          {m.isBye && ` (${t('tournaments.byeLabel')})`}
-                        </p>
-                        {decided && (
-                          <span className="text-status-success text-sm font-medium">
-                            {m.scoreA} : {m.scoreB}
-                          </span>
-                        )}
-                        {!m.isBye && !decided && m.startTime && (
-                          <span className="text-text-muted text-xs">{m.startTime}</span>
-                        )}
-                      </div>
-                      {playable && (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={scoreInputs[m.id]?.a ?? ''}
-                            onChange={(e) => setScoreInputs((prev) => ({ ...prev, [m.id]: { a: e.target.value, b: prev[m.id]?.b ?? '' } }))}
-                            className="bg-background-dark border-border text-white w-16 h-8"
-                          />
-                          <span className="text-text-muted text-xs">:</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={scoreInputs[m.id]?.b ?? ''}
-                            onChange={(e) => setScoreInputs((prev) => ({ ...prev, [m.id]: { a: prev[m.id]?.a ?? '', b: e.target.value } }))}
-                            className="bg-background-dark border-border text-white w-16 h-8"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={savingMatchId === m.id}
-                            onClick={() => handleSaveResult(m)}
-                            className="bg-primary hover:bg-primary-gold text-primary-foreground"
-                          >
-                            {t('tournaments.saveResult')}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-            </div>
-          ))}
+          <TournamentBracketView
+            matches={matches}
+            scoreInputs={scoreInputs}
+            onScoreChange={handleScoreChange}
+            onSaveResult={handleSaveResult}
+            savingMatchId={savingMatchId}
+          />
         </CardContent>
       </Card>
     )
