@@ -495,6 +495,30 @@ export interface TournamentMatch {
   // and later knockout/groups phases use this purely for display
   // grouping, not for any advancement logic.
   round?: number
+  // Which generation algorithm produced this match — lets a tournament
+  // that later combines schemas (e.g. Fáza D's groups + playoff) tell its
+  // round-robin group-stage matches apart from its knockout matches.
+  // Unset for a manually-added free-text match.
+  schema?: 'roundRobin' | 'knockout'
+  // Stable 1-based identifier within the bracket, assigned at generation
+  // time in bracket-position order — used for "Winner of Match #N"
+  // placeholder labels on a later round's not-yet-decided slot. Knockout
+  // only; round-robin matches don't need it.
+  matchNumber?: number
+  // True for an auto-resolved "bye" pairing (one real team, one empty
+  // bracket slot) — decided immediately at generation time with no real
+  // match played, no ice blocked.
+  isBye?: boolean
+  // Set once a knockout match is decided (played, or a bye) — the
+  // winning team's id, used to auto-advance them into nextMatchId.
+  winnerTeamId?: string
+  scoreA?: number
+  scoreB?: number
+  // Which match this one's winner advances into, and which of its two
+  // slots — set at bracket-generation time for every non-final knockout
+  // match (see createKnockoutBracket in lib/tournaments.ts).
+  nextMatchId?: string
+  nextMatchSlot?: 'A' | 'B'
   format: DivisionMode
   // 'rink' = played on this club's own ice (rinkId/zoneId set); 'other' =
   // a different venue entirely (e.g. a hokejbal/football pitch this club

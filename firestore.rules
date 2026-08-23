@@ -375,7 +375,15 @@ service cloud.firestore {
     match /tournamentMatches/{matchId} {
       allow read: if isTrainer() || isStaffMember();
       allow create: if isTrainer() || isStaffMember();
-      allow update, delete: if (isTrainer() && resource.data.createdBy == request.auth.uid) || isStaffMember();
+      // Update is open to any trainer/staff (not just the bracket's
+      // creator) — recording a live match result and having it
+      // auto-advance the winner (see setTournamentMatchResult in
+      // lib/tournaments.ts) is inherently a "whoever's at the rink"
+      // action, same collaborative reasoning as tournamentTeams below.
+      // Delete stays creator-restricted so one trainer can't casually
+      // wipe another's carefully-built bracket.
+      allow update: if isTrainer() || isStaffMember();
+      allow delete: if (isTrainer() && resource.data.createdBy == request.auth.uid) || isStaffMember();
     }
 
     // A team entered into a tournament (see TournamentTeam) — any

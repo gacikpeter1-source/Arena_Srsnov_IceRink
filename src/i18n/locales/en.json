@@ -437,7 +437,17 @@
     "previewHint": "Preview — {{count}} matches. Adjust the break between rounds below.",
     "breakAfterMinutes": "Break after this round (min)",
     "generateRoundRobin": "Generate matches",
-    "roundRobinCreated": "Created {{count}} matches."
+    "roundRobinCreated": "Created {{count}} matches.",
+    "knockoutTitle": "Knockout bracket",
+    "winnerOfMatch": "Winner of Match #{{n}}",
+    "byeLabel": "bye",
+    "byeHint": "With this many teams, {{count}} teams will get a bye in the first round (advancing automatically).",
+    "roundLabel": "Round {{n}}",
+    "knockoutPreviewHint": "Bracket preview — {{rounds}} rounds. Advancement fills in automatically once a result is recorded.",
+    "breaksHint": "Break after each round of matches — edit a specific gap to override the default.",
+    "generateKnockout": "Generate bracket",
+    "saveResult": "Save result",
+    "noDraws": "A knockout match can't end in a draw."
   },
   "trainingEmail": {
     "trainer": "Trainer",

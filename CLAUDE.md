@@ -955,8 +955,61 @@ free-typed match from Fáza 1's single-match form leaves them unset) and
 `round` (which generated slot a match belongs to — display/grouping only
 so far, no advancement logic reads it yet).
 
-**Planned but not yet built:** knockout with bye/seeding and result-
-driven auto-advancement (Fáza C), groups + playoff combining both
+### Fáza C: knockout bracket with bye/seeding and auto-advancement
+
+Single elimination ("pavúk"). `buildKnockoutPreview` (`lib/tournaments.ts`)
+builds the whole bracket — every round, not just the first — as a pure,
+Firestore-free computation the UI recomputes live, same pattern as
+`buildRoundRobinPreview`:
+
+- **Bracket size and byes.** `bracketSize` is the next power of 2 ≥ team
+  count; the shortfall (`bracketSize - teams.length`) becomes byes, given
+  to the top seeds first — the standard convention (NCAA, FIFA, IOC) since
+  distributing byes randomly would undermine the whole point of seeding.
+  This falls out for free from pairing the seed order 1-for-1 against the
+  team list: a seed number beyond the team count simply has no real team.
+- **Seeding order** uses the standard recursive-doubling bracket sequence
+  (1v16, 8v9, 5v12, 4v13, ... for 16) so seed 1 and seed 2 can only meet
+  in the final, never clustering strong teams into the same early match.
+- **Byes resolve immediately at generation time**, propagating the sole
+  real team straight into the next round's slot — no real match is ever
+  created for a bye (no time, no zone, no booking), just a `winnerTeamId`
+  set directly on its own doc.
+- **Every round gets real times up front**, not just the first — a
+  semifinal/final slot is scheduled even though the actual teams aren't
+  known yet, so the trainer has one complete running schedule for the
+  whole day. A not-yet-decided slot's `teamA`/`teamB` display string is a
+  baked-in placeholder ("Winner of Match #N") resolved by the *caller* at
+  generation time (`resolvePlaceholder`) since `lib/tournaments.ts` stays
+  i18n-free — same principle as `TournamentMatch.teamA/teamB` always
+  being plain persisted strings, not live-translated UI text.
+- **Auto-advancement.** Every match (except the final) gets a
+  `nextMatchId`/`nextMatchSlot` pointer at generation time, computed from
+  pre-generated Firestore doc refs so the whole bracket's linkage can be
+  wired before any document is actually written. `setTournamentMatchResult`
+  records a score and, if the match has a `nextMatchId`, writes the
+  winner straight into that match's slot — the only way a later round's
+  placeholder ever gets replaced with a real team. A draw is rejected
+  (`KnockoutDrawError`) since there'd be no way to decide who advances.
+
+**`firestore.rules` broadened**: `tournamentMatches`' `allow update` no
+longer requires being the bracket's creator — recording a live result
+(and its auto-advancement write into a *different* match's doc) is
+inherently a "whoever's at the rink with a phone" action, same
+collaborative reasoning `tournamentTeams` already uses. `allow delete`
+stays creator-restricted so one trainer can't casually wipe another's
+bracket.
+
+`TournamentKnockoutGenerator.tsx` shows the same config-and-preview form
+as the round-robin generator before anything's been generated, then
+switches to a live bracket view (grouped by round, score-entry inputs on
+any match where both teams are known and no result is recorded yet) once
+matches exist. A new `TournamentMatch.schema` field (`'roundRobin' |
+'knockout'`) — also now stamped by `createRoundRobinSchedule` — lets a
+future combined format (Fáza D) tell its group-stage matches apart from
+its playoff bracket without a second collection.
+
+**Planned but not yet built:** groups + playoff combining both schemas
 (Fáza D), and a public tournament schedule page for customers/parents
 once the internal tool has been used enough to validate the format.
 

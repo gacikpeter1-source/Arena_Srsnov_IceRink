@@ -437,7 +437,17 @@
     "previewHint": "Náhľad — {{count}} zápasov. Prestávku medzi kolami môžete upraviť nižšie.",
     "breakAfterMinutes": "Prestávka po tomto kole (min)",
     "generateRoundRobin": "Vygenerovať zápasy",
-    "roundRobinCreated": "Vytvorených {{count}} zápasov."
+    "roundRobinCreated": "Vytvorených {{count}} zápasov.",
+    "knockoutTitle": "Pavúk — vyraďovacia súťaž",
+    "winnerOfMatch": "Víťaz zápasu #{{n}}",
+    "byeLabel": "voľný žreb",
+    "byeHint": "Pri tomto počte tímov bude {{count}} tímov mať v prvom kole voľný žreb (postúpia automaticky).",
+    "roundLabel": "Kolo {{n}}",
+    "knockoutPreviewHint": "Náhľad pavúka — {{rounds}} kôl. Postup do ďalšieho kola sa doplní automaticky po zápise výsledku.",
+    "breaksHint": "Prestávka po každom kole zápasov — predvolenú hodnotu môžete pre konkrétnu medzeru upraviť.",
+    "generateKnockout": "Vygenerovať pavúk",
+    "saveResult": "Uložiť výsledok",
+    "noDraws": "Zápas v pavúku nemôže skončiť remízou."
   },
   "trainingEmail": {
     "trainer": "Tréner",
