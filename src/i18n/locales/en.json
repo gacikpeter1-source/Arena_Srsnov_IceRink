@@ -22,10 +22,11 @@
   "nav": {
     "brand": "Ice Rink Booking",
     "trainings": "Trainings",
+    "tournaments": "Tournaments",
     "manageBooking": "Manage my booking",
     "menu": "Menu",
     "manageTrainings": "Manage trainings",
-    "manageTournaments": "Tournaments",
+    "manageTournaments": "Manage tournaments",
     "website": "Website",
     "contactUs": "Contact us"
   },
@@ -467,7 +468,10 @@
     "advanceCount": "Teams advancing from each group",
     "groupsNotFinishedHint": "Some group-stage matches don't have a result yet — the table below is a work in progress.",
     "advancingTeamsHint": "Advancing to the play-off: {{names}}",
-    "generatePlayoff": "Generate play-off"
+    "generatePlayoff": "Generate play-off",
+    "publicTitle": "Tournaments",
+    "publicNone": "No tournament is currently scheduled.",
+    "notPlayedYet": "not played yet"
   },
   "trainingEmail": {
     "trainer": "Trainer",

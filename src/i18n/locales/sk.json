@@ -22,10 +22,11 @@
   "nav": {
     "brand": "Rezervácia ľadovej plochy",
     "trainings": "Tréningy",
+    "tournaments": "Turnaje",
     "manageBooking": "Moja rezervácia",
     "menu": "Menu",
     "manageTrainings": "Spravovať tréningy",
-    "manageTournaments": "Turnaje",
+    "manageTournaments": "Spravovať turnaje",
     "website": "Webová stránka",
     "contactUs": "Kontaktujte nás"
   },
@@ -467,7 +468,10 @@
     "advanceCount": "Postupujú prví N z každej skupiny",
     "groupsNotFinishedHint": "Niektoré zápasy skupinovej fázy ešte nemajú zapísaný výsledok — tabuľka nižšie je priebežná.",
     "advancingTeamsHint": "Do play-off postupujú: {{names}}",
-    "generatePlayoff": "Vygenerovať play-off"
+    "generatePlayoff": "Vygenerovať play-off",
+    "publicTitle": "Turnaje",
+    "publicNone": "Momentálne nie je naplánovaný žiadny turnaj.",
+    "notPlayedYet": "ešte sa nehralo"
   },
   "trainingEmail": {
     "trainer": "Tréner",

@@ -1084,9 +1084,47 @@ existing `tournamentMatches`/`tournamentTeams` rules already allow any
 `isTrainer() || isStaffMember()` to create/read/update regardless of
 `schema` or the new `groupId` field.
 
-**Planned but not yet built:** a public tournament schedule page for
-customers/parents, once the internal tool has been used enough to
-validate the format.
+### Public schedule page (`/turnaje`)
+
+The last missing piece from the phases above — a no-login page
+(`TournamentSchedulePage.tsx`) so customers/parents can actually see a
+club's tournaments, not just staff planning them. A tournament picker
+(hidden when there's only one) switches which tournament's matches load;
+below it, up to three sections render depending on what that tournament
+actually contains:
+- **Group standings** (any `schema === 'groups'` matches) — the same
+  3/1/0 points table `computeGroupStandings` already produces for the
+  admin tool, plus each group's own match list (score shown once
+  recorded, "ešte sa nehralo" otherwise).
+- **Play-off / knockout bracket** (`'groupsPlayoff'` and/or `'knockout'`
+  matches, shown as separate sections since a tournament could in theory
+  carry both) — `TournamentBracketView` reused as-is with a new
+  `readOnly` prop that hides the score-entry row entirely (no login, no
+  way to record a result here).
+- **Everything else** (a manually-added match, or a standalone
+  `'roundRobin'` schedule) — the same flat chronological list format the
+  admin match list already uses.
+
+Deliberately fetches **only** `tournaments` and `tournamentMatches` — no
+`TournamentTeam` read at all. Every value the page needs (team names,
+`teamAId`/`teamBId` for standings, bracket shape) is already denormalized
+onto each `TournamentMatch` doc, so `firestore.rules` only had to open
+`allow read: if true` on those two collections; `tournamentTeams` stays
+staff-only exactly as before. Every write rule on both is unchanged
+(still `isTrainer() || isStaffMember()`), so nothing about who can
+create/edit a tournament changed — only who can look at the result.
+
+With a real public page now live, the hub home's "Tournaments" card
+(`HubHomePage.tsx`) stops falling back to the never-configured external
+`tournamentsUrl` placeholder for a signed-out/role-less visitor and
+routes internally to `/turnaje` instead — the exact same "external
+placeholder superseded once the domain got a real page" transition
+Training Reservations went through earlier. `HeaderMenu.tsx` gained a
+plain public "Turnaje" link (`nav.tournaments`) right next to the
+existing "Tréningy" one, and the old single tournaments nav key
+(previously doing double duty as the only tournaments link there was)
+was renamed `nav.manageTournaments` → "Spravovať turnaje" to make room
+for it, matching the existing "Tréningy" / "Spravovať tréningy" pairing.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
@@ -1156,14 +1194,10 @@ logo, name, tagline) with cards linking to each club service:
   superadmin role check `TournamentsPage.tsx` itself gates on
   (`canManageTournaments`): a signed-in account with any of those roles
   gets routed straight to the internal `/admin/turnaje` planning tool,
-  same as the "Training Reservations" card. Only a signed-out or
-  role-less visitor still falls back to the external
-  `clubs.integrations.tournamentsUrl` placeholder (unset shows "coming
-  soon"), since there's no public tournament schedule page yet for the
-  general public to land on (see the "Tournaments" section below). Fixed
-  after the card first shipped hardcoded to the external URL only — an
-  owner/trainer signing in still saw "coming soon" with no way to reach
-  the tool they could already use directly at `/admin/turnaje`.
+  same as the "Training Reservations" card; everyone else lands on the
+  public `/turnaje` schedule page (see the "Tournaments" section below) —
+  no longer an external link, superseded once both the internal tool and
+  the public schedule page were built natively in this app.
 Current assumption: integration is via external links out to 
 separately-deployed apps, not a merged single codebase, until a domain 
 gets rebuilt natively like Training Reservations and Tournaments' 

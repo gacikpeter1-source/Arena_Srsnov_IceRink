@@ -5,21 +5,26 @@ import { Input } from './ui/input'
 
 interface TournamentBracketViewProps {
   matches: (TournamentMatch & { id: string })[]
-  scoreInputs: Record<string, { a: string; b: string }>
-  onScoreChange: (matchId: string, side: 'a' | 'b', value: string) => void
-  onSaveResult: (match: TournamentMatch & { id: string }) => void
-  savingMatchId: string | null
+  // Omit all four when readOnly — the public /turnaje schedule page shows
+  // the same bracket shape with no score-entry UI at all, never a login
+  // requirement (customers/parents have no way to record a result).
+  readOnly?: boolean
+  scoreInputs?: Record<string, { a: string; b: string }>
+  onScoreChange?: (matchId: string, side: 'a' | 'b', value: string) => void
+  onSaveResult?: (match: TournamentMatch & { id: string }) => void
+  savingMatchId?: string | null
 }
 
 /**
  * Live knockout bracket, grouped by round with a score-entry row on any
  * match where both teams are known and no result is recorded yet —
- * shared by TournamentKnockoutGenerator (a standalone "pavúk") and
- * TournamentGroupsGenerator's play-off stage (Fáza D), since both produce
- * the exact same bracket shape via buildKnockoutPreview/
- * createKnockoutBracket, just tagged with a different `schema`.
+ * shared by TournamentKnockoutGenerator (a standalone "pavúk"),
+ * TournamentGroupsGenerator's play-off stage (Fáza D), and the public
+ * TournamentSchedulePage (read-only), since all three show the exact same
+ * bracket shape via buildKnockoutPreview/createKnockoutBracket, just
+ * tagged with a different `schema`.
  */
-export default function TournamentBracketView({ matches, scoreInputs, onScoreChange, onSaveResult, savingMatchId }: TournamentBracketViewProps) {
+export default function TournamentBracketView({ matches, readOnly, scoreInputs, onScoreChange, onSaveResult, savingMatchId }: TournamentBracketViewProps) {
   const { t } = useTranslation()
   const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
   matches.forEach((m) => {
@@ -39,7 +44,7 @@ export default function TournamentBracketView({ matches, scoreInputs, onScoreCha
             .sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0))
             .map((m) => {
               const decided = !!m.winnerTeamId
-              const playable = !m.isBye && !decided && !!m.teamAId && !!m.teamBId
+              const playable = !readOnly && !m.isBye && !decided && !!m.teamAId && !!m.teamBId
               return (
                 <div key={m.id} className="p-2 rounded border border-border space-y-2">
                   <div className="flex justify-between items-center flex-wrap gap-2">
@@ -54,12 +59,12 @@ export default function TournamentBracketView({ matches, scoreInputs, onScoreCha
                     )}
                     {!m.isBye && !decided && m.startTime && <span className="text-text-muted text-xs">{m.startTime}</span>}
                   </div>
-                  {playable && (
+                  {playable && onScoreChange && onSaveResult && (
                     <div className="flex items-center gap-2">
                       <Input
                         type="number"
                         min={0}
-                        value={scoreInputs[m.id]?.a ?? ''}
+                        value={scoreInputs?.[m.id]?.a ?? ''}
                         onChange={(e) => onScoreChange(m.id, 'a', e.target.value)}
                         className="bg-background-dark border-border text-white w-16 h-8"
                       />
@@ -67,7 +72,7 @@ export default function TournamentBracketView({ matches, scoreInputs, onScoreCha
                       <Input
                         type="number"
                         min={0}
-                        value={scoreInputs[m.id]?.b ?? ''}
+                        value={scoreInputs?.[m.id]?.b ?? ''}
                         onChange={(e) => onScoreChange(m.id, 'b', e.target.value)}
                         className="bg-background-dark border-border text-white w-16 h-8"
                       />
