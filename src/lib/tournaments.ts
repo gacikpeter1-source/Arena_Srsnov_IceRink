@@ -109,6 +109,15 @@ export async function setTeamSeedOrder(teamIdsInOrder: string[]): Promise<void> 
   await Promise.all(teamIdsInOrder.map((id, i) => updateDoc(doc(db, 'tournamentTeams', id), { seed: i + 1 })))
 }
 
+/**
+ * Persists a Fáza D "groups + play-off" group assignment onto each team's
+ * `groupId` — called at group-stage generation time, same "only written
+ * once the trainer actually commits" timing setTeamSeedOrder already uses.
+ */
+export async function setTeamGroups(assignments: { id: string; groupId: string }[]): Promise<void> {
+  await Promise.all(assignments.map(({ id, groupId }) => updateDoc(doc(db, 'tournamentTeams', id), { groupId })))
+}
+
 export interface CreateTournamentMatchInput {
   tournamentId: string
   clubId: string
@@ -124,7 +133,9 @@ export interface CreateTournamentMatchInput {
   // Which generated time-slot this belongs to — see TournamentMatch.round.
   round?: number
   // See TournamentMatch.schema — unset for a manually-added match.
-  schema?: 'roundRobin' | 'knockout'
+  schema?: 'roundRobin' | 'knockout' | 'groups' | 'groupsPlayoff'
+  // See TournamentMatch.groupId — only set for a 'groups' schema match.
+  groupId?: string
   format: DivisionMode
   location: 'rink' | 'other'
   // Required when location === 'rink'.
@@ -178,6 +189,7 @@ export async function createTournamentMatch(input: CreateTournamentMatchInput): 
     ...(input.teamBId ? { teamBId: input.teamBId } : {}),
     ...(input.round != null ? { round: input.round } : {}),
     ...(input.schema ? { schema: input.schema } : {}),
+    ...(input.groupId ? { groupId: input.groupId } : {}),
     format: input.format,
     location: input.location,
     ...(input.location === 'rink' ? { rinkId: input.rinkId, zoneId: input.zoneId } : {}),
@@ -346,6 +358,204 @@ export async function createRoundRobinSchedule(input: CreateRoundRobinScheduleIn
     }
   }
   return created
+}
+
+// ---------------------------------------------------------------------
+// Groups + play-off schedule generation (Fáza D) — teams are split into
+// lettered groups, each group plays its own round-robin (reusing
+// circleMethodRounds), then the top finishers from each group feed into a
+// knockout bracket via the existing buildKnockoutPreview/
+// createKnockoutBracket (tagged schema: 'groupsPlayoff' instead of
+// 'knockout' so the two brackets never mix in a UI that shows both). See
+// CLAUDE.md's "Tournaments" section for the full design rationale.
+// ---------------------------------------------------------------------
+
+export interface GroupsPreviewPair {
+  groupId: string
+  groupName: string
+  teamAId: string
+  teamAName: string
+  teamBId: string
+  teamBName: string
+}
+
+export interface GroupsPreviewSlot {
+  index: number
+  startTime: string
+  pairs: GroupsPreviewPair[]
+}
+
+export interface GroupsPreview {
+  slots: GroupsPreviewSlot[]
+  totalMatches: number
+  groups: { id: string; name: string; teamCount: number }[]
+}
+
+/**
+ * Builds every group's own round-robin schedule and interleaves them into
+ * shared time slots. Since groups partition the teams, two pairs from
+ * *different* groups never share a team — so unlike a single round-robin's
+ * chunking (which must never cross that one bracket's round boundary), any
+ * pair from any group's next unscheduled round can safely share a slot
+ * with any other group's, which is what lets groups of different sizes
+ * finish their own rounds independently without leaving zones idle. Pure/
+ * Firestore-free, mirroring buildRoundRobinPreview/buildKnockoutPreview so
+ * the UI can recompute it live.
+ */
+export function buildGroupsPreview(
+  groups: { id: string; name: string; teams: { id: string; name: string }[] }[],
+  matchesPerSlot: number,
+  startTime: string,
+  durationMinutes: number,
+  defaultBreakMinutes: number,
+  gapOverrides: Record<number, number> = {}
+): GroupsPreview {
+  const perGroupRounds = groups.map((g) => ({ group: g, rounds: circleMethodRounds(g.teams.map((t) => t.id)) }))
+  const maxRounds = Math.max(0, ...perGroupRounds.map((g) => g.rounds.length))
+  const nameById = new Map(groups.flatMap((g) => g.teams.map((t) => [t.id, t.name] as const)))
+  const slots: GroupsPreviewSlot[] = []
+  let cursorMinutes = timeToMinutes(startTime)
+  let totalMatches = 0
+
+  for (let r = 0; r < maxRounds; r++) {
+    const pairsThisRound: GroupsPreviewPair[] = []
+    for (const { group, rounds } of perGroupRounds) {
+      if (r >= rounds.length) continue
+      const realPairs = rounds[r].filter(([a, b]) => a && b) as [string, string][]
+      for (const [a, b] of realPairs) {
+        pairsThisRound.push({ groupId: group.id, groupName: group.name, teamAId: a, teamAName: nameById.get(a) ?? '', teamBId: b, teamBName: nameById.get(b) ?? '' })
+      }
+    }
+    for (let i = 0; i < pairsThisRound.length; i += Math.max(1, matchesPerSlot)) {
+      const chunk = pairsThisRound.slice(i, i + Math.max(1, matchesPerSlot))
+      const slotIndex = slots.length
+      slots.push({ index: slotIndex, startTime: minutesToTime(cursorMinutes), pairs: chunk })
+      totalMatches += chunk.length
+      cursorMinutes += durationMinutes + (gapOverrides[slotIndex] ?? defaultBreakMinutes)
+    }
+  }
+
+  return { slots, totalMatches, groups: groups.map((g) => ({ id: g.id, name: g.name, teamCount: g.teams.length })) }
+}
+
+export interface CreateGroupsScheduleInput {
+  tournamentId: string
+  clubId: string
+  date: string
+  rinkId: string
+  zoneIds: string[]
+  format: DivisionMode
+  durationMinutes: number
+  blocksIce: boolean
+  createdBy: string
+  bookingContact?: { name: string; email: string; phone: string; timezone: string }
+  preview: GroupsPreview
+}
+
+/** Writes every match in a generated groups preview, one createTournamentMatch call per pair. */
+export async function createGroupsSchedule(input: CreateGroupsScheduleInput): Promise<number> {
+  let created = 0
+  for (const slot of input.preview.slots) {
+    for (let zoneIdx = 0; zoneIdx < slot.pairs.length; zoneIdx++) {
+      const pair = slot.pairs[zoneIdx]
+      await createTournamentMatch({
+        tournamentId: input.tournamentId,
+        clubId: input.clubId,
+        date: input.date,
+        startTime: slot.startTime,
+        durationMinutes: input.durationMinutes,
+        teamA: pair.teamAName,
+        teamB: pair.teamBName,
+        teamAId: pair.teamAId,
+        teamBId: pair.teamBId,
+        round: slot.index,
+        schema: 'groups',
+        groupId: pair.groupId,
+        format: input.format,
+        location: 'rink',
+        rinkId: input.rinkId,
+        zoneId: input.zoneIds[zoneIdx],
+        blocksIce: input.blocksIce,
+        createdBy: input.createdBy,
+        ...(input.blocksIce ? { bookingContact: input.bookingContact } : {})
+      })
+      created++
+    }
+  }
+  return created
+}
+
+export interface GroupStandingRow {
+  teamId: string
+  teamName: string
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  goalsFor: number
+  goalsAgainst: number
+  goalDiff: number
+  points: number
+}
+
+/**
+ * Standard 3/1/0 points table (win/draw/loss), sorted by points, then goal
+ * difference, then goals scored, then name. Unlike a knockout match, a
+ * group match is allowed to end in a draw (see setGroupMatchResult) — only
+ * matches with both scores actually recorded count towards the table, so
+ * an in-progress group's standings are simply computed from whatever
+ * results exist so far.
+ */
+export function computeGroupStandings(
+  teams: { id: string; name: string }[],
+  matches: Pick<TournamentMatch, 'teamAId' | 'teamBId' | 'scoreA' | 'scoreB'>[]
+): GroupStandingRow[] {
+  const rows = new Map<string, GroupStandingRow>(
+    teams.map((t) => [t.id, { teamId: t.id, teamName: t.name, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 }])
+  )
+  for (const m of matches) {
+    if (!m.teamAId || !m.teamBId || m.scoreA == null || m.scoreB == null) continue
+    const a = rows.get(m.teamAId)
+    const b = rows.get(m.teamBId)
+    if (!a || !b) continue
+    a.played++
+    b.played++
+    a.goalsFor += m.scoreA
+    a.goalsAgainst += m.scoreB
+    b.goalsFor += m.scoreB
+    b.goalsAgainst += m.scoreA
+    if (m.scoreA > m.scoreB) {
+      a.wins++
+      a.points += 3
+      b.losses++
+    } else if (m.scoreA < m.scoreB) {
+      b.wins++
+      b.points += 3
+      a.losses++
+    } else {
+      a.draws++
+      b.draws++
+      a.points += 1
+      b.points += 1
+    }
+  }
+  const result = Array.from(rows.values())
+  result.forEach((r) => {
+    r.goalDiff = r.goalsFor - r.goalsAgainst
+  })
+  result.sort((x, y) => y.points - x.points || y.goalDiff - x.goalDiff || y.goalsFor - x.goalsFor || x.teamName.localeCompare(y.teamName))
+  return result
+}
+
+/**
+ * Records a group-stage match's result — unlike setTournamentMatchResult,
+ * a draw is valid (group standings have a points column for exactly this)
+ * and there's no nextMatchId to auto-advance into, since which teams
+ * advance to the play-off is a separate explicit trainer action once the
+ * whole group is done.
+ */
+export async function setGroupMatchResult(matchId: string, scoreA: number, scoreB: number): Promise<void> {
+  await updateDoc(doc(db, 'tournamentMatches', matchId), { scoreA, scoreB })
 }
 
 // ---------------------------------------------------------------------
@@ -527,6 +737,11 @@ export interface CreateKnockoutBracketInput {
   // i18n-free; the resolved string is what actually gets persisted onto
   // TournamentMatch.teamA/teamB, same as any other free-text match name.
   resolvePlaceholder: (matchNumber: number) => string
+  // 'groupsPlayoff' for Fáza D's play-off stage (fed by group standings
+  // rather than the raw team roster) so it never mixes with a standalone
+  // 'knockout' bracket in the UI that lists each separately. Defaults to
+  // 'knockout'.
+  schema?: 'knockout' | 'groupsPlayoff'
 }
 
 /**
@@ -583,7 +798,7 @@ export async function createKnockoutBracket(input: CreateKnockoutBracketInput): 
         ...(teamBKnown ? { teamBId: m.teamB.id } : {}),
         matchNumber: m.matchNumber,
         round: m.round,
-        schema: 'knockout',
+        schema: input.schema ?? 'knockout',
         isBye: m.isBye,
         ...(m.isBye ? { winnerTeamId: (teamAKnown ? m.teamA.id : m.teamB.id) as string } : {}),
         format: input.format,

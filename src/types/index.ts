@@ -470,6 +470,10 @@ export interface TournamentTeam {
   // Manual seeding order (1-based) for bracket/group draw — unset until
   // a later phase's seeding UI sets it; random draw doesn't need it.
   seed?: number
+  // Fáza D group-stage label (e.g. "A", "B") — set by setTeamGroups when a
+  // trainer generates a "groups + play-off" schedule; unset for a
+  // tournament using round-robin or knockout alone.
+  groupId?: string
   createdAt: Date
 }
 
@@ -496,10 +500,16 @@ export interface TournamentMatch {
   // grouping, not for any advancement logic.
   round?: number
   // Which generation algorithm produced this match — lets a tournament
-  // that later combines schemas (e.g. Fáza D's groups + playoff) tell its
-  // round-robin group-stage matches apart from its knockout matches.
+  // that combines schemas (Fáza D's groups + playoff) tell its group-stage
+  // matches ('groups') apart from its playoff bracket ('groupsPlayoff'),
+  // and both apart from a standalone 'roundRobin'/'knockout' tournament.
   // Unset for a manually-added free-text match.
-  schema?: 'roundRobin' | 'knockout'
+  schema?: 'roundRobin' | 'knockout' | 'groups' | 'groupsPlayoff'
+  // Fáza D only — which group ("A", "B", ...) this match's pair belongs
+  // to. Set only when schema === 'groups'; a 'groupsPlayoff' match has no
+  // group of its own since it mixes teams that advanced from different
+  // groups.
+  groupId?: string
   // Stable 1-based identifier within the bracket, assigned at generation
   // time in bracket-position order — used for "Winner of Match #N"
   // placeholder labels on a later round's not-yet-decided slot. Knockout
