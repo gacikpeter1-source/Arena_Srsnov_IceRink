@@ -111,6 +111,31 @@ export async function deleteTournamentTeam(teamId: string): Promise<void> {
 }
 
 /**
+ * Writes a whole team roster in one go — used by TournamentCreatePage.tsx's
+ * setup wizard, where every team name is collected in local component
+ * state (no `tournamentId` exists yet to write against) and only handed
+ * to Firestore once, right after the tournament document itself is
+ * created. Skips the per-name duplicate-name check createTournamentTeam
+ * does, since the wizard already enforces uniqueness against its own
+ * local list before this is ever called. Returns the created docs in the
+ * same order as `names`, so the caller can line seed/group assignments
+ * (built against local placeholder ids) back up with the real ones.
+ */
+export async function createTournamentTeamsBatch(
+  tournamentId: string,
+  clubId: string,
+  names: string[]
+): Promise<(TournamentTeam & { id: string })[]> {
+  const created: (TournamentTeam & { id: string })[] = []
+  for (const name of names) {
+    const ref = doc(collection(db, 'tournamentTeams'))
+    await setDoc(ref, { tournamentId, clubId, name, createdAt: serverTimestamp() })
+    created.push({ id: ref.id, tournamentId, clubId, name, createdAt: new Date() })
+  }
+  return created
+}
+
+/**
  * Persists the trainer's chosen draw order (random shuffle or manual
  * reordering) onto each team's `seed` field, 1-based — so a later visit
  * (and a future bracket-seeding phase) can pick up the same order rather
@@ -325,12 +350,23 @@ export function buildRoundRobinPreview(
   return { slots, totalMatches }
 }
 
+// A generated schedule's "zone index within a slot" (0, 1, 2, ...) needs
+// to resolve to a real rink + zone at write time. Once a tournament could
+// span more than one physical rink at once (see CLAUDE.md's "Multiple
+// rinks" section), that resolution can no longer assume every zone
+// belongs to the same rink — so every create*Schedule/createKnockoutBracket
+// input takes a slotIndex-ordered list of (rinkId, zoneId) pairs instead
+// of a single rinkId + a zoneIds array.
+export interface ScheduleSlotLocation {
+  rinkId: string
+  zoneId: string
+}
+
 export interface CreateRoundRobinScheduleInput {
   tournamentId: string
   clubId: string
   date: string
-  rinkId: string
-  zoneIds: string[] // slotIndex-ordered zone ids for the chosen format — index 0 hosts each slot's first pair, etc.
+  slotLocations: ScheduleSlotLocation[] // slotIndex-ordered — index 0 hosts each slot's first pair, etc.
   format: DivisionMode
   durationMinutes: number
   blocksIce: boolean
@@ -345,6 +381,7 @@ export async function createRoundRobinSchedule(input: CreateRoundRobinScheduleIn
   for (const slot of input.preview.slots) {
     for (let zoneIdx = 0; zoneIdx < slot.pairs.length; zoneIdx++) {
       const pair = slot.pairs[zoneIdx]
+      const location = input.slotLocations[zoneIdx]
       await createTournamentMatch({
         tournamentId: input.tournamentId,
         clubId: input.clubId,
@@ -359,8 +396,8 @@ export async function createRoundRobinSchedule(input: CreateRoundRobinScheduleIn
         schema: 'roundRobin',
         format: input.format,
         location: 'rink',
-        rinkId: input.rinkId,
-        zoneId: input.zoneIds[zoneIdx],
+        rinkId: location.rinkId,
+        zoneId: location.zoneId,
         blocksIce: input.blocksIce,
         createdBy: input.createdBy,
         ...(input.blocksIce ? { bookingContact: input.bookingContact } : {})
@@ -453,8 +490,7 @@ export interface CreateGroupsScheduleInput {
   tournamentId: string
   clubId: string
   date: string
-  rinkId: string
-  zoneIds: string[]
+  slotLocations: ScheduleSlotLocation[]
   format: DivisionMode
   durationMinutes: number
   blocksIce: boolean
@@ -469,6 +505,7 @@ export async function createGroupsSchedule(input: CreateGroupsScheduleInput): Pr
   for (const slot of input.preview.slots) {
     for (let zoneIdx = 0; zoneIdx < slot.pairs.length; zoneIdx++) {
       const pair = slot.pairs[zoneIdx]
+      const location = input.slotLocations[zoneIdx]
       await createTournamentMatch({
         tournamentId: input.tournamentId,
         clubId: input.clubId,
@@ -484,8 +521,8 @@ export async function createGroupsSchedule(input: CreateGroupsScheduleInput): Pr
         groupId: pair.groupId,
         format: input.format,
         location: 'rink',
-        rinkId: input.rinkId,
-        zoneId: input.zoneIds[zoneIdx],
+        rinkId: location.rinkId,
+        zoneId: location.zoneId,
         blocksIce: input.blocksIce,
         createdBy: input.createdBy,
         ...(input.blocksIce ? { bookingContact: input.bookingContact } : {})
@@ -795,8 +832,7 @@ export interface CreateKnockoutBracketInput {
   tournamentId: string
   clubId: string
   date: string
-  rinkId: string
-  zoneIds: string[] // slotIndex-ordered zone ids for the chosen format
+  slotLocations: ScheduleSlotLocation[] // slotIndex-ordered
   format: DivisionMode
   durationMinutes: number
   blocksIce: boolean
@@ -839,13 +875,15 @@ export async function createKnockoutBracket(input: CreateKnockoutBracketInput): 
       const teamAName = m.teamA.name ?? input.resolvePlaceholder(m.matchNumber)
       const teamBName = m.teamB.name ?? input.resolvePlaceholder(m.matchNumber)
 
+      const location = m.zoneIndex != null ? input.slotLocations[m.zoneIndex] : undefined
+
       let bookingId: string | undefined
-      const shouldBlock = input.blocksIce && !m.isBye && teamAKnown && teamBKnown && m.startTime && m.zoneIndex != null
+      const shouldBlock = input.blocksIce && !m.isBye && teamAKnown && teamBKnown && m.startTime && location
       if (shouldBlock && input.bookingContact) {
         const createdBooking = await createBooking({
           clubId: input.clubId,
-          rinkId: input.rinkId,
-          zoneId: input.zoneIds[m.zoneIndex!],
+          rinkId: location!.rinkId,
+          zoneId: location!.zoneId,
           date: input.date,
           startTime: m.startTime!,
           durationMinutes: input.durationMinutes,
@@ -874,7 +912,7 @@ export async function createKnockoutBracket(input: CreateKnockoutBracketInput): 
         ...(m.isBye ? { winnerTeamId: (teamAKnown ? m.teamA.id : m.teamB.id) as string } : {}),
         format: input.format,
         location: 'rink',
-        ...(!m.isBye && m.zoneIndex != null ? { rinkId: input.rinkId, zoneId: input.zoneIds[m.zoneIndex] } : {}),
+        ...(!m.isBye && location ? { rinkId: location.rinkId, zoneId: location.zoneId } : {}),
         blocksIce: !!bookingId,
         ...(bookingId ? { bookingId } : {}),
         ...(nextRef ? { nextMatchId: nextRef.id, nextMatchSlot } : {}),

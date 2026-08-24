@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { TournamentMatch } from '@/types'
+import { Rink, TournamentMatch, Zone } from '@/types'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 
 interface TournamentBracketViewProps {
   matches: (TournamentMatch & { id: string })[]
+  rinks: Rink[]
+  zones: Zone[]
   // Omit all four when readOnly — the public /turnaje schedule page shows
   // the same bracket shape with no score-entry UI at all, never a login
   // requirement (customers/parents have no way to record a result).
@@ -24,7 +26,7 @@ interface TournamentBracketViewProps {
  * bracket shape via buildKnockoutPreview/createKnockoutBracket, just
  * tagged with a different `schema`.
  */
-export default function TournamentBracketView({ matches, readOnly, scoreInputs, onScoreChange, onSaveResult, savingMatchId }: TournamentBracketViewProps) {
+export default function TournamentBracketView({ matches, rinks, zones, readOnly, scoreInputs, onScoreChange, onSaveResult, savingMatchId }: TournamentBracketViewProps) {
   const { t } = useTranslation()
   const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
   matches.forEach((m) => {
@@ -65,6 +67,11 @@ export default function TournamentBracketView({ matches, readOnly, scoreInputs, 
                     )}
                     {!m.isBye && !decided && m.status !== 'live' && m.startTime && <span className="text-text-muted text-xs">{m.startTime}</span>}
                   </div>
+                  {!m.isBye && m.rinkId && (
+                    <p className="text-text-muted text-xs">
+                      {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                    </p>
+                  )}
                   {playable && onScoreChange && onSaveResult && (
                     <div className="flex items-center gap-2">
                       <Input

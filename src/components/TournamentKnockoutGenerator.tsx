@@ -9,7 +9,8 @@ import {
   buildKnockoutPreview,
   createKnockoutBracket,
   setTournamentMatchResult,
-  KnockoutDrawError
+  KnockoutDrawError,
+  ScheduleSlotLocation
 } from '@/lib/tournaments'
 import { formatDateISO } from '@/lib/utils'
 import { Club, DivisionMode, Rink, TournamentMatch, TournamentTeam, Zone } from '@/types'
@@ -47,7 +48,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
   const [matches, setMatches] = useState<(TournamentMatch & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [rinkId, setRinkId] = useState('')
+  const [rinkIds, setRinkIds] = useState<string[]>([])
   const [format, setFormat] = useState<DivisionMode>('full')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('09:00')
@@ -79,13 +80,19 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
   useEffect(refresh, [tournamentId])
 
   useEffect(() => {
-    if (activeRinks.length && !rinkId) setRinkId(activeRinks[0].id)
+    if (activeRinks.length && rinkIds.length === 0) setRinkIds([activeRinks[0].id])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRinks])
 
-  const zonesForSelection = rinkId
-    ? zones.filter((z) => z.rinkId === rinkId && z.mode === format).sort((a, b) => a.slotIndex - b.slotIndex)
-    : []
+  const toggleRink = (id: string) => {
+    setRinkIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]))
+  }
+
+  const zonesForSelection = activeRinks
+    .filter((r) => rinkIds.includes(r.id))
+    .flatMap((r) => zones.filter((z) => z.rinkId === r.id && z.mode === format).sort((a, b) => a.slotIndex - b.slotIndex))
+  const slotLocations: ScheduleSlotLocation[] = zonesForSelection.map((z) => ({ rinkId: z.rinkId, zoneId: z.id }))
+  const rinkNameById = new Map(activeRinks.map((r) => [r.id, r.name]))
   const nameById = new Map(teams.map((tm) => [tm.id, tm.name]))
   const orderedTeams = order.map((id) => ({ id, name: nameById.get(id) ?? '' })).filter((tm) => tm.name)
   const orderedIds = orderedTeams.map((tm) => tm.id).join(',')
@@ -118,7 +125,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
   }
 
   const handleGenerate = async () => {
-    if (!preview || !rinkId || !user || !staff) return
+    if (!preview || rinkIds.length === 0 || !user || !staff) return
     setGenerating(true)
     setErrorMessage(null)
     try {
@@ -127,8 +134,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
         tournamentId,
         clubId: club.id,
         date,
-        rinkId,
-        zoneIds: zonesForSelection.map((z) => z.id),
+        slotLocations,
         format,
         durationMinutes,
         blocksIce,
@@ -192,6 +198,8 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
           {errorMessage && <p className="text-status-danger text-sm">{errorMessage}</p>}
           <TournamentBracketView
             matches={matches}
+            rinks={rinks}
+            zones={zones}
             scoreInputs={scoreInputs}
             onScoreChange={handleScoreChange}
             onSaveResult={handleSaveResult}
@@ -238,15 +246,19 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <Label className="text-white">{t('tournaments.rink')}</Label>
-                <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
-                  {activeRinks.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
+            <div className="space-y-1">
+              <Label className="text-white">{t('tournaments.rinks')}</Label>
+              <div className="flex flex-wrap gap-3">
+                {activeRinks.map((r) => (
+                  <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
+                    <input type="checkbox" checked={rinkIds.includes(r.id)} onChange={() => toggleRink(r.id)} className="h-4 w-4" />
+                    {r.name}
+                  </label>
+                ))}
               </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <Label className="text-white">{t('tournaments.format')}</Label>
                 <select value={format} onChange={(e) => setFormat(e.target.value as DivisionMode)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
@@ -308,6 +320,11 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
                           {m.teamB.name ?? t('tournaments.winnerOfMatch', { n: m.matchNumber })}
                         </span>
                         {m.isBye && <span className="text-text-muted text-xs">({t('tournaments.byeLabel')})</span>}
+                        {!m.isBye && m.zoneIndex != null && zonesForSelection[m.zoneIndex] && (
+                          <span className="text-text-muted text-xs">
+                            ({rinkNameById.get(zonesForSelection[m.zoneIndex].rinkId) ?? ''} — {zonesForSelection[m.zoneIndex].name})
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -337,7 +354,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
 
             {errorMessage && <p className="text-status-danger text-sm">{errorMessage}</p>}
 
-            <Button type="button" onClick={handleGenerate} disabled={!preview || generating} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+            <Button type="button" onClick={handleGenerate} disabled={!preview || rinkIds.length === 0 || generating} className="bg-primary hover:bg-primary-gold text-primary-foreground">
               {generating ? t('common.saving') : t('tournaments.generateKnockout')}
             </Button>
           </>

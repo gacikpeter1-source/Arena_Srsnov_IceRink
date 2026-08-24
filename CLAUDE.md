@@ -1317,6 +1317,39 @@ a dashed border for byes, and a pulsing ring around a live match's whole
 box (not just its score line) so it stands out at a glance across a
 crowded bracket.
 
+**A tournament's schedule can now span more than one physical rink at
+once.** All three generators (round-robin, knockout, groups' own
+group-stage AND play-off pickers) switched their rink `<select>` to a
+checkbox list — any subset of the club's active rinks — since this club
+runs two ("Main Hall"/"Small Hall", see the "Multiple rinks" section).
+Picking e.g. "half" ice on both rinks gives 4 simultaneous zones instead
+of 2, exactly like combining zones on a single rink already did.
+
+This needed a real signature change, not just a UI tweak:
+`CreateRoundRobinScheduleInput`/`CreateKnockoutBracketInput`/
+`CreateGroupsScheduleInput` (`lib/tournaments.ts`) previously took one
+shared `rinkId` plus a `zoneIds` array, silently assuming every zone
+belonged to that one rink — which stops being true once zones can come
+from different rinks. They now take `slotLocations:
+{rinkId, zoneId}[]`, built by the UI as `zonesForSelection.flatMap(...)`
+across every checked rink (rink first, then that rink's own zones in
+`slotIndex` order) so `slotLocations[i]` always names the right rink for
+`preview`'s `i`-th parallel pair. The pure preview functions
+(`buildRoundRobinPreview`/`buildKnockoutPreview`/`buildGroupsPreview`)
+didn't need to change at all — they only ever dealt with an abstract
+"how many parallel slots" count, never which rink a slot belongs to, so
+rink resolution stays entirely a write-time (and display-time) concern.
+
+**Every match now shows which rink/zone it's on, not just staff-side
+tools that already did.** `TournamentBracketView` (admin) and the new
+`TournamentBracketDiagram` (public) both gained required `rinks`/`zones`
+props for exactly this. The public `/turnaje` page's round-robin and
+per-group sections went from showing only the aggregate standings table
+back to also listing each individual match (with its rink) underneath —
+an unintended regression from the "modernize the visuals" pass that
+this restores, since a spectator screen needs to say not just who's
+winning but where to find the actual game.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
