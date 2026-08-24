@@ -491,7 +491,18 @@
     "semifinalLabel": "Semifinal",
     "quarterfinalLabel": "Quarterfinal",
     "roundOf16Label": "Round of 16",
-    "standingsTitle": "Standings"
+    "standingsTitle": "Standings",
+    "schema": "Tournament system",
+    "schemaOption": {
+      "roundRobin": "Round-robin",
+      "knockout": "Knockout bracket",
+      "groups": "Groups + play-off"
+    },
+    "schemaOptionDesc": {
+      "roundRobin": "Every team plays every other team — works well with fewer teams, final standings come from the running table.",
+      "knockout": "A loss means elimination — teams advance through a seeded bracket to the final, with byes where needed.",
+      "groups": "A group stage first (tables), then the top finishers from each group advance into a knockout bracket."
+    }
   },
   "trainingEmail": {
     "trainer": "Trainer",

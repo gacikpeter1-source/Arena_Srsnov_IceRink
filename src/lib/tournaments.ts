@@ -19,6 +19,7 @@ export interface CreateTournamentInput {
   createdBy: string
   createdByName: string
   pointsForWin: number
+  format: 'roundRobin' | 'knockout' | 'groups'
 }
 
 export async function createTournament(input: CreateTournamentInput): Promise<string> {
@@ -29,6 +30,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<st
     createdBy: input.createdBy,
     createdByName: input.createdByName,
     pointsForWin: input.pointsForWin,
+    format: input.format,
     createdAt: serverTimestamp()
   })
   return ref.id

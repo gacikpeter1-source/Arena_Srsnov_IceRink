@@ -10,7 +10,26 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BackButton from '@/components/BackButton'
 
-/** Standalone creation step at /admin/turnaje/novy — on submit, jumps straight into the new tournament's own management page. */
+type TournamentFormat = 'roundRobin' | 'knockout' | 'groups'
+
+const FORMAT_OPTIONS: { value: TournamentFormat; labelKey: string; descKey: string }[] = [
+  { value: 'roundRobin', labelKey: 'tournaments.schemaOption.roundRobin', descKey: 'tournaments.schemaOptionDesc.roundRobin' },
+  { value: 'knockout', labelKey: 'tournaments.schemaOption.knockout', descKey: 'tournaments.schemaOptionDesc.knockout' },
+  { value: 'groups', labelKey: 'tournaments.schemaOption.groups', descKey: 'tournaments.schemaOptionDesc.groups' }
+]
+
+/**
+ * Standalone creation step at /admin/turnaje/novy — name, points-for-win,
+ * and a single-choice tournament system (round-robin/knockout/groups),
+ * ending in one unambiguous "Vytvoriť turnaj" button. The chosen system
+ * is what lets TournamentDetailPage.tsx show only the one relevant
+ * generator afterward instead of all three at once — see CLAUDE.md's
+ * "Tournaments" section for the full rationale (an owner found the old
+ * "create with just a name, decide the system later" flow confusing,
+ * since landing on a page with three generators plus every other tool
+ * looked like more setup was still pending rather than a tournament that
+ * already existed).
+ */
 export default function TournamentCreatePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -18,6 +37,7 @@ export default function TournamentCreatePage() {
   const { club } = useClubData()
   const [name, setName] = useState('')
   const [pointsForWin, setPointsForWin] = useState(3)
+  const [format, setFormat] = useState<TournamentFormat>('roundRobin')
   const [creating, setCreating] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,7 +50,8 @@ export default function TournamentCreatePage() {
         name: name.trim(),
         createdBy: user.uid,
         createdByName: staff.name,
-        pointsForWin: Math.max(1, pointsForWin)
+        pointsForWin: Math.max(1, pointsForWin),
+        format
       })
       navigate(`/admin/turnaje/${id}`)
     } finally {
@@ -63,6 +84,24 @@ export default function TournamentCreatePage() {
                 className="bg-background-dark border-border text-white w-24"
               />
               <p className="text-text-muted text-xs mt-1">{t('tournaments.pointsForWinHint')}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-white">{t('tournaments.schema')}</Label>
+              <div className="space-y-2">
+                {FORMAT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setFormat(opt.value)}
+                    className={`w-full text-left p-3 rounded-md border transition-colors ${
+                      format === opt.value ? 'border-primary bg-primary/10' : 'border-border bg-background-dark hover:border-primary/50'
+                    }`}
+                  >
+                    <p className={`font-medium ${format === opt.value ? 'text-primary' : 'text-white'}`}>{t(opt.labelKey)}</p>
+                    <p className="text-text-muted text-xs mt-0.5">{t(opt.descKey)}</p>
+                  </button>
+                ))}
+              </div>
             </div>
             <Button type="submit" disabled={creating || !name.trim()} className="bg-primary hover:bg-primary-gold text-primary-foreground">
               {creating ? t('common.saving') : t('tournaments.createTournament')}

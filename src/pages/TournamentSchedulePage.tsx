@@ -7,6 +7,7 @@ import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, derive
 import { Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import TournamentBracketDiagram from '@/components/TournamentBracketDiagram'
+import TournamentStandingsTable from '@/components/TournamentStandingsTable'
 import BackButton from '@/components/BackButton'
 
 const POLL_MS = 6000
@@ -218,30 +219,7 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.standingsTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                        <thead>
-                          <tr className="text-text-muted">
-                            <th className="py-1 pr-2">{t('tournaments.standingsTeam')}</th>
-                            <th className="px-2 text-center">{t('tournaments.standingsTotalMatches')}</th>
-                            <th className="px-2 text-center">{t('tournaments.standingsPlayedShort')}</th>
-                            <th className="px-2 text-center">{t('tournaments.standingsGoals')}</th>
-                            <th className="px-2 text-center">{t('tournaments.standingsPoints')}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {roundRobinStandings.map((row) => (
-                            <tr key={row.teamId}>
-                              <td className="py-1.5 pr-2 text-white">{row.teamName}</td>
-                              <td className="px-2 text-center text-white">{row.totalMatches}</td>
-                              <td className="px-2 text-center text-white">{row.played}</td>
-                              <td className="px-2 text-center text-white">{row.goalsFor}:{row.goalsAgainst}</td>
-                              <td className="px-2 text-center text-white font-semibold">{row.points}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <TournamentStandingsTable rows={roundRobinStandings} />
                   </CardContent>
                 </Card>
               )}
@@ -254,32 +232,9 @@ export default function TournamentSchedulePage() {
                   <CardContent>
                     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {groupIds.map((g) => (
-                        <div key={g} className="space-y-2 p-3 rounded border border-border">
+                        <div key={g} className="space-y-2">
                           <h3 className="text-white text-sm font-semibold">{t('tournaments.groupLabel', { name: g })}</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs text-left">
-                              <thead>
-                                <tr className="text-text-muted">
-                                  <th className="py-1 pr-2">{t('tournaments.standingsTeam')}</th>
-                                  <th className="px-1 text-center">{t('tournaments.standingsTotalMatches')}</th>
-                                  <th className="px-1 text-center">{t('tournaments.standingsPlayedShort')}</th>
-                                  <th className="px-1 text-center">{t('tournaments.standingsGoals')}</th>
-                                  <th className="px-1 text-center">{t('tournaments.standingsPoints')}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(standingsByGroup.get(g) ?? []).map((row) => (
-                                  <tr key={row.teamId}>
-                                    <td className="py-1 pr-2 text-white">{row.teamName}</td>
-                                    <td className="px-1 text-center text-white">{row.totalMatches}</td>
-                                    <td className="px-1 text-center text-white">{row.played}</td>
-                                    <td className="px-1 text-center text-white">{row.goalsFor}:{row.goalsAgainst}</td>
-                                    <td className="px-1 text-center text-white font-semibold">{row.points}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                          <TournamentStandingsTable rows={standingsByGroup.get(g) ?? []} />
                         </div>
                       ))}
                     </div>

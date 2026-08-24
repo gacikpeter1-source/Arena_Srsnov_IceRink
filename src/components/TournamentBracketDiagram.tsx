@@ -5,8 +5,9 @@ interface TournamentBracketDiagramProps {
   matches: (TournamentMatch & { id: string })[]
 }
 
-const BOX_HEIGHT_PX = 56
+const BOX_HEIGHT_PX = 60
 const BOX_GAP_PX = 16
+const COLUMN_WIDTH_PX = 208
 
 /**
  * A real elimination-bracket diagram — columns per round, each round's
@@ -55,10 +56,14 @@ export default function TournamentBracketDiagram({ matches }: TournamentBracketD
 
   return (
     <div className="overflow-x-auto pb-2">
-      <div className="flex gap-6" style={{ width: 'max-content' }}>
+      <div className="flex gap-8" style={{ width: 'max-content' }}>
         {roundNumbers.map((r, ri) => (
-          <div key={r} className="flex flex-col flex-shrink-0" style={{ width: 200 }}>
-            <h4 className="text-white text-xs font-semibold text-center mb-2">{roundName(ri)}</h4>
+          <div key={r} className="flex flex-col flex-shrink-0" style={{ width: COLUMN_WIDTH_PX }}>
+            <div className="flex justify-center mb-3">
+              <span className="px-3 py-1 rounded-full bg-background-dark border border-border text-text-secondary text-[11px] font-semibold uppercase tracking-wide">
+                {roundName(ri)}
+              </span>
+            </div>
             <div className="flex flex-col justify-around" style={{ height: columnHeight }}>
               {rounds
                 .get(r)!
@@ -69,33 +74,55 @@ export default function TournamentBracketDiagram({ matches }: TournamentBracketD
                   const aWinner = decided && m.winnerTeamId === m.teamAId
                   const bWinner = decided && m.winnerTeamId === m.teamBId
                   return (
-                    <div key={m.id} className="rounded border border-border bg-background-dark overflow-hidden text-sm" style={{ minHeight: BOX_HEIGHT_PX }}>
+                    <div
+                      key={m.id}
+                      className={`rounded-lg border overflow-hidden text-sm shadow-sm ${
+                        m.isBye ? 'border-dashed border-border/70 bg-transparent' : 'border-border bg-background-card'
+                      } ${live ? 'ring-1 ring-status-danger/60' : ''}`}
+                      style={{ minHeight: BOX_HEIGHT_PX }}
+                    >
                       {m.isBye ? (
-                        <div className="flex items-center justify-between px-2 py-1.5 text-text-secondary">
+                        <div className="flex items-center justify-between px-3 py-2 text-text-muted">
                           <span className="truncate">{aWinner ? m.teamA : m.teamB}</span>
-                          <span className="text-text-muted text-xs">{t('tournaments.byeLabel')}</span>
+                          <span className="text-[10px] uppercase tracking-wide">{t('tournaments.byeLabel')}</span>
                         </div>
                       ) : (
                         <>
-                          <div className={`flex items-center justify-between px-2 py-1 ${aWinner ? 'text-white font-semibold' : 'text-text-secondary'}`}>
+                          <div
+                            className={`flex items-center justify-between gap-2 px-3 py-1.5 border-l-2 ${
+                              aWinner ? 'border-primary bg-primary/10 text-white font-semibold' : 'border-transparent text-text-secondary'
+                            }`}
+                          >
                             <span className="truncate">{m.teamA}</span>
-                            <span>{decided || live ? m.scoreA ?? 0 : ''}</span>
+                            {(decided || live) && (
+                              <span className={`mono text-xs font-bold rounded px-1.5 ${aWinner ? 'bg-primary/20 text-primary' : 'text-text-muted'}`}>
+                                {m.scoreA ?? 0}
+                              </span>
+                            )}
                           </div>
                           <div className="border-t border-border" />
-                          <div className={`flex items-center justify-between px-2 py-1 ${bWinner ? 'text-white font-semibold' : 'text-text-secondary'}`}>
+                          <div
+                            className={`flex items-center justify-between gap-2 px-3 py-1.5 border-l-2 ${
+                              bWinner ? 'border-primary bg-primary/10 text-white font-semibold' : 'border-transparent text-text-secondary'
+                            }`}
+                          >
                             <span className="truncate">{m.teamB}</span>
-                            <span>{decided || live ? m.scoreB ?? 0 : ''}</span>
+                            {(decided || live) && (
+                              <span className={`mono text-xs font-bold rounded px-1.5 ${bWinner ? 'bg-primary/20 text-primary' : 'text-text-muted'}`}>
+                                {m.scoreB ?? 0}
+                              </span>
+                            )}
                           </div>
                         </>
                       )}
                       {live && (
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-status-danger/10 text-status-danger text-xs font-medium">
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-status-danger/10 text-status-danger text-[11px] font-semibold">
                           <span className="h-1.5 w-1.5 rounded-full bg-status-danger animate-pulse" />
                           {t('tournaments.liveNow')}
                         </div>
                       )}
                       {!decided && !live && !m.isBye && m.startTime && (
-                        <div className="px-2 py-0.5 text-text-muted text-xs">{m.startTime}</div>
+                        <div className="px-3 py-1 text-text-muted text-[11px]">{m.startTime}</div>
                       )}
                     </div>
                   )
