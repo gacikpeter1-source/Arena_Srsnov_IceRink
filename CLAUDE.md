@@ -1285,6 +1285,38 @@ club mixed formats. The flat "Iné zápasy" list is now restricted to
 matches with no schema at all (a manually free-typed match, which has no
 team ids to build a standings row from in the first place).
 
+**Tournament system chosen once at creation, not left implicit.** An
+owner found the original "create with just a name" flow confusing:
+landing straight on a page showing all three schedule generators (round-
+robin, knockout, groups) at once, plus teams/live-control/QR, looked like
+more setup was still pending rather than a tournament that already
+existed — there was no single moment that clearly said "this is now a
+real tournament." Fixed by adding `Tournament.format` (`'roundRobin' |
+'knockout' | 'groups'`), chosen via a radio-card picker (not a bare
+`<select>`, so the chosen option's own description stays visible and the
+other two visibly dim rather than needing a separate details panel) on
+`TournamentCreatePage.tsx` — name, points-for-win, and format all live on
+that one screen, ending in the single "Vytvoriť turnaj" button that
+actually creates the document. `TournamentDetailPage.tsx` then renders
+**only** the one matching generator instead of all three, with the
+chosen system's label shown right under the tournament name so it's
+never ambiguous which one is active. A tournament created before this
+field existed has no `format` at all — those still show every generator,
+matching the app's behavior before this change, since there's no way to
+retroactively know which one the trainer meant.
+
+**Standings table and bracket diagram redesigned for a "more modern,
+clearer" look.** The plain HTML `<table>` standings became
+`TournamentStandingsTable.tsx` — a shared ranked-row card (numbered rank
+column with a cosmetic gold/silver/bronze tint for the top 3, points as a
+filled pill instead of a bare number) reused by both the round-robin
+single table and every group's own card in the grid. `TournamentBracketDiagram.tsx`
+got matching polish: rounded match boxes with a left accent border and
+tinted background on the winning row, the score itself in a small pill,
+a dashed border for byes, and a pulsing ring around a live match's whole
+box (not just its score line) so it stands out at a glance across a
+crowded bracket.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

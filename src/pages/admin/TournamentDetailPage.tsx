@@ -206,7 +206,12 @@ export default function TournamentDetailPage() {
     <div className="content-container py-6 space-y-6">
       <BackButton fallback="/admin/turnaje" />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-white">{tournament.name}</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-white">{tournament.name}</h1>
+          {tournament.format && (
+            <p className="text-text-muted text-sm mt-0.5">{t(`tournaments.schemaOption.${tournament.format}`)}</p>
+          )}
+        </div>
         <Button size="sm" variant="destructive" disabled={deletingTournament} onClick={handleDeleteTournament}>
           {t('common.delete')}
         </Button>
@@ -238,9 +243,18 @@ export default function TournamentDetailPage() {
       <TournamentLiveControlPanel tournamentId={tournament.id} rinks={rinks} zones={zones} />
 
       <TournamentTeamsPanel tournamentId={tournament.id} clubId={club.id} />
-      <TournamentRoundRobinGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
-      <TournamentKnockoutGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
-      <TournamentGroupsGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} pointsForWin={tournament.pointsForWin ?? 3} />
+      {/* A tournament created before the format dropdown existed has no
+          `format` at all — show every generator for those, same as
+          before this feature shipped, rather than picking one for them. */}
+      {(!tournament.format || tournament.format === 'roundRobin') && (
+        <TournamentRoundRobinGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
+      )}
+      {(!tournament.format || tournament.format === 'knockout') && (
+        <TournamentKnockoutGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
+      )}
+      {(!tournament.format || tournament.format === 'groups') && (
+        <TournamentGroupsGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} pointsForWin={tournament.pointsForWin ?? 3} />
+      )}
 
       <Card className="arena-card">
         <CardHeader>

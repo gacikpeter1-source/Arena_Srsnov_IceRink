@@ -459,6 +459,14 @@ export interface Tournament {
   // Unset (a tournament created before this field existed) falls back to
   // 3 wherever it's read, the common "3 points for a win" convention.
   pointsForWin?: number
+  // Which schedule-generation system this tournament uses — chosen once
+  // at creation time (TournamentCreatePage.tsx) so the trainer only ever
+  // sees the one relevant generator on the tournament's own page, instead
+  // of all three at once. Unset means the tournament predates this field
+  // (created before the dropdown existed) — TournamentDetailPage.tsx
+  // falls back to showing all three generators for those, same as
+  // before this feature shipped.
+  format?: 'roundRobin' | 'knockout' | 'groups'
   createdAt: Date
 }
 

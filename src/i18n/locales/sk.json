@@ -491,7 +491,18 @@
     "semifinalLabel": "Semifinále",
     "quarterfinalLabel": "Štvrťfinále",
     "roundOf16Label": "Osemfinále",
-    "standingsTitle": "Poradie"
+    "standingsTitle": "Poradie",
+    "schema": "Systém turnaja",
+    "schemaOption": {
+      "roundRobin": "Každý s každým",
+      "knockout": "Vyraďovací pavúk",
+      "groups": "Skupiny + play-off"
+    },
+    "schemaOptionDesc": {
+      "roundRobin": "Každý tím odohrá zápas s každým iným — vhodné pri menšom počte tímov, výsledné poradie určuje priebežná tabuľka.",
+      "knockout": "Prehra znamená koniec — tímy postupujú v pavúku až do finále, so semenovaním a prípadnými voľnými žrebmi.",
+      "groups": "Najprv skupinová fáza (tabuľky), potom najlepší z každej skupiny postúpia do vyraďovacieho pavúka."
+    }
   },
   "trainingEmail": {
     "trainer": "Tréner",
