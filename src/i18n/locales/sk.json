@@ -490,7 +490,8 @@
     "finalLabel": "Finále",
     "semifinalLabel": "Semifinále",
     "quarterfinalLabel": "Štvrťfinále",
-    "roundOf16Label": "Osemfinále"
+    "roundOf16Label": "Osemfinále",
+    "standingsTitle": "Poradie"
   },
   "trainingEmail": {
     "trainer": "Tréner",
