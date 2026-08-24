@@ -17,6 +17,7 @@ export default function TournamentCreatePage() {
   const { user, staff } = useAuth()
   const { club } = useClubData()
   const [name, setName] = useState('')
+  const [pointsForWin, setPointsForWin] = useState(3)
   const [creating, setCreating] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,7 +25,13 @@ export default function TournamentCreatePage() {
     if (!club || !user || !staff || !name.trim()) return
     setCreating(true)
     try {
-      const id = await createTournament({ clubId: club.id, name: name.trim(), createdBy: user.uid, createdByName: staff.name })
+      const id = await createTournament({
+        clubId: club.id,
+        name: name.trim(),
+        createdBy: user.uid,
+        createdByName: staff.name,
+        pointsForWin: Math.max(1, pointsForWin)
+      })
       navigate(`/admin/turnaje/${id}`)
     } finally {
       setCreating(false)
@@ -45,6 +52,17 @@ export default function TournamentCreatePage() {
             <div>
               <Label className="text-white">{t('tournaments.newTournamentName')}</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-background-dark border-border text-white" required autoFocus />
+            </div>
+            <div>
+              <Label className="text-white">{t('tournaments.pointsForWin')}</Label>
+              <Input
+                type="number"
+                min={1}
+                value={pointsForWin}
+                onChange={(e) => setPointsForWin(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="bg-background-dark border-border text-white w-24"
+              />
+              <p className="text-text-muted text-xs mt-1">{t('tournaments.pointsForWinHint')}</p>
             </div>
             <Button type="submit" disabled={creating || !name.trim()} className="bg-primary hover:bg-primary-gold text-primary-foreground">
               {creating ? t('common.saving') : t('tournaments.createTournament')}

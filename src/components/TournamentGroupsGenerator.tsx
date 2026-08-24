@@ -28,6 +28,10 @@ interface TournamentGroupsGeneratorProps {
   club: Club
   rinks: Rink[]
   zones: Zone[]
+  // Tournament.pointsForWin — passed down so this panel's own standings
+  // stay consistent with the public /turnaje screen's, both reading the
+  // same tournament-level setting rather than each defaulting separately.
+  pointsForWin: number
 }
 
 const FORMATS: DivisionMode[] = ['full', 'half', 'third']
@@ -46,7 +50,7 @@ const FORMATS: DivisionMode[] = ['full', 'half', 'third']
  * group) and a manual per-team override afterwards, per the trainer's
  * explicit request to support both ways.
  */
-export default function TournamentGroupsGenerator({ tournamentId, club, rinks, zones }: TournamentGroupsGeneratorProps) {
+export default function TournamentGroupsGenerator({ tournamentId, club, rinks, zones, pointsForWin }: TournamentGroupsGeneratorProps) {
   const { t } = useTranslation()
   const { user, staff } = useAuth()
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -276,7 +280,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
         if (m.teamBId) teamIds.add(m.teamBId)
       })
       const groupTeams = Array.from(teamIds).map((id) => ({ id, name: nameById.get(id) ?? '' }))
-      return [g, computeGroupStandings(groupTeams, ms)] as const
+      return [g, computeGroupStandings(groupTeams, ms, pointsForWin)] as const
     })
   )
 

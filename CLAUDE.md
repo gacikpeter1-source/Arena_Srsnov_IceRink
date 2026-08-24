@@ -1209,6 +1209,68 @@ tréningy's own admin/public split elsewhere in this file:
   jump straight to the same read-only `/turnaje?tournament=<id>` view
   from their own device without scanning their own QR code.
 
+**Spectator screen redesign: real standings/bracket, not just a live
+ticker.** An owner using the screen in a cafe asked for the actual
+tournament shape to be visible, not only whichever match happens to be
+live. `TournamentSchedulePage.tsx` (`/turnaje`) now has three distinct
+pieces instead of one flat "live now" card:
+- **"Kto hrá a kto nasleduje"** — a compact overview pinned at the top:
+  every live match with its live score, then the next several upcoming
+  matches (any schema) with their scheduled time — the "what's on right
+  now" answer the old live-only section gave, generalized to also answer
+  "what's coming up".
+- **Group standings as a responsive grid of per-group tables** — one card
+  per group, `sm:grid-cols-2 xl:grid-cols-3` so groups sit side by side
+  and wrap onto additional rows once they don't fit (per an explicit "2
+  vedľa seba, ďalšie pod to" layout request), each showing just
+  Tím/Zápasy/Odohraté/Skóre/Body — a simpler column set than the admin's
+  own richer W/D/L breakdown in `TournamentGroupsGenerator.tsx`, which
+  keeps its detailed table unchanged. `GroupStandingRow` gained a
+  `totalMatches` field (every match a team has *scheduled* in the group,
+  decided or not) precisely to support the new "Zápasy" (total) column,
+  which reads differently from the existing "Odohraté" (played-so-far)
+  one especially mid-tournament.
+- **`TournamentBracketDiagram.tsx`** (new) — a real column-per-round
+  bracket tree for knockout/play-off matches, replacing the flat
+  round-grouped list `TournamentBracketView` still uses for the admin
+  side (that component stays as-is; its editable score inputs are still
+  the admin's day-to-day tool). Each round's boxes are spread with
+  `justify-around` across a column height fixed to the *first* round's
+  box count — since round *r* always has exactly half as many matches as
+  round *r-1*, this naturally centers each later box roughly between the
+  two it was fed by, close enough to the familiar converging bracket
+  shape without computing actual SVG connector lines. Round labels use
+  the standard elimination-tournament names (Finále/Semifinále/
+  Štvrťfinále/Osemfinále, counted back from the last round) instead of
+  the generic "Kolo N" the admin bracket view uses, since a spectator
+  screen benefits from the familiar names more.
+
+**Configurable points-for-win.** `Tournament.pointsForWin` (default 3,
+set once at creation in `TournamentCreatePage.tsx`) replaces the
+previously-hardcoded 3 in `computeGroupStandings` — draw/loss stay the
+standard 1/0 regardless, only the win value varies. Passed down from
+`TournamentDetailPage.tsx` into `TournamentGroupsGenerator.tsx` and read
+directly off the fetched `Tournament` doc on the public schedule page, so
+both surfaces always score a group the same way. `computeGroupStandings`'s
+tie-break order also changed to match an explicit request: points, then
+goal difference ("skóre"), then *fewest* matches played (a team that
+reached the same points/difference in fewer games is ranked ahead,
+rewarding efficiency over one that needed more games), then name as a
+final fallback.
+
+**Same-tab spectator-screen link, role-aware back fallback.** The
+"Otvoriť obrazovku pre divákov" link on `TournamentDetailPage.tsx` was
+originally `target="_blank"`, which meant `/turnaje`'s `BackButton` had
+no real session history to return to (a new tab always starts at history
+index 0) and fell through to its fixed fallback regardless — landing an
+owner back on the public hub home instead of the admin tournament they'd
+just come from. Switched to a same-tab `Link` so `navigate(-1)` actually
+works for that case, and separately made the fallback itself role-aware:
+staff with tournament-management access (the same check
+`TournamentsPage.tsx` gates on) fall back to `/admin/turnaje` instead of
+`/` if they land on `/turnaje` with no history at all (e.g. a bookmarked
+link), while a genuine public visitor still falls back to the hub home.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
