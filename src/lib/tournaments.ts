@@ -39,6 +39,13 @@ export async function fetchTournaments(clubId: string): Promise<(Tournament & { 
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/** Single-tournament lookup for TournamentDetailPage.tsx, reading its id straight from the /admin/turnaje/:tournamentId route param. */
+export async function fetchTournament(tournamentId: string): Promise<(Tournament & { id: string }) | null> {
+  const snap = await getDoc(doc(db, 'tournaments', tournamentId))
+  if (!snap.exists()) return null
+  return { ...(snap.data() as Omit<Tournament, 'id'>), id: snap.id }
+}
+
 /** Cascades: cancels any booking a match blocked, deletes every match and team, then the tournament itself. */
 export async function deleteTournament(tournamentId: string): Promise<void> {
   const [matches, teams] = await Promise.all([fetchTournamentMatches(tournamentId), fetchTournamentTeams(tournamentId)])

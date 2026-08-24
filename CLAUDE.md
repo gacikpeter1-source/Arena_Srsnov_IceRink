@@ -1185,6 +1185,30 @@ see the "QR codes" section) lets the admin's QR code jump straight past
 the tournament picker into one specific tournament, so pointing a phone
 or a mounted screen at the code needs no further taps.
 
+**Admin tournament pages split into landing/create/detail routes.**
+`/admin/turnaje` originally mixed a "create a tournament" form, a picker
+(one small button per tournament), and — inline, below the picker —
+every tool for whichever tournament happened to be selected (teams,
+generators, live control, QR, manual match list). An owner testing this
+found it confusing once a real tournament existed: the page read as
+"create tournament, plus a stray button named after my one tournament"
+rather than a clear list. Split into three routes, same pattern as
+tréningy's own admin/public split elsewhere in this file:
+- `/admin/turnaje` (`TournamentsPage.tsx`) — just a "Vytvoriť turnaj"
+  button and a plain list of existing tournaments as full-width rows;
+  clicking one navigates into it.
+- `/admin/turnaje/novy` (`TournamentCreatePage.tsx`) — the name-entry
+  form; submitting creates the tournament and navigates straight into
+  its own detail page.
+- `/admin/turnaje/:tournamentId` (`TournamentDetailPage.tsx`) — every
+  tool that used to render inline (QR/live-control/teams/generators/
+  manual match form+list), now reading the tournament from the route
+  param via a new single-doc `fetchTournament` (`lib/tournaments.ts`)
+  instead of finding it in an already-fetched list. Also gained a plain
+  "Otvoriť obrazovku pre divákov" link next to the QR code, so staff can
+  jump straight to the same read-only `/turnaje?tournament=<id>` view
+  from their own device without scanning their own QR code.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

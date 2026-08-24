@@ -480,7 +480,8 @@
     "finishMatch": "Finish match",
     "finishedBadge": "Finished — you can still correct the score",
     "publicScreenTitle": "Spectator screen",
-    "publicScreenHint": "Scanning this QR code opens the public tournament overview, which can be displayed e.g. on a cafe screen — it updates automatically as you record scores below."
+    "publicScreenHint": "Scanning this QR code opens the public tournament overview, which can be displayed e.g. on a cafe screen — it updates automatically as you record scores below.",
+    "openPublicScreen": "Open spectator screen"
   },
   "trainingEmail": {
     "trainer": "Trainer",

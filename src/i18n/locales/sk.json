@@ -480,7 +480,8 @@
     "finishMatch": "Ukončiť zápas",
     "finishedBadge": "Dokončené — skóre môžete ešte upraviť",
     "publicScreenTitle": "Obrazovka pre divákov",
-    "publicScreenHint": "Naskenovaním tohto QR kódu sa otvorí verejný prehľad turnaja, ktorý sa dá zobraziť napr. na obrazovke v kaviarni — automaticky sa aktualizuje podľa toho, ako zapisujete skóre nižšie."
+    "publicScreenHint": "Naskenovaním tohto QR kódu sa otvorí verejný prehľad turnaja, ktorý sa dá zobraziť napr. na obrazovke v kaviarni — automaticky sa aktualizuje podľa toho, ako zapisujete skóre nižšie.",
+    "openPublicScreen": "Otvoriť obrazovku pre divákov"
   },
   "trainingEmail": {
     "trainer": "Tréner",
