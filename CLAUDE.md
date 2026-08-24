@@ -1271,6 +1271,20 @@ staff with tournament-management access (the same check
 `/` if they land on `/turnaje` with no history at all (e.g. a bookmarked
 link), while a genuine public visitor still falls back to the hub home.
 
+**Round-robin tournaments get a standings table too.** The redesign above
+initially only rendered a standings table for `schema === 'groups'`
+matches — a plain "každý s každým" tournament (`schema === 'roundRobin'`,
+no groups at all) got no table whatsoever, just the flat match list,
+which an owner running exactly that format flagged as a missing table
+rather than a deliberate omission. Fixed by computing one combined
+standings table (`computeGroupStandings` over every `roundRobinMatches`
+doc, same as a single group would) and rendering it above the groups
+grid — the two sections are mutually exclusive in practice (a tournament
+uses one schema at a time) but nothing stops both from rendering if a
+club mixed formats. The flat "Iné zápasy" list is now restricted to
+matches with no schema at all (a manually free-typed match, which has no
+team ids to build a standings row from in the first place).
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

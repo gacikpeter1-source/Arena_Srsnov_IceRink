@@ -81,9 +81,10 @@ export default function TournamentSchedulePage() {
   const groupMatches = matches.filter((m) => m.schema === 'groups')
   const playoffMatches = matches.filter((m) => m.schema === 'groupsPlayoff')
   const knockoutMatches = matches.filter((m) => m.schema === 'knockout')
-  const otherFinishedMatches = matches.filter(
-    (m) => m.schema !== 'groups' && m.schema !== 'groupsPlayoff' && m.schema !== 'knockout' && deriveMatchState(m) === 'finished'
-  )
+  const roundRobinMatches = matches.filter((m) => m.schema === 'roundRobin')
+  // A manually-added match (no schema at all) never has team ids, so it
+  // can't feed a standings table — it only ever shows up in the flat list.
+  const otherFinishedMatches = matches.filter((m) => !m.schema && deriveMatchState(m) === 'finished')
 
   const groupMatchesByGroup = new Map<string, (TournamentMatch & { id: string })[]>()
   groupMatches.forEach((m) => {
@@ -110,6 +111,28 @@ export default function TournamentSchedulePage() {
       const groupTeams = Array.from(teamIds).map((id) => ({ id, name: nameById.get(id) ?? '' }))
       return [g, computeGroupStandings(groupTeams, ms, pointsForWin)] as const
     })
+  )
+
+  // A round-robin tournament (no groups) still gets one combined standings
+  // table — "every team plays every team" naturally produces the same
+  // kind of league table a group does, just without splitting into
+  // multiple groups, so it reuses computeGroupStandings directly.
+  const roundRobinTeamIds = new Set<string>()
+  const roundRobinNameById = new Map<string, string>()
+  roundRobinMatches.forEach((m) => {
+    if (m.teamAId) {
+      roundRobinTeamIds.add(m.teamAId)
+      roundRobinNameById.set(m.teamAId, m.teamA)
+    }
+    if (m.teamBId) {
+      roundRobinTeamIds.add(m.teamBId)
+      roundRobinNameById.set(m.teamBId, m.teamB)
+    }
+  })
+  const roundRobinStandings = computeGroupStandings(
+    Array.from(roundRobinTeamIds).map((id) => ({ id, name: roundRobinNameById.get(id) ?? '' })),
+    roundRobinMatches,
+    pointsForWin
   )
 
   if (loading) {
@@ -185,6 +208,40 @@ export default function TournamentSchedulePage() {
                         ))}
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {roundRobinStandings.length > 0 && (
+                <Card className="arena-card">
+                  <CardHeader>
+                    <CardTitle className="text-white text-lg">{t('tournaments.standingsTitle')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead>
+                          <tr className="text-text-muted">
+                            <th className="py-1 pr-2">{t('tournaments.standingsTeam')}</th>
+                            <th className="px-2 text-center">{t('tournaments.standingsTotalMatches')}</th>
+                            <th className="px-2 text-center">{t('tournaments.standingsPlayedShort')}</th>
+                            <th className="px-2 text-center">{t('tournaments.standingsGoals')}</th>
+                            <th className="px-2 text-center">{t('tournaments.standingsPoints')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roundRobinStandings.map((row) => (
+                            <tr key={row.teamId}>
+                              <td className="py-1.5 pr-2 text-white">{row.teamName}</td>
+                              <td className="px-2 text-center text-white">{row.totalMatches}</td>
+                              <td className="px-2 text-center text-white">{row.played}</td>
+                              <td className="px-2 text-center text-white">{row.goalsFor}:{row.goalsAgainst}</td>
+                              <td className="px-2 text-center text-white font-semibold">{row.points}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </CardContent>
                 </Card>
               )}
