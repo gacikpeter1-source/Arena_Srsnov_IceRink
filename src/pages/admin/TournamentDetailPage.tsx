@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
@@ -224,14 +224,13 @@ export default function TournamentDetailPage() {
           />
           <div className="flex flex-col gap-2 max-w-md">
             <p className="text-text-secondary text-sm">{t('tournaments.publicScreenHint')}</p>
-            <a
-              href={`/turnaje?tournament=${tournament.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:text-primary-gold text-sm underline w-fit"
-            >
+            {/* Same-tab navigation (not target="_blank") so BackButton's
+                preferred navigate(-1) on /turnaje actually has real
+                session history to return to — a new tab would start with
+                none and always fall through to the fixed fallback. */}
+            <Link to={`/turnaje?tournament=${tournament.id}`} className="text-primary hover:text-primary-gold text-sm underline w-fit">
               {t('tournaments.openPublicScreen')}
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>
@@ -241,7 +240,7 @@ export default function TournamentDetailPage() {
       <TournamentTeamsPanel tournamentId={tournament.id} clubId={club.id} />
       <TournamentRoundRobinGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
       <TournamentKnockoutGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
-      <TournamentGroupsGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} />
+      <TournamentGroupsGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} pointsForWin={tournament.pointsForWin ?? 3} />
 
       <Card className="arena-card">
         <CardHeader>

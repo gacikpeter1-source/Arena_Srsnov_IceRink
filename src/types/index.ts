@@ -453,6 +453,12 @@ export interface Tournament {
   name: string
   createdBy: string // uid of the trainer/assistant/owner/superadmin who created it
   createdByName: string
+  // Points awarded for a group-stage win, set once at creation
+  // (TournamentCreatePage.tsx) — draw/loss stay the standard 1/0, only the
+  // win value is configurable since a club may run a different scale.
+  // Unset (a tournament created before this field existed) falls back to
+  // 3 wherever it's read, the common "3 points for a win" convention.
+  pointsForWin?: number
   createdAt: Date
 }
 

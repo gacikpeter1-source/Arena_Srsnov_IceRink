@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState } from '@/lib/tournaments'
 import { Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import TournamentBracketView from '@/components/TournamentBracketView'
+import TournamentBracketDiagram from '@/components/TournamentBracketDiagram'
 import BackButton from '@/components/BackButton'
 
 const POLL_MS = 6000
@@ -31,9 +32,13 @@ const POLL_MS = 6000
  */
 export default function TournamentSchedulePage() {
   const { t } = useTranslation()
+  const { staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const [searchParams] = useSearchParams()
   const tournamentParam = searchParams.get('tournament')
+  const canManageTournaments =
+    staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
+  const backFallback = canManageTournaments ? '/admin/turnaje' : '/'
 
   const [tournaments, setTournaments] = useState<(Tournament & { id: string })[]>([])
   const [activeId, setActiveId] = useState<string | null>(tournamentParam)
@@ -63,13 +68,22 @@ export default function TournamentSchedulePage() {
     return () => clearInterval(interval)
   }, [activeId])
 
+  const activeTournament = tournaments.find((tr) => tr.id === activeId)
+  const pointsForWin = activeTournament?.pointsForWin ?? 3
+
   const realMatches = matches.filter((m) => !m.isBye)
   const liveMatches = realMatches.filter((m) => deriveMatchState(m) === 'live')
+  const upcomingMatches = realMatches
+    .filter((m) => deriveMatchState(m) === 'scheduled')
+    .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
+    .slice(0, 8)
 
   const groupMatches = matches.filter((m) => m.schema === 'groups')
   const playoffMatches = matches.filter((m) => m.schema === 'groupsPlayoff')
   const knockoutMatches = matches.filter((m) => m.schema === 'knockout')
-  const otherMatches = matches.filter((m) => m.schema !== 'groups' && m.schema !== 'groupsPlayoff' && m.schema !== 'knockout')
+  const otherFinishedMatches = matches.filter(
+    (m) => m.schema !== 'groups' && m.schema !== 'groupsPlayoff' && m.schema !== 'knockout' && deriveMatchState(m) === 'finished'
+  )
 
   const groupMatchesByGroup = new Map<string, (TournamentMatch & { id: string })[]>()
   groupMatches.forEach((m) => {
@@ -94,7 +108,7 @@ export default function TournamentSchedulePage() {
         }
       })
       const groupTeams = Array.from(teamIds).map((id) => ({ id, name: nameById.get(id) ?? '' }))
-      return [g, computeGroupStandings(groupTeams, ms)] as const
+      return [g, computeGroupStandings(groupTeams, ms, pointsForWin)] as const
     })
   )
 
@@ -104,7 +118,7 @@ export default function TournamentSchedulePage() {
 
   return (
     <div className="content-container py-6 space-y-6">
-      <BackButton fallback="/" />
+      <BackButton fallback={backFallback} />
       <h1 className="text-2xl font-bold text-white">{t('tournaments.publicTitle')}</h1>
 
       {tournaments.length === 0 ? (
@@ -134,25 +148,43 @@ export default function TournamentSchedulePage() {
             <p className="text-text-muted text-sm">{t('tournaments.noMatches')}</p>
           ) : (
             <div className="space-y-6">
-              {liveMatches.length > 0 && (
-                <Card className="arena-card border-status-danger">
+              {(liveMatches.length > 0 || upcomingMatches.length > 0) && (
+                <Card className="arena-card">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-white text-lg">
-                      <span className="h-2.5 w-2.5 rounded-full bg-status-danger animate-pulse" />
-                      {t('tournaments.liveNow')}
-                    </CardTitle>
+                    <CardTitle className="text-white text-lg">{t('tournaments.whatsOnTitle')}</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {liveMatches.map((m) => (
-                      <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded border border-border">
-                        <p className="text-white text-lg font-semibold">
-                          {m.teamA} <span className="text-text-muted text-sm font-normal">vs</span> {m.teamB}
-                        </p>
-                        <p className="text-status-danger text-2xl font-bold">
-                          {m.scoreA ?? 0} : {m.scoreB ?? 0}
-                        </p>
+                  <CardContent className="space-y-4">
+                    {liveMatches.length > 0 && (
+                      <div className="space-y-2">
+                        <h3 className="flex items-center gap-2 text-status-danger text-sm font-semibold">
+                          <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
+                          {t('tournaments.liveNow')}
+                        </h3>
+                        {liveMatches.map((m) => (
+                          <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded border border-status-danger/40">
+                            <p className="text-white text-lg font-semibold">
+                              {m.teamA} <span className="text-text-muted text-sm font-normal">vs</span> {m.teamB}
+                            </p>
+                            <p className="text-status-danger text-2xl font-bold">
+                              {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                    {upcomingMatches.length > 0 && (
+                      <div className="space-y-1">
+                        <h3 className="text-white text-sm font-semibold">{t('tournaments.upcomingMatches')}</h3>
+                        {upcomingMatches.map((m) => (
+                          <div key={m.id} className="flex flex-wrap items-center justify-between gap-2 p-2 rounded border border-border">
+                            <p className="text-white text-sm">
+                              {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
+                            </p>
+                            <span className="text-text-muted text-xs">{m.date} · {m.startTime}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -162,65 +194,38 @@ export default function TournamentSchedulePage() {
                   <CardHeader>
                     <CardTitle className="text-white text-lg">{t('tournaments.groupsTitle')}</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {groupIds.map((g) => (
-                      <div key={g} className="space-y-2">
-                        <h3 className="text-white text-sm font-semibold">{t('tournaments.groupLabel', { name: g })}</h3>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs text-left">
-                            <thead>
-                              <tr className="text-text-muted">
-                                <th className="py-1 pr-2">{t('tournaments.standingsTeam')}</th>
-                                <th className="px-1 text-center">{t('tournaments.standingsPlayed')}</th>
-                                <th className="px-1 text-center">{t('tournaments.standingsWins')}</th>
-                                <th className="px-1 text-center">{t('tournaments.standingsDraws')}</th>
-                                <th className="px-1 text-center">{t('tournaments.standingsLosses')}</th>
-                                <th className="px-1 text-center">{t('tournaments.standingsGoals')}</th>
-                                <th className="px-1 text-center">{t('tournaments.standingsPoints')}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(standingsByGroup.get(g) ?? []).map((row) => (
-                                <tr key={row.teamId}>
-                                  <td className="py-1 pr-2 text-white">{row.teamName}</td>
-                                  <td className="px-1 text-center text-white">{row.played}</td>
-                                  <td className="px-1 text-center text-white">{row.wins}</td>
-                                  <td className="px-1 text-center text-white">{row.draws}</td>
-                                  <td className="px-1 text-center text-white">{row.losses}</td>
-                                  <td className="px-1 text-center text-white">{row.goalsFor}:{row.goalsAgainst}</td>
-                                  <td className="px-1 text-center text-white font-semibold">{row.points}</td>
+                  <CardContent>
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {groupIds.map((g) => (
+                        <div key={g} className="space-y-2 p-3 rounded border border-border">
+                          <h3 className="text-white text-sm font-semibold">{t('tournaments.groupLabel', { name: g })}</h3>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left">
+                              <thead>
+                                <tr className="text-text-muted">
+                                  <th className="py-1 pr-2">{t('tournaments.standingsTeam')}</th>
+                                  <th className="px-1 text-center">{t('tournaments.standingsTotalMatches')}</th>
+                                  <th className="px-1 text-center">{t('tournaments.standingsPlayedShort')}</th>
+                                  <th className="px-1 text-center">{t('tournaments.standingsGoals')}</th>
+                                  <th className="px-1 text-center">{t('tournaments.standingsPoints')}</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {(standingsByGroup.get(g) ?? []).map((row) => (
+                                  <tr key={row.teamId}>
+                                    <td className="py-1 pr-2 text-white">{row.teamName}</td>
+                                    <td className="px-1 text-center text-white">{row.totalMatches}</td>
+                                    <td className="px-1 text-center text-white">{row.played}</td>
+                                    <td className="px-1 text-center text-white">{row.goalsFor}:{row.goalsAgainst}</td>
+                                    <td className="px-1 text-center text-white font-semibold">{row.points}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          {(groupMatchesByGroup.get(g) ?? []).map((m) => {
-                            const state = deriveMatchState(m)
-                            return (
-                              <div key={m.id} className="flex flex-wrap justify-between items-center gap-2 p-2 rounded border border-border">
-                                <p className="text-white text-sm">
-                                  {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
-                                </p>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-text-muted text-xs">{m.date} · {m.startTime}</span>
-                                  {state === 'finished' ? (
-                                    <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
-                                  ) : state === 'live' ? (
-                                    <span className="flex items-center gap-1 text-status-danger text-sm font-semibold">
-                                      <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
-                                      {m.scoreA ?? 0} : {m.scoreB ?? 0}
-                                    </span>
-                                  ) : (
-                                    <span className="text-text-muted text-xs">{t('tournaments.notPlayedYet')}</span>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               )}
@@ -231,7 +236,7 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.playoffTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TournamentBracketView matches={playoffMatches} readOnly />
+                    <TournamentBracketDiagram matches={playoffMatches} />
                   </CardContent>
                 </Card>
               )}
@@ -242,21 +247,20 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.knockoutTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TournamentBracketView matches={knockoutMatches} readOnly />
+                    <TournamentBracketDiagram matches={knockoutMatches} />
                   </CardContent>
                 </Card>
               )}
 
-              {otherMatches.length > 0 && (
+              {otherFinishedMatches.length > 0 && (
                 <Card className="arena-card">
                   <CardHeader>
                     <CardTitle className="text-white text-lg">{t('tournaments.matchList')}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {otherMatches.map((m) => {
+                    {otherFinishedMatches.map((m) => {
                       const rink = rinks.find((r) => r.id === m.rinkId)
                       const zone = zones.find((z) => z.id === m.zoneId)
-                      const state = deriveMatchState(m)
                       return (
                         <div key={m.id} className="flex justify-between items-center flex-wrap gap-2 p-2 rounded border border-border">
                           <div>
@@ -269,15 +273,7 @@ export default function TournamentSchedulePage() {
                               {m.location === 'rink' ? `${rink?.name ?? ''} — ${zone?.name ?? ''}` : m.venueName || t('tournaments.locationOther')}
                             </p>
                           </div>
-                          {state === 'finished' && (
-                            <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
-                          )}
-                          {state === 'live' && (
-                            <span className="flex items-center gap-1 text-status-danger text-sm font-semibold">
-                              <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
-                              {m.scoreA ?? 0} : {m.scoreB ?? 0}
-                            </span>
-                          )}
+                          <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
                         </div>
                       )
                     })}

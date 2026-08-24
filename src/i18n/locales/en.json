@@ -481,7 +481,16 @@
     "finishedBadge": "Finished — you can still correct the score",
     "publicScreenTitle": "Spectator screen",
     "publicScreenHint": "Scanning this QR code opens the public tournament overview, which can be displayed e.g. on a cafe screen — it updates automatically as you record scores below.",
-    "openPublicScreen": "Open spectator screen"
+    "openPublicScreen": "Open spectator screen",
+    "pointsForWin": "Points for a win",
+    "pointsForWinHint": "A draw is always worth 1 point, a loss 0 — only the points for a win are configurable (usually 3).",
+    "whatsOnTitle": "Who's playing and who's next",
+    "standingsTotalMatches": "Matches",
+    "standingsPlayedShort": "Played",
+    "finalLabel": "Final",
+    "semifinalLabel": "Semifinal",
+    "quarterfinalLabel": "Quarterfinal",
+    "roundOf16Label": "Round of 16"
   },
   "trainingEmail": {
     "trainer": "Trainer",

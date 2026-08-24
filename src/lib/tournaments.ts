@@ -18,6 +18,7 @@ export interface CreateTournamentInput {
   name: string
   createdBy: string
   createdByName: string
+  pointsForWin: number
 }
 
 export async function createTournament(input: CreateTournamentInput): Promise<string> {
@@ -27,6 +28,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<st
     name: input.name,
     createdBy: input.createdBy,
     createdByName: input.createdByName,
+    pointsForWin: input.pointsForWin,
     createdAt: serverTimestamp()
   })
   return ref.id
@@ -495,6 +497,10 @@ export async function createGroupsSchedule(input: CreateGroupsScheduleInput): Pr
 export interface GroupStandingRow {
   teamId: string
   teamName: string
+  // Every match involving this team scheduled in the group, decided or
+  // not — lets the spectator screen show "2 of 5 played" while a group is
+  // still in progress, distinct from `played` below.
+  totalMatches: number
   played: number
   wins: number
   draws: number
@@ -506,25 +512,37 @@ export interface GroupStandingRow {
 }
 
 /**
- * Standard 3/1/0 points table (win/draw/loss), sorted by points, then goal
- * difference, then goals scored, then name. Unlike a knockout match, a
- * group match is allowed to end in a draw (see setGroupMatchResult) — only
- * matches with both scores actually recorded count towards the table, so
- * an in-progress group's standings are simply computed from whatever
- * results exist so far.
+ * Points table (win/draw/loss), sorted by points, then goal difference
+ * ("skóre"), then fewest matches played (a team with the same points/
+ * difference from fewer games is ranked ahead, rewarding efficiency over
+ * a team that needed more games to get there), then name as a final
+ * tie-break. `pointsForWin` is set once per tournament at creation time
+ * (`Tournament.pointsForWin`, default 3) — draw/loss stay the standard
+ * 1/0 regardless, only the win value is configurable. Unlike a knockout
+ * match, a group match is allowed to end in a draw (see
+ * setGroupMatchResult) — only matches with both scores actually recorded
+ * count towards `played`/goals/points, so an in-progress group's
+ * standings are simply computed from whatever results exist so far.
  */
 export function computeGroupStandings(
   teams: { id: string; name: string }[],
-  matches: Pick<TournamentMatch, 'teamAId' | 'teamBId' | 'scoreA' | 'scoreB'>[]
+  matches: Pick<TournamentMatch, 'teamAId' | 'teamBId' | 'scoreA' | 'scoreB'>[],
+  pointsForWin = 3
 ): GroupStandingRow[] {
   const rows = new Map<string, GroupStandingRow>(
-    teams.map((t) => [t.id, { teamId: t.id, teamName: t.name, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 }])
+    teams.map((t) => [
+      t.id,
+      { teamId: t.id, teamName: t.name, totalMatches: 0, played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 }
+    ])
   )
   for (const m of matches) {
-    if (!m.teamAId || !m.teamBId || m.scoreA == null || m.scoreB == null) continue
+    if (!m.teamAId || !m.teamBId) continue
     const a = rows.get(m.teamAId)
     const b = rows.get(m.teamBId)
     if (!a || !b) continue
+    a.totalMatches++
+    b.totalMatches++
+    if (m.scoreA == null || m.scoreB == null) continue
     a.played++
     b.played++
     a.goalsFor += m.scoreA
@@ -533,11 +551,11 @@ export function computeGroupStandings(
     b.goalsAgainst += m.scoreA
     if (m.scoreA > m.scoreB) {
       a.wins++
-      a.points += 3
+      a.points += pointsForWin
       b.losses++
     } else if (m.scoreA < m.scoreB) {
       b.wins++
-      b.points += 3
+      b.points += pointsForWin
       a.losses++
     } else {
       a.draws++
@@ -550,7 +568,7 @@ export function computeGroupStandings(
   result.forEach((r) => {
     r.goalDiff = r.goalsFor - r.goalsAgainst
   })
-  result.sort((x, y) => y.points - x.points || y.goalDiff - x.goalDiff || y.goalsFor - x.goalsFor || x.teamName.localeCompare(y.teamName))
+  result.sort((x, y) => y.points - x.points || y.goalDiff - x.goalDiff || x.played - y.played || x.teamName.localeCompare(y.teamName))
   return result
 }
 

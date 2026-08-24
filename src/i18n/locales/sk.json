@@ -481,7 +481,16 @@
     "finishedBadge": "Dokončené — skóre môžete ešte upraviť",
     "publicScreenTitle": "Obrazovka pre divákov",
     "publicScreenHint": "Naskenovaním tohto QR kódu sa otvorí verejný prehľad turnaja, ktorý sa dá zobraziť napr. na obrazovke v kaviarni — automaticky sa aktualizuje podľa toho, ako zapisujete skóre nižšie.",
-    "openPublicScreen": "Otvoriť obrazovku pre divákov"
+    "openPublicScreen": "Otvoriť obrazovku pre divákov",
+    "pointsForWin": "Body za výhru",
+    "pointsForWinHint": "Remíza je vždy za 1 bod, prehra za 0 — nastavte len počet bodov za výhru (bežne 3).",
+    "whatsOnTitle": "Kto hrá a kto nasleduje",
+    "standingsTotalMatches": "Zápasy",
+    "standingsPlayedShort": "Odohraté",
+    "finalLabel": "Finále",
+    "semifinalLabel": "Semifinále",
+    "quarterfinalLabel": "Štvrťfinále",
+    "roundOf16Label": "Osemfinále"
   },
   "trainingEmail": {
     "trainer": "Tréner",
