@@ -136,6 +136,38 @@ export default function TournamentSchedulePage() {
     pointsForWin
   )
 
+  // Shared row for both the round-robin and the per-group match lists —
+  // every match shows its rink/zone alongside the score/time so a
+  // spectator screen never leaves a match's physical location ambiguous.
+  const renderMatchRow = (m: TournamentMatch & { id: string }) => {
+    const state = deriveMatchState(m)
+    const rink = rinks.find((r) => r.id === m.rinkId)
+    const zone = zones.find((z) => z.id === m.zoneId)
+    return (
+      <div key={m.id} className="flex flex-wrap justify-between items-center gap-2 p-2 rounded border border-border">
+        <div>
+          <p className="text-white text-sm">
+            {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
+          </p>
+          <p className="text-text-muted text-xs">
+            {m.date} · {m.startTime}
+            {m.rinkId ? ` · ${rink?.name ?? ''} — ${zone?.name ?? ''}` : ''}
+          </p>
+        </div>
+        {state === 'finished' ? (
+          <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
+        ) : state === 'live' ? (
+          <span className="flex items-center gap-1 text-status-danger text-sm font-semibold">
+            <span className="h-2 w-2 rounded-full bg-status-danger animate-pulse" />
+            {m.scoreA ?? 0} : {m.scoreB ?? 0}
+          </span>
+        ) : (
+          <span className="text-text-muted text-xs">{t('tournaments.notPlayedYet')}</span>
+        )}
+      </div>
+    )
+  }
+
   if (loading) {
     return <div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>
   }
@@ -186,9 +218,16 @@ export default function TournamentSchedulePage() {
                         </h3>
                         {liveMatches.map((m) => (
                           <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded border border-status-danger/40">
-                            <p className="text-white text-lg font-semibold">
-                              {m.teamA} <span className="text-text-muted text-sm font-normal">vs</span> {m.teamB}
-                            </p>
+                            <div>
+                              <p className="text-white text-lg font-semibold">
+                                {m.teamA} <span className="text-text-muted text-sm font-normal">vs</span> {m.teamB}
+                              </p>
+                              {m.rinkId && (
+                                <p className="text-text-muted text-xs">
+                                  {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                                </p>
+                              )}
+                            </div>
                             <p className="text-status-danger text-2xl font-bold">
                               {m.scoreA ?? 0} : {m.scoreB ?? 0}
                             </p>
@@ -204,7 +243,10 @@ export default function TournamentSchedulePage() {
                             <p className="text-white text-sm">
                               {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
                             </p>
-                            <span className="text-text-muted text-xs">{m.date} · {m.startTime}</span>
+                            <span className="text-text-muted text-xs">
+                              {m.date} · {m.startTime}
+                              {m.rinkId ? ` · ${rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — ${zones.find((z) => z.id === m.zoneId)?.name ?? ''}` : ''}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -218,8 +260,9 @@ export default function TournamentSchedulePage() {
                   <CardHeader>
                     <CardTitle className="text-white text-lg">{t('tournaments.standingsTitle')}</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
                     <TournamentStandingsTable rows={roundRobinStandings} />
+                    <div className="space-y-1">{roundRobinMatches.map(renderMatchRow)}</div>
                   </CardContent>
                 </Card>
               )}
@@ -235,6 +278,7 @@ export default function TournamentSchedulePage() {
                         <div key={g} className="space-y-2">
                           <h3 className="text-white text-sm font-semibold">{t('tournaments.groupLabel', { name: g })}</h3>
                           <TournamentStandingsTable rows={standingsByGroup.get(g) ?? []} />
+                          <div className="space-y-1">{(groupMatchesByGroup.get(g) ?? []).map(renderMatchRow)}</div>
                         </div>
                       ))}
                     </div>
@@ -248,7 +292,7 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.playoffTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TournamentBracketDiagram matches={playoffMatches} />
+                    <TournamentBracketDiagram matches={playoffMatches} rinks={rinks} zones={zones} />
                   </CardContent>
                 </Card>
               )}
@@ -259,7 +303,7 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.knockoutTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TournamentBracketDiagram matches={knockoutMatches} />
+                    <TournamentBracketDiagram matches={knockoutMatches} rinks={rinks} zones={zones} />
                   </CardContent>
                 </Card>
               )}

@@ -400,6 +400,7 @@
     "locationRink": "Club ice rink",
     "locationOther": "Other venue",
     "rink": "Rink",
+    "rinks": "Rinks",
     "format": "Rink division",
     "formatOption": {
       "full": "Whole rink",

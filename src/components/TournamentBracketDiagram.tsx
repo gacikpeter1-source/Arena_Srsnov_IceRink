@@ -1,8 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { TournamentMatch } from '@/types'
+import { Rink, TournamentMatch, Zone } from '@/types'
 
 interface TournamentBracketDiagramProps {
   matches: (TournamentMatch & { id: string })[]
+  rinks: Rink[]
+  zones: Zone[]
 }
 
 const BOX_HEIGHT_PX = 60
@@ -24,7 +26,7 @@ const COLUMN_WIDTH_PX = 208
  * uses, since a spectator screen benefits from the familiar names more
  * than an admin editing results does.
  */
-export default function TournamentBracketDiagram({ matches }: TournamentBracketDiagramProps) {
+export default function TournamentBracketDiagram({ matches, rinks, zones }: TournamentBracketDiagramProps) {
   const { t } = useTranslation()
   const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
   matches.forEach((m) => {
@@ -123,6 +125,11 @@ export default function TournamentBracketDiagram({ matches }: TournamentBracketD
                       )}
                       {!decided && !live && !m.isBye && m.startTime && (
                         <div className="px-3 py-1 text-text-muted text-[11px]">{m.startTime}</div>
+                      )}
+                      {!m.isBye && m.rinkId && (
+                        <div className="px-3 py-1 text-text-muted text-[11px] border-t border-border">
+                          {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                        </div>
                       )}
                     </div>
                   )

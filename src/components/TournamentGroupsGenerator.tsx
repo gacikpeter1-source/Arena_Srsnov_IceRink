@@ -13,7 +13,8 @@ import {
   buildKnockoutPreview,
   createKnockoutBracket,
   setTournamentMatchResult,
-  KnockoutDrawError
+  KnockoutDrawError,
+  ScheduleSlotLocation
 } from '@/lib/tournaments'
 import { formatDateISO } from '@/lib/utils'
 import { Club, DivisionMode, Rink, TournamentMatch, TournamentTeam, Zone } from '@/types'
@@ -62,7 +63,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
   const [matches, setMatches] = useState<(TournamentMatch & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [rinkId, setRinkId] = useState('')
+  const [rinkIds, setRinkIds] = useState<string[]>([])
   const [format, setFormat] = useState<DivisionMode>('full')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('09:00')
@@ -76,7 +77,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
   const [scoreInputs, setScoreInputs] = useState<Record<string, { a: string; b: string }>>({})
   const [savingMatchId, setSavingMatchId] = useState<string | null>(null)
 
-  const [playoffRinkId, setPlayoffRinkId] = useState('')
+  const [playoffRinkIds, setPlayoffRinkIds] = useState<string[]>([])
   const [playoffFormat, setPlayoffFormat] = useState<DivisionMode>('full')
   const [playoffDate, setPlayoffDate] = useState(formatDateISO(new Date()))
   const [playoffStartTime, setPlayoffStartTime] = useState('09:00')
@@ -112,21 +113,31 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
   useEffect(refresh, [tournamentId])
 
   useEffect(() => {
-    if (activeRinks.length && !rinkId) setRinkId(activeRinks[0].id)
-    if (activeRinks.length && !playoffRinkId) setPlayoffRinkId(activeRinks[0].id)
+    if (activeRinks.length && rinkIds.length === 0) setRinkIds([activeRinks[0].id])
+    if (activeRinks.length && playoffRinkIds.length === 0) setPlayoffRinkIds([activeRinks[0].id])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRinks])
 
+  const toggleRink = (id: string) => {
+    setRinkIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]))
+  }
+  const togglePlayoffRink = (id: string) => {
+    setPlayoffRinkIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]))
+  }
+
+  const rinkNameById = new Map(activeRinks.map((r) => [r.id, r.name]))
   const nameById = new Map(teams.map((tm) => [tm.id, tm.name]))
   const orderedTeams = order.map((id) => ({ id, name: nameById.get(id) ?? '' })).filter((tm) => tm.name)
   const groupLabels = Array.from({ length: groupCount }, (_, i) => String.fromCharCode(65 + i))
 
-  const zonesForSelection = rinkId
-    ? zones.filter((z) => z.rinkId === rinkId && z.mode === format).sort((a, b) => a.slotIndex - b.slotIndex)
-    : []
-  const playoffZonesForSelection = playoffRinkId
-    ? zones.filter((z) => z.rinkId === playoffRinkId && z.mode === playoffFormat).sort((a, b) => a.slotIndex - b.slotIndex)
-    : []
+  const zonesForSelection = activeRinks
+    .filter((r) => rinkIds.includes(r.id))
+    .flatMap((r) => zones.filter((z) => z.rinkId === r.id && z.mode === format).sort((a, b) => a.slotIndex - b.slotIndex))
+  const slotLocations: ScheduleSlotLocation[] = zonesForSelection.map((z) => ({ rinkId: z.rinkId, zoneId: z.id }))
+  const playoffZonesForSelection = activeRinks
+    .filter((r) => playoffRinkIds.includes(r.id))
+    .flatMap((r) => zones.filter((z) => z.rinkId === r.id && z.mode === playoffFormat).sort((a, b) => a.slotIndex - b.slotIndex))
+  const playoffSlotLocations: ScheduleSlotLocation[] = playoffZonesForSelection.map((z) => ({ rinkId: z.rinkId, zoneId: z.id }))
 
   const moveTeam = (index: number, dir: -1 | 1) => {
     setOrder((prev) => {
@@ -188,7 +199,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
   }, [groupsInput, zonesForSelection.length, startTime, durationMinutes, defaultBreakMinutes, gapOverrides])
 
   const handleGenerateGroups = async () => {
-    if (!preview || !rinkId || !user || !staff) return
+    if (!preview || rinkIds.length === 0 || !user || !staff) return
     setGenerating(true)
     setErrorMessage(null)
     try {
@@ -198,8 +209,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
         tournamentId,
         clubId: club.id,
         date,
-        rinkId,
-        zoneIds: zonesForSelection.map((z) => z.id),
+        slotLocations,
         format,
         durationMinutes,
         blocksIce,
@@ -305,7 +315,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
   }, [advancingTeamIds, playoffZonesForSelection.length, playoffStartTime, playoffDuration, playoffDefaultBreak, playoffGapOverrides])
 
   const handleGeneratePlayoff = async () => {
-    if (!playoffPreview || !playoffRinkId || !user || !staff) return
+    if (!playoffPreview || playoffRinkIds.length === 0 || !user || !staff) return
     setGeneratingPlayoff(true)
     setErrorMessage(null)
     try {
@@ -313,8 +323,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
         tournamentId,
         clubId: club.id,
         date: playoffDate,
-        rinkId: playoffRinkId,
-        zoneIds: playoffZonesForSelection.map((z) => z.id),
+        slotLocations: playoffSlotLocations,
         format: playoffFormat,
         durationMinutes: playoffDuration,
         blocksIce: playoffBlocksIce,
@@ -398,15 +407,19 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
               <p className="text-text-muted text-xs">{t('tournaments.groupAssignHint')}</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <Label className="text-white">{t('tournaments.rink')}</Label>
-                <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
-                  {activeRinks.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
+            <div className="space-y-1">
+              <Label className="text-white">{t('tournaments.rinks')}</Label>
+              <div className="flex flex-wrap gap-3">
+                {activeRinks.map((r) => (
+                  <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
+                    <input type="checkbox" checked={rinkIds.includes(r.id)} onChange={() => toggleRink(r.id)} className="h-4 w-4" />
+                    {r.name}
+                  </label>
+                ))}
               </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <Label className="text-white">{t('tournaments.format')}</Label>
                 <select value={format} onChange={(e) => setFormat(e.target.value as DivisionMode)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
@@ -467,6 +480,9 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                       {slot.pairs.map((p, pIdx) => (
                         <span key={pIdx} className="text-white text-sm">
                           <span className="text-text-muted">[{p.groupName}]</span> {p.teamAName} <span className="text-text-muted">vs</span> {p.teamBName}
+                          <span className="text-text-muted text-xs">
+                            {' '}({rinkNameById.get(zonesForSelection[pIdx]?.rinkId) ?? ''} — {zonesForSelection[pIdx]?.name ?? ''})
+                          </span>
                           {pIdx < slot.pairs.length - 1 ? ' · ' : ''}
                         </span>
                       ))}
@@ -491,7 +507,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
 
             {errorMessage && <p className="text-status-danger text-sm">{errorMessage}</p>}
 
-            <Button type="button" onClick={handleGenerateGroups} disabled={!preview || generating} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+            <Button type="button" onClick={handleGenerateGroups} disabled={!preview || rinkIds.length === 0 || generating} className="bg-primary hover:bg-primary-gold text-primary-foreground">
               {generating ? t('common.saving') : t('tournaments.generateGroups')}
             </Button>
           </>
@@ -539,7 +555,9 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                             <p className="text-white text-sm">
                               {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
                             </p>
-                            <p className="text-text-muted text-xs">{m.date} · {m.startTime}</p>
+                            <p className="text-text-muted text-xs">
+                              {m.date} · {m.startTime} · {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                            </p>
                           </div>
                           {decided ? (
                             <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>
@@ -596,15 +614,19 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                     />
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div>
-                      <Label className="text-white">{t('tournaments.rink')}</Label>
-                      <select value={playoffRinkId} onChange={(e) => setPlayoffRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
-                        {activeRinks.map((r) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
-                        ))}
-                      </select>
+                  <div className="space-y-1">
+                    <Label className="text-white">{t('tournaments.rinks')}</Label>
+                    <div className="flex flex-wrap gap-3">
+                      {activeRinks.map((r) => (
+                        <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
+                          <input type="checkbox" checked={playoffRinkIds.includes(r.id)} onChange={() => togglePlayoffRink(r.id)} className="h-4 w-4" />
+                          {r.name}
+                        </label>
+                      ))}
                     </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div>
                       <Label className="text-white">{t('tournaments.format')}</Label>
                       <select value={playoffFormat} onChange={(e) => setPlayoffFormat(e.target.value as DivisionMode)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
@@ -670,6 +692,11 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                                 {m.teamB.name ?? t('tournaments.winnerOfMatch', { n: m.matchNumber })}
                               </span>
                               {m.isBye && <span className="text-text-muted text-xs">({t('tournaments.byeLabel')})</span>}
+                              {!m.isBye && m.zoneIndex != null && playoffZonesForSelection[m.zoneIndex] && (
+                                <span className="text-text-muted text-xs">
+                                  ({rinkNameById.get(playoffZonesForSelection[m.zoneIndex].rinkId) ?? ''} — {playoffZonesForSelection[m.zoneIndex].name})
+                                </span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -700,7 +727,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                   <Button
                     type="button"
                     onClick={handleGeneratePlayoff}
-                    disabled={!playoffPreview || generatingPlayoff}
+                    disabled={!playoffPreview || playoffRinkIds.length === 0 || generatingPlayoff}
                     className="bg-primary hover:bg-primary-gold text-primary-foreground"
                   >
                     {generatingPlayoff ? t('common.saving') : t('tournaments.generatePlayoff')}
@@ -709,6 +736,8 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
               ) : (
                 <TournamentBracketView
                   matches={playoffMatches}
+                  rinks={rinks}
+                  zones={zones}
                   scoreInputs={scoreInputs}
                   onScoreChange={handleScoreChange}
                   onSaveResult={handleSavePlayoffResult}
