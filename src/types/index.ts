@@ -491,6 +491,14 @@ export interface TournamentTeam {
   createdAt: Date
 }
 
+// A not-yet-known opponent on an imported placement/play-off match — see
+// TournamentMatch.teamAPlaceholder/teamBPlaceholder and
+// lib/tournaments.ts's resolveMatchPlaceholder.
+export type MatchTeamPlaceholder =
+  | { kind: 'groupRank'; groupId: string; rank: number }
+  | { kind: 'winnerOf'; label: string }
+  | { kind: 'loserOf'; label: string }
+
 // One scheduled match. Reuses DivisionMode (full/half/third) for
 // `format` — a trainer picks how the rink is divided for this time slot
 // exactly like the ice-booking zone system, so a "third" format lets up
@@ -554,6 +562,21 @@ export interface TournamentMatch {
   // match (see createKnockoutBracket in lib/tournaments.ts).
   nextMatchId?: string
   nextMatchSlot?: 'A' | 'B'
+  // Set for a placement/play-off row imported before the referenced
+  // result is known (see lib/excel.ts's parseTournamentMatchesWorkbook
+  // and CLAUDE.md's "Bulk match-schedule import" section) — e.g. an
+  // away-tournament poster's "o 9.-10. miesto, A5-B5" row, whose real
+  // opponents only exist once the group stage (or another match) is
+  // decided. `teamA`/`teamB` always hold a literal fallback string (e.g.
+  // "A5") shown until lib/tournaments.ts's resolveMatchPlaceholder can
+  // substitute the real, current name — this never happens for a normal
+  // match with already-known teams, so both are unset there.
+  teamAPlaceholder?: MatchTeamPlaceholder
+  teamBPlaceholder?: MatchTeamPlaceholder
+  // A short reference code (e.g. "SF1") another match's `winnerOf`/
+  // `loserOf` placeholder can point to. Only meaningful alongside one of
+  // the placeholder fields above or another match referencing this one.
+  label?: string
   format: DivisionMode
   // 'rink' = played on this club's own ice (rinkId/zoneId set); 'other' =
   // a different venue entirely (e.g. a hokejbal/football pitch this club

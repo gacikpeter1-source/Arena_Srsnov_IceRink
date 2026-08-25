@@ -1,7 +1,7 @@
 import { collection, doc, deleteDoc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
 import { createBooking, cancelBooking, SlotUnavailableError } from './bookings'
-import { DivisionMode, Tournament, TournamentMatch, TournamentTeam } from '@/types'
+import { DivisionMode, MatchTeamPlaceholder, Tournament, TournamentMatch, TournamentTeam } from '@/types'
 import { minutesToTime, timeToMinutes } from './utils'
 
 export { SlotUnavailableError }
@@ -172,6 +172,10 @@ export interface CreateTournamentMatchInput {
   schema?: 'roundRobin' | 'knockout' | 'groups' | 'groupsPlayoff'
   // See TournamentMatch.groupId — only set for a 'groups' schema match.
   groupId?: string
+  // See TournamentMatch.teamAPlaceholder/teamBPlaceholder/label.
+  teamAPlaceholder?: MatchTeamPlaceholder
+  teamBPlaceholder?: MatchTeamPlaceholder
+  label?: string
   format: DivisionMode
   location: 'rink' | 'other'
   // Required when location === 'rink'.
@@ -226,6 +230,9 @@ export async function createTournamentMatch(input: CreateTournamentMatchInput): 
     ...(input.round != null ? { round: input.round } : {}),
     ...(input.schema ? { schema: input.schema } : {}),
     ...(input.groupId ? { groupId: input.groupId } : {}),
+    ...(input.teamAPlaceholder ? { teamAPlaceholder: input.teamAPlaceholder } : {}),
+    ...(input.teamBPlaceholder ? { teamBPlaceholder: input.teamBPlaceholder } : {}),
+    ...(input.label ? { label: input.label } : {}),
     format: input.format,
     location: input.location,
     ...(input.location === 'rink' ? { rinkId: input.rinkId, zoneId: input.zoneId } : {}),
@@ -609,6 +616,58 @@ export function computeGroupStandings(
   })
   result.sort((x, y) => y.points - x.points || y.goalDiff - x.goalDiff || x.played - y.played || x.teamName.localeCompare(y.teamName))
   return result
+}
+
+/**
+ * Resolves one placeholder opponent (see TournamentMatch.teamAPlaceholder/
+ * teamBPlaceholder) to a real, currently-known name — or `null` when it
+ * can't be resolved yet (the group hasn't produced that many ranked
+ * teams, or the referenced match has no recorded result). `groupRank`
+ * always reflects the group's *current* standings, live — it doesn't
+ * wait for every group match to finish, so it can show a provisional
+ * occupant that still shifts as more results come in, same as the rest
+ * of this app's standings tables. `winnerOf`/`loserOf` reads another
+ * match's own recorded score directly rather than `winnerTeamId` (which
+ * only knockout/groupsPlayoff matches ever get) since a plain imported
+ * match never goes through that auto-advance path.
+ */
+export function resolveMatchPlaceholder(
+  placeholder: MatchTeamPlaceholder,
+  context: { standingsByGroup: Map<string, GroupStandingRow[]>; matchesByLabel: Map<string, Pick<TournamentMatch, 'teamA' | 'teamB' | 'teamAId' | 'teamBId' | 'scoreA' | 'scoreB'>> }
+): { name: string; teamId?: string } | null {
+  if (placeholder.kind === 'groupRank') {
+    const row = context.standingsByGroup.get(placeholder.groupId)?.[placeholder.rank - 1]
+    return row ? { name: row.teamName, teamId: row.teamId } : null
+  }
+  const ref = context.matchesByLabel.get(placeholder.label)
+  if (!ref || ref.scoreA == null || ref.scoreB == null || ref.scoreA === ref.scoreB) return null
+  const aWon = ref.scoreA > ref.scoreB
+  const winnerAdvances = placeholder.kind === 'winnerOf'
+  return aWon === winnerAdvances ? { name: ref.teamA, teamId: ref.teamAId } : { name: ref.teamB, teamId: ref.teamBId }
+}
+
+/**
+ * Display-only pass over a tournament's matches: any match carrying a
+ * teamAPlaceholder/teamBPlaceholder gets that side's shown name swapped
+ * for its current resolved value, falling back to the stored literal
+ * text (e.g. "A5") when not resolvable yet. Never writes anything back
+ * and never invents a teamAId/teamBId — a resolved placeholder name is
+ * for reading, not for feeding a standings table or the "my team"
+ * filter, which stay keyed off real, generated matches only.
+ */
+export function withResolvedPlaceholders<T extends Pick<TournamentMatch, 'teamA' | 'teamB' | 'teamAId' | 'teamBId' | 'scoreA' | 'scoreB' | 'teamAPlaceholder' | 'teamBPlaceholder' | 'label'>>(
+  matches: T[],
+  standingsByGroup: Map<string, GroupStandingRow[]>
+): T[] {
+  const matchesByLabel = new Map(matches.filter((m) => m.label).map((m) => [m.label as string, m]))
+  return matches.map((m) => {
+    if (!m.teamAPlaceholder && !m.teamBPlaceholder) return m
+    const context = { standingsByGroup, matchesByLabel }
+    const resolvedA = m.teamAPlaceholder ? resolveMatchPlaceholder(m.teamAPlaceholder, context) : null
+    const resolvedB = m.teamBPlaceholder ? resolveMatchPlaceholder(m.teamBPlaceholder, context) : null
+    if (!resolvedA && !resolvedB) return m
+    return { ...m, teamA: resolvedA?.name ?? m.teamA, teamB: resolvedB?.name ?? m.teamB }
+  })
 }
 
 /**

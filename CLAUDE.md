@@ -1477,7 +1477,8 @@ through the one-at-a-time "Add match" form doesn't scale to a real
 `TournamentDetailPage.tsx`, right above the manual form) reads a whole
 workbook at once via a new `parseTournamentMatchesWorkbook`/
 `downloadTournamentMatchImportTemplate` pair in `lib/excel.ts`. Columns:
-Date, Start Time, Duration (min), Group, Team A, Team B.
+Date, Start Time, Duration (min), Group, Team A, Team B, Label (the last
+only meaningful for a blank-Group placement row — see below).
 
 Deliberately scoped to `location: 'other'` only — a single venue name is
 entered once in the panel (not per row) and every imported match is
@@ -1499,31 +1500,65 @@ The importer tells these apart purely by whether Group is filled in:
   already expect, so the live table works immediately with no extra
   step.
 - **Group blank** → `teamAId`/`teamBId` are left unset entirely; the
-  literal cell text ("A5", "B5", "Víťaz SF1", ...) is stored as-is on
-  `teamA`/`teamB`, same as any other manually-typed match. It shows up
-  in the flat match list, not a standings table, and isn't linked to any
-  bracket-advancement logic — once real standings are known on the day,
-  staff manually delete and re-add that one row with the actual
-  qualifying team names (there's no bulk "resolve placeholder" step,
-  since this app has no concept of a placement-bracket schema to begin
-  with — see the note below).
+  literal cell text ("A5", "W:SF1", ...) is stored as-is on `teamA`/
+  `teamB` as a fallback, and isn't linked to any bracket-advancement
+  logic or fed into a standings table.
 
-This intentionally does **not** attempt to model the fuller "9./10.,
-7./8., 5./6. placement + semifinal/3rd-place/final" classification
-bracket some tournaments run (covering every team's final rank, not just
-a top-N knockout) — `buildKnockoutPreview`/`createKnockoutBracket` only
-ever generate a single-elimination bracket among *advancing* teams. 
-Building a generic placement-bracket generator is a bigger, separate
-feature; for now those rows import as plain schema-less matches like any
-other manually-added one, and the trainer fills in real team names once
-they're known.
+**A blank-Group cell's text can be a placeholder code, resolved live —
+not just inert text staff have to replace by hand.** This app has no
+generic classification-bracket generator (`buildKnockoutPreview`/
+`createKnockoutBracket` only ever build a single-elimination bracket
+among teams that already advanced), but a real poster's placement rows
+("o 9.-10. miesto A5-B5", finals referencing semifinal winners) don't
+need one *generated* — they just need their two "teams" filled in once
+the answer exists. `TournamentMatch.teamAPlaceholder`/`teamBPlaceholder`
+(`MatchTeamPlaceholder` in `types/index.ts`) capture that intent per
+side:
+- `{ kind: 'groupRank', groupId, rank }` — "whoever currently holds rank
+  N in group X" — parsed from a cell like `"A5"` (letters = group id,
+  trailing digits = 1-based rank).
+- `{ kind: 'winnerOf' | 'loserOf', label }` — the winner/loser of another
+  match *in this same tournament* carrying that `label` — parsed from
+  `"W:label"` / `"L:label"` (case-insensitive). A row sets its own
+  `label` (e.g. "SF1") via the import's Label column so later rows can
+  reference it.
+- Anything else in a blank-Group cell is left as plain literal text —
+  parseTeamPlaceholder simply doesn't match it, so no placeholder is
+  attached and it always displays exactly as typed.
 
-Verified end-to-end with a standalone script (esbuild-bundled
-`lib/excel.ts`, fed an in-memory workbook shaped like a real poster) — a
-Group-tagged row parses with its `groupId`, a blank-Group row parses
-with `groupId` correctly omitted and teams kept as literal text, and a
-row missing a team name is reported as a row-numbered error rather than
-silently dropped.
+`lib/tournaments.ts`'s `resolveMatchPlaceholder`/`withResolvedPlaceholders`
+do the actual live substitution, reading whichever group's *current*
+standings (via the same `computeGroupStandings` the live table already
+computes — so a `groupRank` placeholder can show a provisional occupant
+before the group is even finished, same "read whatever result data
+exists so far" stance the rest of this app's standings/brackets already
+take) or another labeled match's own recorded score (a genuine tie
+between the referenced sides is left unresolved — there's no winner to
+report). Deliberately **display-only**: it never writes a resolved name
+back to Firestore, never invents a `teamAId`/`teamBId` for a resolved
+side, and is applied by `TournamentSchedulePage.tsx` (both the regular
+scrollable view and the TV dashboard, which shares its derived data)
+over a `displayMatches` array built once and reused everywhere `matches`
+would otherwise have been read directly — a match with no placeholder
+passes through completely unchanged. The admin's own
+`TournamentLiveControlPanel.tsx` still shows the raw stored text (e.g.
+"A5") rather than resolving it live — a smaller, standalone view that
+doesn't already compute group standings the way the public page does;
+left as a known gap rather than duplicating that computation there for
+this pass.
+
+Verified end-to-end with standalone esbuild-bundled scripts (one for
+`lib/excel.ts`'s parser, one for `lib/tournaments.ts`'s resolution
+functions) fed data shaped like a real poster: a Group-tagged row parses
+with its `groupId`; a blank-Group row recognizes `"A5"`/`"W:SF1"`/
+`"L:SF1"` as placeholders (and anything else as plain text); a row
+missing a team name reports as a row-numbered error; `groupRank`
+resolves to the correct current standings row (and `null` past the end
+of the table); `winnerOf`/`loserOf` resolves correctly in both
+directions and stays `null` for a drawn or unplayed referenced match;
+and `withResolvedPlaceholders` substitutes only the sides that *can*
+currently resolve, leaving the other side's literal fallback text
+in place.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
