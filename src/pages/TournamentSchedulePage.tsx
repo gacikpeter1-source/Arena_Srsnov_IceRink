@@ -350,7 +350,7 @@ export default function TournamentSchedulePage() {
             {liveMatches.length > 0 && (
               <div
                 className="shrink-0 rounded-2xl border border-status-danger/50 bg-status-danger/5 px-6 py-3 flex flex-col"
-                style={{ height: '17vh' }}
+                style={{ height: '22vh' }}
               >
                 <h2 className="shrink-0 flex items-center gap-2 text-status-danger text-lg font-bold uppercase tracking-wide mb-1">
                   <span className="h-3 w-3 rounded-full bg-status-danger animate-pulse" />
@@ -359,11 +359,11 @@ export default function TournamentSchedulePage() {
                 <ScaleToFit className="flex-1 min-h-0 w-full">
                   <div className="flex flex-nowrap gap-6">
                     {liveMatches.map((m) => (
-                      <div key={m.id} className="flex items-center gap-6 rounded-xl border border-status-danger/40 px-5 py-3 whitespace-nowrap">
-                        <span className="text-white text-2xl font-semibold">
-                          {m.teamA} <span className="text-text-muted text-lg font-normal">vs</span> {m.teamB}
+                      <div key={m.id} className="flex items-center gap-6 rounded-xl border border-status-danger/40 px-5 py-4 whitespace-nowrap">
+                        <span className="text-white text-3xl font-semibold">
+                          {m.teamA} <span className="text-text-muted text-xl font-normal">vs</span> {m.teamB}
                         </span>
-                        <span className="text-status-danger text-3xl font-bold">
+                        <span className="text-status-danger text-4xl font-bold">
                           {m.scoreA ?? 0} : {m.scoreB ?? 0}
                         </span>
                       </div>
@@ -373,18 +373,18 @@ export default function TournamentSchedulePage() {
               </div>
             )}
 
-            <div className="shrink-0 flex gap-4" style={{ height: '19vh' }}>
+            <div className="shrink-0 flex gap-4" style={{ height: '26vh' }}>
               {tvUpcomingMatches.length > 0 && (
                 <div className="flex-1 min-w-0 rounded-2xl border border-border bg-background-card px-6 py-3 flex flex-col">
                   <h2 className="shrink-0 text-white text-lg font-bold uppercase tracking-wide mb-1">{t('tournaments.upcomingMatches')}</h2>
                   <ScaleToFit className="flex-1 min-h-0 w-full">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                       {tvUpcomingMatches.map((m) => (
                         <div key={m.id} className="flex items-center justify-between gap-8 whitespace-nowrap">
-                          <span className="text-white text-2xl font-semibold">
-                            {m.teamA} <span className="text-text-muted text-lg font-normal">vs</span> {m.teamB}
+                          <span className="text-white text-3xl font-semibold">
+                            {m.teamA} <span className="text-text-muted text-xl font-normal">vs</span> {m.teamB}
                           </span>
-                          <span className="text-text-muted text-xl">
+                          <span className="text-text-muted text-2xl">
                             {m.date} · {m.startTime}
                             {m.rinkId ? ` · ${rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — ${zones.find((z) => z.id === m.zoneId)?.name ?? ''}` : ''}
                           </span>
@@ -394,17 +394,28 @@ export default function TournamentSchedulePage() {
                   </ScaleToFit>
                 </div>
               )}
+              {/* Fixed proportionate size (not stretched to the row's full
+                  height) — with `flex-1`+`aspect-square` a sparse (or
+                  bracket-mode, upcoming-less) row let the QR balloon up to
+                  fill the whole row while neighboring text stayed small,
+                  looking oversized rather than balanced. */}
               <div
-                className={`shrink-0 rounded-2xl border border-border bg-background-card px-4 py-3 flex flex-col items-center justify-center gap-1 ${
+                className={`shrink-0 rounded-2xl border border-border bg-background-card px-4 py-3 flex flex-col items-center justify-center gap-2 ${
                   tvUpcomingMatches.length === 0 ? 'ml-auto' : ''
                 }`}
+                style={{ width: 'clamp(120px, 16vh, 220px)' }}
               >
                 {tvQrDataUrl ? (
-                  <img src={tvQrDataUrl} alt="" className="flex-1 min-h-0 aspect-square bg-white p-1 rounded object-contain" />
+                  <img
+                    src={tvQrDataUrl}
+                    alt=""
+                    className="w-full aspect-square bg-white p-1 rounded object-contain"
+                    style={{ maxHeight: 'clamp(100px, 14vh, 190px)' }}
+                  />
                 ) : (
-                  <div className="flex-1 min-h-0 aspect-square bg-background-dark rounded" />
+                  <div className="w-full aspect-square bg-background-dark rounded" style={{ maxHeight: 'clamp(100px, 14vh, 190px)' }} />
                 )}
-                <p className="shrink-0 text-text-muted text-[11px] text-center">{t('tournaments.tvScanHint')}</p>
+                <p className="shrink-0 text-text-muted text-xs text-center">{t('tournaments.tvScanHint')}</p>
               </div>
             </div>
           </>
