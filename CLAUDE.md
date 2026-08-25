@@ -1350,6 +1350,28 @@ an unintended regression from the "modernize the visuals" pass that
 this restores, since a spectator screen needs to say not just who's
 winning but where to find the actual game.
 
+**"My team" filter on the public spectator screen.** A `<select>`
+(`TournamentSchedulePage.tsx`, right below the tournament picker, only
+rendered once at least one match carries a team id) lets a no-login
+visitor narrow the screen to one team — built from `matches` themselves
+(id → name, deduped) rather than a `TournamentTeam` fetch, same reason
+the rest of this page already avoids that collection (stays staff-only).
+The filter **removes** non-matching rows from the flat match lists — live/
+upcoming in "Kto hrá a kto nasleduje", the per-match list under each
+standings table/group, and the schema-less "Iné zápasy" list (matched by
+team *name* there, since a manually-added match has no team ids at all)
+— but only **highlights**, never removes, a team's row in
+`TournamentStandingsTable` (new optional `highlightTeamId` prop — gold
+left-border + bold name) or its box in `TournamentBracketDiagram` (new
+same-named prop — a gold ring around the match box, gold text on that
+team's own line even before the match is decided): a standing's rank
+only means something next to the rest of the table, and removing bracket
+boxes would break the bracket's own tree shape. The selection is
+remembered in `localStorage` per tournament ID
+(`turnaje-favorite-team:<id>`) so a spectator revisiting the same
+screen/QR code doesn't have to re-pick their team — never sent anywhere,
+purely a client-side view filter over data that's already public.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

@@ -3,6 +3,10 @@ import { GroupStandingRow } from '@/lib/tournaments'
 
 interface TournamentStandingsTableProps {
   rows: GroupStandingRow[]
+  // Set when a spectator has picked a "my team" filter — highlights that
+  // row instead of removing the others, since a team's rank only means
+  // something next to the rest of the table.
+  highlightTeamId?: string | null
 }
 
 // Cosmetic rank accent for the top 3 (gold/silver/bronze-ish) — purely
@@ -21,7 +25,7 @@ const GRID_COLS = 'grid-cols-[1.75rem_1fr_3rem_3rem_3.75rem_3.25rem]'
  * pill instead of a bare number, and a divided-row list instead of table
  * borders.
  */
-export default function TournamentStandingsTable({ rows }: TournamentStandingsTableProps) {
+export default function TournamentStandingsTable({ rows, highlightTeamId }: TournamentStandingsTableProps) {
   const { t } = useTranslation()
   return (
     <div className="rounded-xl border border-border overflow-hidden">
@@ -34,10 +38,15 @@ export default function TournamentStandingsTable({ rows }: TournamentStandingsTa
         <span className="text-center">{t('tournaments.standingsPoints')}</span>
       </div>
       <div className="divide-y divide-border">
-        {rows.map((row, i) => (
-          <div key={row.teamId} className={`grid ${GRID_COLS} gap-2 px-3 py-2 items-center`}>
+        {rows.map((row, i) => {
+          const isHighlighted = !!highlightTeamId && row.teamId === highlightTeamId
+          return (
+          <div
+            key={row.teamId}
+            className={`grid ${GRID_COLS} gap-2 px-3 py-2 items-center ${isHighlighted ? 'bg-primary/10 border-l-2 border-primary' : ''}`}
+          >
             <span className={`text-sm font-bold ${RANK_ACCENT[i] ?? 'text-text-muted'}`}>{i + 1}</span>
-            <span className="text-white font-medium truncate">{row.teamName}</span>
+            <span className={`truncate ${isHighlighted ? 'text-primary font-bold' : 'text-white font-medium'}`}>{row.teamName}</span>
             <span className="text-center text-text-secondary text-sm">{row.totalMatches}</span>
             <span className="text-center text-text-secondary text-sm">{row.played}</span>
             <span className="text-center text-text-secondary text-sm mono">{row.goalsFor}:{row.goalsAgainst}</span>
@@ -47,7 +56,8 @@ export default function TournamentStandingsTable({ rows }: TournamentStandingsTa
               </span>
             </span>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

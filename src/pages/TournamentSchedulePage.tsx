@@ -11,6 +11,7 @@ import TournamentStandingsTable from '@/components/TournamentStandingsTable'
 import BackButton from '@/components/BackButton'
 
 const POLL_MS = 6000
+const FAVORITE_TEAM_STORAGE_KEY = 'turnaje-favorite-team'
 
 /**
  * Public, no-login tournament schedule — the last missing piece from
@@ -46,6 +47,11 @@ export default function TournamentSchedulePage() {
   const [matches, setMatches] = useState<(TournamentMatch & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [matchesLoading, setMatchesLoading] = useState(false)
+  // "My team" filter — remembered per tournament (a spectator revisiting
+  // the same screen shouldn't have to re-pick their team every time), but
+  // never sent anywhere: purely a client-side view filter over data
+  // that's already public.
+  const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!club) return
@@ -69,13 +75,51 @@ export default function TournamentSchedulePage() {
     return () => clearInterval(interval)
   }, [activeId])
 
+  useEffect(() => {
+    if (!activeId) {
+      setFavoriteTeamId(null)
+      return
+    }
+    setFavoriteTeamId(localStorage.getItem(`${FAVORITE_TEAM_STORAGE_KEY}:${activeId}`))
+  }, [activeId])
+
+  useEffect(() => {
+    if (!activeId) return
+    if (favoriteTeamId) {
+      localStorage.setItem(`${FAVORITE_TEAM_STORAGE_KEY}:${activeId}`, favoriteTeamId)
+    } else {
+      localStorage.removeItem(`${FAVORITE_TEAM_STORAGE_KEY}:${activeId}`)
+    }
+  }, [activeId, favoriteTeamId])
+
   const activeTournament = tournaments.find((tr) => tr.id === activeId)
   const pointsForWin = activeTournament?.pointsForWin ?? 3
 
+  // Team names are only unique within one tournament's own matches, so the
+  // filter's option list — and the id-based filtering below — is rebuilt
+  // fresh from `matches` on every activeId/poll cycle rather than fetching
+  // TournamentTeam docs (which stay staff-only, see the module doc above).
+  const teamOptionsMap = new Map<string, string>()
+  matches.forEach((m) => {
+    if (m.teamAId) teamOptionsMap.set(m.teamAId, m.teamA)
+    if (m.teamBId) teamOptionsMap.set(m.teamBId, m.teamB)
+  })
+  const teamOptions = Array.from(teamOptionsMap.entries()).sort((a, b) => a[1].localeCompare(b[1]))
+  const favoriteTeamName = favoriteTeamId ? teamOptionsMap.get(favoriteTeamId) ?? null : null
+  const involvesFavoriteTeam = (m: TournamentMatch & { id: string }) =>
+    !favoriteTeamId || m.teamAId === favoriteTeamId || m.teamBId === favoriteTeamId
+  // A manually-added match (no schema) never has team ids at all, so it
+  // can only be matched by name.
+  const involvesFavoriteTeamByName = (m: TournamentMatch & { id: string }) =>
+    !favoriteTeamId || m.teamA === favoriteTeamName || m.teamB === favoriteTeamName
+  const favoriteTeamHasMatches =
+    !favoriteTeamId ||
+    matches.some((m) => m.teamAId === favoriteTeamId || m.teamBId === favoriteTeamId || m.teamA === favoriteTeamName || m.teamB === favoriteTeamName)
+
   const realMatches = matches.filter((m) => !m.isBye)
-  const liveMatches = realMatches.filter((m) => deriveMatchState(m) === 'live')
+  const liveMatches = realMatches.filter((m) => deriveMatchState(m) === 'live' && involvesFavoriteTeam(m))
   const upcomingMatches = realMatches
-    .filter((m) => deriveMatchState(m) === 'scheduled')
+    .filter((m) => deriveMatchState(m) === 'scheduled' && involvesFavoriteTeam(m))
     .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
     .slice(0, 8)
 
@@ -85,7 +129,9 @@ export default function TournamentSchedulePage() {
   const roundRobinMatches = matches.filter((m) => m.schema === 'roundRobin')
   // A manually-added match (no schema at all) never has team ids, so it
   // can't feed a standings table — it only ever shows up in the flat list.
-  const otherFinishedMatches = matches.filter((m) => !m.schema && deriveMatchState(m) === 'finished')
+  const otherFinishedMatches = matches
+    .filter((m) => !m.schema && deriveMatchState(m) === 'finished')
+    .filter(involvesFavoriteTeamByName)
 
   const groupMatchesByGroup = new Map<string, (TournamentMatch & { id: string })[]>()
   groupMatches.forEach((m) => {
@@ -198,6 +244,30 @@ export default function TournamentSchedulePage() {
             </div>
           )}
 
+          {teamOptions.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <label htmlFor="favorite-team" className="text-text-muted text-sm">
+                {t('tournaments.favoriteTeamLabel')}
+              </label>
+              <select
+                id="favorite-team"
+                value={favoriteTeamId ?? ''}
+                onChange={(e) => setFavoriteTeamId(e.target.value || null)}
+                className="bg-background-dark border border-border rounded-md text-white text-sm px-2 py-1.5"
+              >
+                <option value="">{t('tournaments.favoriteTeamAll')}</option>
+                {teamOptions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {favoriteTeamId && !favoriteTeamHasMatches && (
+                <span className="text-text-muted text-xs">{t('tournaments.favoriteTeamNoMatches')}</span>
+              )}
+            </div>
+          )}
+
           {matchesLoading ? (
             <p className="text-text-muted">{t('common.loading')}</p>
           ) : matches.length === 0 ? (
@@ -261,8 +331,8 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.standingsTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <TournamentStandingsTable rows={roundRobinStandings} />
-                    <div className="space-y-1">{roundRobinMatches.map(renderMatchRow)}</div>
+                    <TournamentStandingsTable rows={roundRobinStandings} highlightTeamId={favoriteTeamId} />
+                    <div className="space-y-1">{roundRobinMatches.filter(involvesFavoriteTeam).map(renderMatchRow)}</div>
                   </CardContent>
                 </Card>
               )}
@@ -277,8 +347,8 @@ export default function TournamentSchedulePage() {
                       {groupIds.map((g) => (
                         <div key={g} className="space-y-2">
                           <h3 className="text-white text-sm font-semibold">{t('tournaments.groupLabel', { name: g })}</h3>
-                          <TournamentStandingsTable rows={standingsByGroup.get(g) ?? []} />
-                          <div className="space-y-1">{(groupMatchesByGroup.get(g) ?? []).map(renderMatchRow)}</div>
+                          <TournamentStandingsTable rows={standingsByGroup.get(g) ?? []} highlightTeamId={favoriteTeamId} />
+                          <div className="space-y-1">{(groupMatchesByGroup.get(g) ?? []).filter(involvesFavoriteTeam).map(renderMatchRow)}</div>
                         </div>
                       ))}
                     </div>
@@ -292,7 +362,7 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.playoffTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TournamentBracketDiagram matches={playoffMatches} rinks={rinks} zones={zones} />
+                    <TournamentBracketDiagram matches={playoffMatches} rinks={rinks} zones={zones} highlightTeamId={favoriteTeamId} />
                   </CardContent>
                 </Card>
               )}
@@ -303,7 +373,7 @@ export default function TournamentSchedulePage() {
                     <CardTitle className="text-white text-lg">{t('tournaments.knockoutTitle')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TournamentBracketDiagram matches={knockoutMatches} rinks={rinks} zones={zones} />
+                    <TournamentBracketDiagram matches={knockoutMatches} rinks={rinks} zones={zones} highlightTeamId={favoriteTeamId} />
                   </CardContent>
                 </Card>
               )}
