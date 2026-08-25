@@ -503,7 +503,14 @@
       "roundRobin": "Každý tím odohrá zápas s každým iným — vhodné pri menšom počte tímov, výsledné poradie určuje priebežná tabuľka.",
       "knockout": "Prehra znamená koniec — tímy postupujú v pavúku až do finále, so semenovaním a prípadnými voľnými žrebmi.",
       "groups": "Najprv skupinová fáza (tabuľky), potom najlepší z každej skupiny postúpia do vyraďovacieho pavúka."
-    }
+    },
+    "favoriteTeamLabel": "Môj tím",
+    "favoriteTeamAll": "Všetky tímy",
+    "favoriteTeamNoMatches": "Tento tím zatiaľ nemá žiadne zápasy.",
+    "tvScanHint": "Naskenuj pre detail",
+    "tvScreenTitle": "TV obrazovka",
+    "tvScreenHint": "Pevný rozvrh na celú obrazovku bez posúvania, určený pre obrazovku bez obsluhy (TV, obrazovka v recepcii) — tabuľky/pavúk, živé skóre a najbližšie zápasy, automaticky prispôsobené veľkosti obrazovky.",
+    "openTvScreen": "Otvoriť TV obrazovku"
   },
   "trainingEmail": {
     "trainer": "Tréner",

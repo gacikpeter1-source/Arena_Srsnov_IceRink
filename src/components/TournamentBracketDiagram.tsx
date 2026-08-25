@@ -5,6 +5,11 @@ interface TournamentBracketDiagramProps {
   matches: (TournamentMatch & { id: string })[]
   rinks: Rink[]
   zones: Zone[]
+  // Set when a spectator has picked a "my team" filter — highlights that
+  // team's box/line wherever it appears in the bracket rather than
+  // hiding anything else, since removing boxes would break the bracket
+  // shape.
+  highlightTeamId?: string | null
 }
 
 const BOX_HEIGHT_PX = 60
@@ -26,7 +31,7 @@ const COLUMN_WIDTH_PX = 208
  * uses, since a spectator screen benefits from the familiar names more
  * than an admin editing results does.
  */
-export default function TournamentBracketDiagram({ matches, rinks, zones }: TournamentBracketDiagramProps) {
+export default function TournamentBracketDiagram({ matches, rinks, zones, highlightTeamId }: TournamentBracketDiagramProps) {
   const { t } = useTranslation()
   const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
   matches.forEach((m) => {
@@ -75,12 +80,15 @@ export default function TournamentBracketDiagram({ matches, rinks, zones }: Tour
                   const live = !decided && m.status === 'live'
                   const aWinner = decided && m.winnerTeamId === m.teamAId
                   const bWinner = decided && m.winnerTeamId === m.teamBId
+                  const isFavA = !!highlightTeamId && m.teamAId === highlightTeamId
+                  const isFavB = !!highlightTeamId && m.teamBId === highlightTeamId
+                  const isFavMatch = isFavA || isFavB
                   return (
                     <div
                       key={m.id}
                       className={`rounded-lg border overflow-hidden text-sm shadow-sm ${
                         m.isBye ? 'border-dashed border-border/70 bg-transparent' : 'border-border bg-background-card'
-                      } ${live ? 'ring-1 ring-status-danger/60' : ''}`}
+                      } ${live ? 'ring-1 ring-status-danger/60' : isFavMatch ? 'ring-2 ring-primary/70' : ''}`}
                       style={{ minHeight: BOX_HEIGHT_PX }}
                     >
                       {m.isBye ? (
@@ -92,7 +100,11 @@ export default function TournamentBracketDiagram({ matches, rinks, zones }: Tour
                         <>
                           <div
                             className={`flex items-center justify-between gap-2 px-3 py-1.5 border-l-2 ${
-                              aWinner ? 'border-primary bg-primary/10 text-white font-semibold' : 'border-transparent text-text-secondary'
+                              aWinner
+                                ? 'border-primary bg-primary/10 text-white font-semibold'
+                                : isFavA
+                                  ? 'border-primary/50 text-primary font-semibold'
+                                  : 'border-transparent text-text-secondary'
                             }`}
                           >
                             <span className="truncate">{m.teamA}</span>
@@ -105,7 +117,11 @@ export default function TournamentBracketDiagram({ matches, rinks, zones }: Tour
                           <div className="border-t border-border" />
                           <div
                             className={`flex items-center justify-between gap-2 px-3 py-1.5 border-l-2 ${
-                              bWinner ? 'border-primary bg-primary/10 text-white font-semibold' : 'border-transparent text-text-secondary'
+                              bWinner
+                                ? 'border-primary bg-primary/10 text-white font-semibold'
+                                : isFavB
+                                  ? 'border-primary/50 text-primary font-semibold'
+                                  : 'border-transparent text-text-secondary'
                             }`}
                           >
                             <span className="truncate">{m.teamB}</span>

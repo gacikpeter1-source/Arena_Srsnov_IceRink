@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HubHomePage from './pages/HubHomePage'
 import BookingPage from './pages/BookingPage'
@@ -49,23 +49,32 @@ function Footer() {
 export default function App() {
   const { t } = useTranslation()
   const { club } = useClubData()
+  const location = useLocation()
+  // The TV/spectator dashboard (?display=tv on /turnaje) is meant for an
+  // unattended screen — no back button, no language switcher, no footer
+  // admin link, nothing clickable — and needs the full viewport for its
+  // own no-scroll layout, so the shared app chrome is skipped entirely
+  // rather than just hidden with CSS.
+  const isTvScreen = location.pathname === '/turnaje' && new URLSearchParams(location.search).get('display') === 'tv'
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border relative z-20">
-        <div className="content-container flex items-center justify-between py-3 gap-3">
-          <Link to="/" className="flex items-center gap-2 font-semibold text-white">
-            <img src="/icon-192.png" alt="" className="w-7 h-7 rounded-md" />
-            {club?.name ?? t('nav.brand')}
-          </Link>
-          <div className="flex items-center gap-2">
-            <LanguageSwitcher />
-            <HeaderMenu club={club} />
+    <div className={isTvScreen ? 'h-screen overflow-hidden' : 'min-h-screen'}>
+      {!isTvScreen && (
+        <header className="border-b border-border relative z-20">
+          <div className="content-container flex items-center justify-between py-3 gap-3">
+            <Link to="/" className="flex items-center gap-2 font-semibold text-white">
+              <img src="/icon-192.png" alt="" className="w-7 h-7 rounded-md" />
+              {club?.name ?? t('nav.brand')}
+            </Link>
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
+              <HeaderMenu club={club} />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <main>
+      <main className={isTvScreen ? 'h-full' : undefined}>
         <Routes>
           <Route path="/" element={<HubHomePage />} />
           <Route path="/book" element={<BookingPage />} />
@@ -146,7 +155,7 @@ export default function App() {
         </Routes>
       </main>
 
-      <Footer />
+      {!isTvScreen && <Footer />}
     </div>
   )
 }

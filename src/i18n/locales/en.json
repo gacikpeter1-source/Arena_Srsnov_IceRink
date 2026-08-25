@@ -503,7 +503,14 @@
       "roundRobin": "Every team plays every other team — works well with fewer teams, final standings come from the running table.",
       "knockout": "A loss means elimination — teams advance through a seeded bracket to the final, with byes where needed.",
       "groups": "A group stage first (tables), then the top finishers from each group advance into a knockout bracket."
-    }
+    },
+    "favoriteTeamLabel": "My team",
+    "favoriteTeamAll": "All teams",
+    "favoriteTeamNoMatches": "No matches for this team yet.",
+    "tvScanHint": "Scan for details",
+    "tvScreenTitle": "TV screen",
+    "tvScreenHint": "A fixed, no-scroll dashboard layout meant for an unattended screen (a TV, a lobby display) — standings/bracket, live scores, and the next matches, sized to fill the whole screen automatically.",
+    "openTvScreen": "Open TV screen"
   },
   "trainingEmail": {
     "trainer": "Trainer",
