@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import RinkDiagram from '@/components/RinkDiagram'
 import TournamentTeamsPanel from '@/components/TournamentTeamsPanel'
+import TournamentMatchImportPanel from '@/components/TournamentMatchImportPanel'
 import TournamentRoundRobinGenerator from '@/components/TournamentRoundRobinGenerator'
 import TournamentKnockoutGenerator from '@/components/TournamentKnockoutGenerator'
 import TournamentGroupsGenerator from '@/components/TournamentGroupsGenerator'
@@ -277,6 +278,8 @@ export default function TournamentDetailPage() {
       {(!tournament.format || tournament.format === 'groups') && (
         <TournamentGroupsGenerator tournamentId={tournament.id} club={club} rinks={rinks} zones={zones} pointsForWin={tournament.pointsForWin ?? 3} />
       )}
+
+      {user && <TournamentMatchImportPanel tournamentId={tournament.id} clubId={club.id} createdBy={user.uid} onImported={refreshMatches} />}
 
       <Card className="arena-card">
         <CardHeader>

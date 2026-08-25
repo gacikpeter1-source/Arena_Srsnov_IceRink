@@ -341,3 +341,103 @@ export function parseTeamsWorkbook(buffer: ArrayBuffer): ParsedTeamImport {
 
   return { rows, errors }
 }
+
+// Bulk match-schedule import for a tournament — built for the "away"
+// case (Tournament.location === 'other'): a club's own team travels to
+// a multi-team tournament run entirely by someone else, arriving as a
+// printed poster/table with dozens of matches at fixed times. Typing
+// each one through the one-at-a-time "Add match" form doesn't scale, so
+// this reads a whole schedule at once. Scoped to `location: 'other'`
+// only (one shared venue name entered once in the UI, not per row) —
+// an on-ice tournament already has the round-robin/knockout/groups
+// generators plus rink/zone-aware manual add, which this doesn't
+// attempt to replace.
+//
+// A blank "Group" cell is deliberate, not an error: a placement/play-off
+// row (e.g. "o 9.-10. miesto") is scheduled before the group stage
+// finishes, so its "teams" are really just rank placeholders like "A5"/
+// "B5" — text only, never resolved against the team roster or fed into
+// a standings table. Only a row with a real Group letter gets its teams
+// created/matched in `tournamentTeams` and tagged `schema: 'groups'` so
+// it feeds the live standings table.
+const MATCH_HEADERS = {
+  date: 'Date',
+  startTime: 'Start Time',
+  duration: 'Duration (min)',
+  group: 'Group',
+  teamA: 'Team A',
+  teamB: 'Team B'
+} as const
+
+const MATCH_IMPORT_HEADERS = [
+  MATCH_HEADERS.date,
+  MATCH_HEADERS.startTime,
+  MATCH_HEADERS.duration,
+  MATCH_HEADERS.group,
+  MATCH_HEADERS.teamA,
+  MATCH_HEADERS.teamB
+]
+
+export function downloadTournamentMatchImportTemplate(filename = 'tournament-matches-template.xlsx'): void {
+  const ws = XLSX.utils.aoa_to_sheet([MATCH_IMPORT_HEADERS])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Matches')
+  XLSX.writeFile(wb, filename)
+}
+
+export interface TournamentMatchImportRow {
+  date: string
+  startTime: string
+  durationMinutes: number
+  // Unset = a placement/play-off row not tied to the team roster (see
+  // module doc above) — teamA/teamB are then just display text.
+  groupId?: string
+  teamA: string
+  teamB: string
+}
+
+export interface ParsedTournamentMatchImport {
+  rows: TournamentMatchImportRow[]
+  errors: ImportRowError[]
+}
+
+export function parseTournamentMatchesWorkbook(buffer: ArrayBuffer): ParsedTournamentMatchImport {
+  const wb = XLSX.read(buffer)
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+
+  const rows: TournamentMatchImportRow[] = []
+  const errors: ImportRowError[] = []
+
+  raw.forEach((r, i) => {
+    const rowNumber = i + 2
+
+    const date = excelValueToDateString(r[MATCH_HEADERS.date])
+    const startTime = excelValueToTimeString(r[MATCH_HEADERS.startTime])
+    const durationMinutes = Number(r[MATCH_HEADERS.duration])
+    const groupId = String(r[MATCH_HEADERS.group] ?? '').trim()
+    const teamA = String(r[MATCH_HEADERS.teamA] ?? '').trim()
+    const teamB = String(r[MATCH_HEADERS.teamB] ?? '').trim()
+
+    if (!date) {
+      errors.push({ rowNumber, message: `Invalid or missing "${MATCH_HEADERS.date}"` })
+      return
+    }
+    if (!startTime) {
+      errors.push({ rowNumber, message: `Invalid or missing "${MATCH_HEADERS.startTime}"` })
+      return
+    }
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      errors.push({ rowNumber, message: `Invalid or missing "${MATCH_HEADERS.duration}"` })
+      return
+    }
+    if (!teamA || !teamB) {
+      errors.push({ rowNumber, message: `Missing "${MATCH_HEADERS.teamA}" or "${MATCH_HEADERS.teamB}"` })
+      return
+    }
+
+    rows.push({ date, startTime, durationMinutes, groupId: groupId || undefined, teamA, teamB })
+  })
+
+  return { rows, errors }
+}

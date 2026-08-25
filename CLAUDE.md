@@ -1467,6 +1467,64 @@ image itself capped at `clamp(100px, 14vh, 190px)`, so it stays a
 proportionate corner element regardless of what row height it's given or
 how much text sits next to it.
 
+### Bulk match-schedule import for an "away" tournament
+
+A club's own team often travels to play in a tournament someone else
+organizes — arriving as a printed poster/table with dozens of matches at
+fixed times, not something anyone here generated. Typing each one
+through the one-at-a-time "Add match" form doesn't scale to a real
+20-30-match schedule, so `TournamentMatchImportPanel.tsx` (mounted on
+`TournamentDetailPage.tsx`, right above the manual form) reads a whole
+workbook at once via a new `parseTournamentMatchesWorkbook`/
+`downloadTournamentMatchImportTemplate` pair in `lib/excel.ts`. Columns:
+Date, Start Time, Duration (min), Group, Team A, Team B.
+
+Deliberately scoped to `location: 'other'` only — a single venue name is
+entered once in the panel (not per row) and every imported match is
+written with `blocksIce: false`, since an on-ice tournament already has
+the round-robin/knockout/groups generators plus a rink/zone-aware manual
+form; this import isn't meant to replace those.
+
+**A blank Group cell is a deliberate signal, not a validation error.**
+A real tournament poster like this mixes two kinds of rows: group-stage
+matches with real, already-known teams, and placement/play-off rows
+scheduled *before* the group stage finishes (e.g. "o 9.-10. miesto,
+A5-B5") whose "teams" are just rank placeholders, not real teams yet.
+The importer tells these apart purely by whether Group is filled in:
+- **Group set** → both team names are resolved against the tournament's
+  `tournamentTeams` roster (created on first sight, matched by name on
+  every later row/import), assigned that `groupId` via the existing
+  `setTeamGroups`, and the match is tagged `schema: 'groups'` — exactly
+  what `computeGroupStandings`/the public `/turnaje` standings table
+  already expect, so the live table works immediately with no extra
+  step.
+- **Group blank** → `teamAId`/`teamBId` are left unset entirely; the
+  literal cell text ("A5", "B5", "Víťaz SF1", ...) is stored as-is on
+  `teamA`/`teamB`, same as any other manually-typed match. It shows up
+  in the flat match list, not a standings table, and isn't linked to any
+  bracket-advancement logic — once real standings are known on the day,
+  staff manually delete and re-add that one row with the actual
+  qualifying team names (there's no bulk "resolve placeholder" step,
+  since this app has no concept of a placement-bracket schema to begin
+  with — see the note below).
+
+This intentionally does **not** attempt to model the fuller "9./10.,
+7./8., 5./6. placement + semifinal/3rd-place/final" classification
+bracket some tournaments run (covering every team's final rank, not just
+a top-N knockout) — `buildKnockoutPreview`/`createKnockoutBracket` only
+ever generate a single-elimination bracket among *advancing* teams. 
+Building a generic placement-bracket generator is a bigger, separate
+feature; for now those rows import as plain schema-less matches like any
+other manually-added one, and the trainer fills in real team names once
+they're known.
+
+Verified end-to-end with a standalone script (esbuild-bundled
+`lib/excel.ts`, fed an in-memory workbook shaped like a real poster) — a
+Group-tagged row parses with its `groupId`, a blank-Group row parses
+with `groupId` correctly omitted and teams kept as literal text, and a
+row missing a team name is reported as a row-numbered error rather than
+silently dropped.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
