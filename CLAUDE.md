@@ -1443,6 +1443,30 @@ regular scrollable page, since a customer/parent scanning it with their
 own phone wants the normal interactive view, not a fixed dashboard sized
 for a TV.
 
+**Row proportions tuned after a real landscape-phone test.** The initial
+`9vh`/`17vh`/`19vh` header/live/bottom split looked fine on a genuine
+large TV (1920×1080) but left the live-matches and upcoming-matches rows
+only ~70-80px tall on a shorter landscape viewport (e.g. a phone turned
+sideways, ~400-430px tall) — `ScaleToFit` still guaranteed no overflow,
+but shrank team names down to near-illegibility to fit that little
+absolute space, while the main standings/bracket panel (with far more
+headroom to begin with) still looked fine, making the mismatch obvious.
+Bumped live to `22vh` and the bottom row to `26vh` (main panel still gets
+whatever's left via `flex-1`, so a large tournament's bracket/groups grid
+is unaffected) and increased the live/upcoming text one Tailwind step —
+verified via the same local-harness-plus-Playwright-screenshot technique
+across 1920×1080 down to 844×390, including a live (no-reload) resize
+between two sizes to confirm `ScaleToFit`'s `ResizeObserver` actually
+re-scales on its own rather than needing a fresh mount.
+
+The QR corner previously sized itself via `flex-1 min-h-0 aspect-square`
+— filling however tall its row happened to be, so it visually dominated
+whenever the neighboring upcoming-matches panel was sparse (few or no
+rows). Switched to a fixed `clamp(120px, 16vh, 220px)` box with the QR
+image itself capped at `clamp(100px, 14vh, 190px)`, so it stays a
+proportionate corner element regardless of what row height it's given or
+how much text sits next to it.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
