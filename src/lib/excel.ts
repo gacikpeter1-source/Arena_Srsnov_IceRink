@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { Booking, Rink, Zone } from '@/types'
+import { Booking, MatchTeamPlaceholder, Rink, Zone } from '@/types'
 import { formatDateISO } from './utils'
 
 // Fixed English headers regardless of UI language — keeps the import/export
@@ -356,17 +356,31 @@ export function parseTeamsWorkbook(buffer: ArrayBuffer): ParsedTeamImport {
 // A blank "Group" cell is deliberate, not an error: a placement/play-off
 // row (e.g. "o 9.-10. miesto") is scheduled before the group stage
 // finishes, so its "teams" are really just rank placeholders like "A5"/
-// "B5" — text only, never resolved against the team roster or fed into
-// a standings table. Only a row with a real Group letter gets its teams
-// created/matched in `tournamentTeams` and tagged `schema: 'groups'` so
-// it feeds the live standings table.
+// "B5" — text only by default, never resolved against the team roster or
+// fed into a standings table. Only a row with a real Group letter gets
+// its teams created/matched in `tournamentTeams` and tagged
+// `schema: 'groups'` so it feeds the live standings table.
+//
+// Since a blank-Group cell's "team" is never a real roster name, its text
+// can instead use one of three placeholder codes that
+// lib/tournaments.ts's resolveMatchPlaceholder later substitutes for the
+// real name once it's knowable, live, with no extra step:
+//   - "<Group><rank>" (e.g. "A5") — whichever team currently holds that
+//     rank in that group's standings.
+//   - "W:<label>" — the winner of the row elsewhere in this same import
+//     (or an earlier one) whose own Label column is exactly <label>.
+//   - "L:<label>" — that same row's loser.
+// Anything else is kept as plain literal text (e.g. "Víťaz turnaja z
+// minulého roka") with no placeholder — resolveMatchPlaceholder is never
+// consulted for it, so it just always displays as typed.
 const MATCH_HEADERS = {
   date: 'Date',
   startTime: 'Start Time',
   duration: 'Duration (min)',
   group: 'Group',
   teamA: 'Team A',
-  teamB: 'Team B'
+  teamB: 'Team B',
+  label: 'Label'
 } as const
 
 const MATCH_IMPORT_HEADERS = [
@@ -375,7 +389,8 @@ const MATCH_IMPORT_HEADERS = [
   MATCH_HEADERS.duration,
   MATCH_HEADERS.group,
   MATCH_HEADERS.teamA,
-  MATCH_HEADERS.teamB
+  MATCH_HEADERS.teamB,
+  MATCH_HEADERS.label
 ]
 
 export function downloadTournamentMatchImportTemplate(filename = 'tournament-matches-template.xlsx'): void {
@@ -385,15 +400,35 @@ export function downloadTournamentMatchImportTemplate(filename = 'tournament-mat
   XLSX.writeFile(wb, filename)
 }
 
+const GROUP_RANK_PATTERN = /^([A-Za-z]+)(\d+)$/
+const WINNER_OF_PATTERN = /^w:(.+)$/i
+const LOSER_OF_PATTERN = /^l:(.+)$/i
+
+function parseTeamPlaceholder(cellText: string): MatchTeamPlaceholder | undefined {
+  const winnerMatch = cellText.match(WINNER_OF_PATTERN)
+  if (winnerMatch) return { kind: 'winnerOf', label: winnerMatch[1].trim() }
+  const loserMatch = cellText.match(LOSER_OF_PATTERN)
+  if (loserMatch) return { kind: 'loserOf', label: loserMatch[1].trim() }
+  const rankMatch = cellText.match(GROUP_RANK_PATTERN)
+  if (rankMatch) return { kind: 'groupRank', groupId: rankMatch[1], rank: Number(rankMatch[2]) }
+  return undefined
+}
+
 export interface TournamentMatchImportRow {
   date: string
   startTime: string
   durationMinutes: number
   // Unset = a placement/play-off row not tied to the team roster (see
-  // module doc above) — teamA/teamB are then just display text.
+  // module doc above) — teamA/teamB are then just display text, possibly
+  // a placeholder code.
   groupId?: string
   teamA: string
   teamB: string
+  // Set when a blank-Group row's Team A/B cell used placeholder syntax —
+  // teamA/teamB still hold the original literal text as a fallback.
+  teamAPlaceholder?: MatchTeamPlaceholder
+  teamBPlaceholder?: MatchTeamPlaceholder
+  label?: string
 }
 
 export interface ParsedTournamentMatchImport {
@@ -418,6 +453,7 @@ export function parseTournamentMatchesWorkbook(buffer: ArrayBuffer): ParsedTourn
     const groupId = String(r[MATCH_HEADERS.group] ?? '').trim()
     const teamA = String(r[MATCH_HEADERS.teamA] ?? '').trim()
     const teamB = String(r[MATCH_HEADERS.teamB] ?? '').trim()
+    const label = String(r[MATCH_HEADERS.label] ?? '').trim()
 
     if (!date) {
       errors.push({ rowNumber, message: `Invalid or missing "${MATCH_HEADERS.date}"` })
@@ -436,7 +472,16 @@ export function parseTournamentMatchesWorkbook(buffer: ArrayBuffer): ParsedTourn
       return
     }
 
-    rows.push({ date, startTime, durationMinutes, groupId: groupId || undefined, teamA, teamB })
+    rows.push({
+      date,
+      startTime,
+      durationMinutes,
+      groupId: groupId || undefined,
+      teamA,
+      teamB,
+      ...(groupId ? {} : { teamAPlaceholder: parseTeamPlaceholder(teamA), teamBPlaceholder: parseTeamPlaceholder(teamB) }),
+      label: label || undefined
+    })
   })
 
   return { rows, errors }

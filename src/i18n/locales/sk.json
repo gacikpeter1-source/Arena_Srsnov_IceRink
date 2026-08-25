@@ -512,7 +512,7 @@
     "tvScreenHint": "Pevný rozvrh na celú obrazovku bez posúvania, určený pre obrazovku bez obsluhy (TV, obrazovka v recepcii) — tabuľky/pavúk, živé skóre a najbližšie zápasy, automaticky prispôsobené veľkosti obrazovky.",
     "openTvScreen": "Otvoriť TV obrazovku",
     "matchImportTitle": "Import rozpisu zápasov",
-    "matchImportHint": "Pre turnaj, ktorý sa hrá celý na inom mieste (napr. váš tím cestuje na cudzí turnaj) — nahrajte tabuľku so všetkými zápasmi naraz namiesto pridávania jedného po druhom nižšie. Riadok so Skupinou (A, B, ...) vytvorí/napáruje tímy a zápas sa premietne do živej tabuľky poradia; Skupinu nechajte prázdnu pre zápas o umiestnenie/nadstavbu, kde tímy ešte nie sú známe (napr. \"5. v skupine A\") — tie sa uložia len ako text.",
+    "matchImportHint": "Pre turnaj, ktorý sa hrá celý na inom mieste (napr. váš tím cestuje na cudzí turnaj) — nahrajte tabuľku so všetkými zápasmi naraz namiesto pridávania jedného po druhom nižšie. Riadok so Skupinou (A, B, ...) vytvorí/napáruje tímy a zápas sa premietne do živej tabuľky poradia. Skupinu nechajte prázdnu pre zápas o umiestnenie/nadstavbu, kde výsledok ešte nie je známy — napíšte \"A5\" pre \"5. miesto v skupine A\", \"W:label\" / \"L:label\" pre víťaza/porazeného iného riadku (tomu riadku dajte Label, napr. \"SF1\", aby naň mohli ostatné odkazovať) — skutočný názov tímu sa doplní automaticky, keď bude rozhodnuté. Akýkoľvek iný text v Tím A/B ostane presne tak, ako ho napíšete.",
     "downloadMatchTemplate": "Stiahnuť Excel šablónu",
     "matchImportNeedsVenue": "Najprv zadajte názov miesta.",
     "matchImportSuccess": "Naimportovaných {{count}} zápasov."

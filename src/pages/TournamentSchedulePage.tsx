@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
-import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState, GroupStandingRow } from '@/lib/tournaments'
+import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState, withResolvedPlaceholders, GroupStandingRow } from '@/lib/tournaments'
 import { generateQrDataUrl } from '@/lib/qrcode'
 import { Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -143,22 +143,10 @@ export default function TournamentSchedulePage() {
     !favoriteTeamId ||
     matches.some((m) => m.teamAId === favoriteTeamId || m.teamBId === favoriteTeamId || m.teamA === favoriteTeamName || m.teamB === favoriteTeamName)
 
-  const realMatches = matches.filter((m) => !m.isBye)
-  const liveMatches = realMatches.filter((m) => deriveMatchState(m) === 'live' && involvesFavoriteTeam(m))
-  const upcomingMatches = realMatches
-    .filter((m) => deriveMatchState(m) === 'scheduled' && involvesFavoriteTeam(m))
-    .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
-    .slice(0, 8)
-
   const groupMatches = matches.filter((m) => m.schema === 'groups')
   const playoffMatches = matches.filter((m) => m.schema === 'groupsPlayoff')
   const knockoutMatches = matches.filter((m) => m.schema === 'knockout')
   const roundRobinMatches = matches.filter((m) => m.schema === 'roundRobin')
-  // A manually-added match (no schema at all) never has team ids, so it
-  // can't feed a standings table — it only ever shows up in the flat list.
-  const otherFinishedMatches = matches
-    .filter((m) => !m.schema && deriveMatchState(m) === 'finished')
-    .filter(involvesFavoriteTeamByName)
 
   const groupMatchesByGroup = new Map<string, (TournamentMatch & { id: string })[]>()
   groupMatches.forEach((m) => {
@@ -209,6 +197,27 @@ export default function TournamentSchedulePage() {
     pointsForWin
   )
 
+  // Display-only substitution for a placement/play-off match imported
+  // before its real opponents were known (see lib/tournaments.ts's
+  // withResolvedPlaceholders) — every list below that shows a raw
+  // teamA/teamB string reads from this instead of `matches` directly, so
+  // e.g. "A5" automatically becomes the real team name once resolvable,
+  // with no action needed from staff.
+  const displayMatches = withResolvedPlaceholders(matches, standingsByGroup)
+
+  const realMatches = displayMatches.filter((m) => !m.isBye)
+  const liveMatches = realMatches.filter((m) => deriveMatchState(m) === 'live' && involvesFavoriteTeam(m))
+  const upcomingMatches = realMatches
+    .filter((m) => deriveMatchState(m) === 'scheduled' && involvesFavoriteTeam(m))
+    .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
+    .slice(0, 8)
+
+  // A manually-added match (no schema at all) never has team ids, so it
+  // can't feed a standings table — it only ever shows up in the flat list.
+  const otherFinishedMatches = displayMatches
+    .filter((m) => !m.schema && deriveMatchState(m) === 'finished')
+    .filter(involvesFavoriteTeamByName)
+
   // TV dashboard only: which single "main overview" panel to show —
   // whichever content is the current substance of the tournament. A
   // bracket (knockout, or a groups tournament that's reached play-off)
@@ -237,7 +246,7 @@ export default function TournamentSchedulePage() {
           </p>
           <p className="text-text-muted text-xs">
             {m.date} · {m.startTime}
-            {m.rinkId ? ` · ${rink?.name ?? ''} — ${zone?.name ?? ''}` : ''}
+            {m.rinkId ? ` · ${rink?.name ?? ''} — ${zone?.name ?? ''}` : m.venueName ? ` · ${m.venueName}` : ''}
           </p>
         </div>
         {state === 'finished' ? (
