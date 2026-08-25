@@ -510,7 +510,12 @@
     "tvScanHint": "Scan for details",
     "tvScreenTitle": "TV screen",
     "tvScreenHint": "A fixed, no-scroll dashboard layout meant for an unattended screen (a TV, a lobby display) — standings/bracket, live scores, and the next matches, sized to fill the whole screen automatically.",
-    "openTvScreen": "Open TV screen"
+    "openTvScreen": "Open TV screen",
+    "matchImportTitle": "Import match schedule",
+    "matchImportHint": "For a tournament played entirely at another venue (e.g. your team travels to someone else's tournament) — upload a spreadsheet with every match at once instead of adding them one by one below. A row with a Group (A, B, ...) creates/matches its teams and feeds the live standings table; leave Group blank for a placement/play-off row whose teams aren't decided yet (e.g. \"5th in group A\") — those are saved as plain text only.",
+    "downloadMatchTemplate": "Download Excel template",
+    "matchImportNeedsVenue": "Enter the venue name first.",
+    "matchImportSuccess": "Imported {{count}} matches."
   },
   "trainingEmail": {
     "trainer": "Trainer",

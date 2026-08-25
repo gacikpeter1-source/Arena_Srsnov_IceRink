@@ -510,7 +510,12 @@
     "tvScanHint": "Naskenuj pre detail",
     "tvScreenTitle": "TV obrazovka",
     "tvScreenHint": "Pevný rozvrh na celú obrazovku bez posúvania, určený pre obrazovku bez obsluhy (TV, obrazovka v recepcii) — tabuľky/pavúk, živé skóre a najbližšie zápasy, automaticky prispôsobené veľkosti obrazovky.",
-    "openTvScreen": "Otvoriť TV obrazovku"
+    "openTvScreen": "Otvoriť TV obrazovku",
+    "matchImportTitle": "Import rozpisu zápasov",
+    "matchImportHint": "Pre turnaj, ktorý sa hrá celý na inom mieste (napr. váš tím cestuje na cudzí turnaj) — nahrajte tabuľku so všetkými zápasmi naraz namiesto pridávania jedného po druhom nižšie. Riadok so Skupinou (A, B, ...) vytvorí/napáruje tímy a zápas sa premietne do živej tabuľky poradia; Skupinu nechajte prázdnu pre zápas o umiestnenie/nadstavbu, kde tímy ešte nie sú známe (napr. \"5. v skupine A\") — tie sa uložia len ako text.",
+    "downloadMatchTemplate": "Stiahnuť Excel šablónu",
+    "matchImportNeedsVenue": "Najprv zadajte názov miesta.",
+    "matchImportSuccess": "Naimportovaných {{count}} zápasov."
   },
   "trainingEmail": {
     "trainer": "Tréner",
