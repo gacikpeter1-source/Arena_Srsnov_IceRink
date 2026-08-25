@@ -1372,6 +1372,77 @@ remembered in `localStorage` per tournament ID
 screen/QR code doesn't have to re-pick their team — never sent anywhere,
 purely a client-side view filter over data that's already public.
 
+**TV/spectator dashboard: a dedicated one-screen, no-scroll layout.**
+An owner sketched what they actually wanted on an unattended cafe/lobby
+screen — tournament name banner, group standings tables side by side,
+a "who's playing now" strip, and "what's next" + a QR code in one bottom
+row — with an explicit "no scrolling allowed... adaptive to screen size"
+requirement. This is a real second layout, not a CSS tweak of the
+existing scrollable page, so it's a new render branch in
+`TournamentSchedulePage.tsx` gated on `?display=tv` (added to the same
+`/turnaje` route, matching this app's "one route, query params pick the
+case" QR pattern) rather than a new route — `App.tsx` detects this exact
+path+param and skips the shared header/footer chrome entirely (no back
+button, no language switcher, nothing clickable — this screen is meant
+to be looked at, not touched) and gives `<main>` the full viewport
+height.
+
+Two content decisions came directly from the requester, not assumed:
+- **Upcoming games is capped to the next 1–3 matches only** — explicitly
+  not a full day/week list, unlike the regular page's up-to-8-match
+  strip (`upcomingMatches`; `tvUpcomingMatches` is a fresh `.slice(0, 3)`
+  of the same computed list, kept separate rather than lowering the
+  shared constant since the phone-friendly view still wants more).
+- **A knockout/play-off main panel skips the upcoming strip entirely** —
+  the bracket already encodes "what's next" via its "Víťaz zápasu #N"
+  placeholder slots, so repeating it as a separate list would be
+  redundant. `tvMainPanelKind` picks one "main overview" panel per
+  tournament state (bracket takes priority if any exists — a groups
+  tournament that's reached play-off shows the bracket, not the now-
+  historical group tables; otherwise groups, otherwise the round-robin
+  table) — never more than one at a time, since showing two large panels
+  at once couldn't fit one screen anyway.
+
+**Guaranteeing "never scrolls, adapts to screen size" for content whose
+size varies per club** (2 groups vs. 6, a 4-team bracket vs. 16) can't be
+done with breakpoints/`clamp()` alone — there's no fixed content amount
+to design breakpoints around. `ScaleToFit.tsx` (new, reusable) solves
+this by rendering children at their natural size in an off-flow inner
+div, measuring that real size with a `ResizeObserver`, and applying a
+single `transform: scale()` (capped at `maxScale`, default 2.5) so the
+whole block always fits its container — shrinking dense content down,
+but also scaling sparse content *up* to fill the screen rather than
+sitting small in a corner, same as a broadcast scoreboard graphic would.
+It wraps the main panel (whichever kind), the live-matches strip, and
+the upcoming-matches list independently — each guaranteed to fit its own
+allotted region of the fixed `flex-col` layout (header/main/live/bottom
+rows sized in `vh` units) with zero scrollbars regardless of tournament
+size. The existing `TournamentBracketDiagram` needed no changes to work
+inside it — its own internal `overflow-x-auto` never engages once its
+natural (unscrolled) width is what gets measured and scaled.
+
+The TV board reuses `TournamentBracketDiagram` as-is (bracket) but has
+its own compact standings table (`renderTvStandings`, local to
+`TournamentSchedulePage.tsx`) rather than the public
+`TournamentStandingsTable` used elsewhere on this page — a big screen has
+room for the fuller Team/P/W/D/L/Score/Pts breakdown (same columns and
+translation keys as the admin's own richer table in
+`TournamentGroupsGenerator.tsx`) instead of the phone-oriented
+Team/Matches/Played/Score/Pts layout. The "my team" highlight
+(`favoriteTeamId`) still applies to it, though the TV board renders no
+`<select>` of its own — there's no one at the screen to operate one; the
+filter only ever gets set by a spectator on their own phone via the
+plain (non-`display=tv`) page, so this state is effectively unused on a
+real TV, which is fine, not designed against.
+
+A **second QR code** on `TournamentDetailPage.tsx`
+(`?tournament=<id>&display=tv`), separate from the existing plain
+spectator-screen QR, lets staff point a screen straight at the TV layout
+without hand-typing the query param — the existing QR still targets the
+regular scrollable page, since a customer/parent scanning it with their
+own phone wants the normal interactive view, not a fixed dashboard sized
+for a TV.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

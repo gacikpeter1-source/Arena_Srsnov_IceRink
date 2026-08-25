@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
-import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState } from '@/lib/tournaments'
+import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState, GroupStandingRow } from '@/lib/tournaments'
+import { generateQrDataUrl } from '@/lib/qrcode'
 import { Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import TournamentBracketDiagram from '@/components/TournamentBracketDiagram'
 import TournamentStandingsTable from '@/components/TournamentStandingsTable'
+import ScaleToFit from '@/components/ScaleToFit'
 import BackButton from '@/components/BackButton'
 
 const POLL_MS = 6000
@@ -38,6 +40,12 @@ export default function TournamentSchedulePage() {
   const { club, rinks, zones } = useClubData()
   const [searchParams] = useSearchParams()
   const tournamentParam = searchParams.get('tournament')
+  // A dedicated one-screen, no-scroll dashboard for an unattended TV/cafe
+  // screen (its own QR code on TournamentDetailPage.tsx, separate from the
+  // plain spectator-screen QR meant for a customer's own phone) — same
+  // route+data, just a different render branch, matching this app's
+  // established "one route, query params pick the case" QR pattern.
+  const isTvMode = searchParams.get('display') === 'tv'
   const canManageTournaments =
     staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
   const backFallback = canManageTournaments ? '/admin/turnaje' : '/'
@@ -74,6 +82,25 @@ export default function TournamentSchedulePage() {
     const interval = setInterval(refresh, POLL_MS)
     return () => clearInterval(interval)
   }, [activeId])
+
+  // TV mode's corner QR always points at the plain (non-`display=tv`)
+  // page — someone scanning it is on their own phone, where the regular
+  // scrollable/interactive view (not the fixed dashboard) is what makes
+  // sense.
+  const [tvQrDataUrl, setTvQrDataUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!isTvMode || !activeId) {
+      setTvQrDataUrl(null)
+      return
+    }
+    let cancelled = false
+    generateQrDataUrl(`${window.location.origin}/turnaje?tournament=${activeId}`).then((url) => {
+      if (!cancelled) setTvQrDataUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isTvMode, activeId])
 
   useEffect(() => {
     if (!activeId) {
@@ -182,6 +209,19 @@ export default function TournamentSchedulePage() {
     pointsForWin
   )
 
+  // TV dashboard only: which single "main overview" panel to show —
+  // whichever content is the current substance of the tournament. A
+  // bracket (knockout, or a groups tournament that's reached play-off)
+  // takes priority since it already encodes "what's next" via its
+  // placeholder slots; otherwise groups or the round-robin table.
+  const tvBracketMatches = playoffMatches.length > 0 ? playoffMatches : knockoutMatches
+  const tvMainPanelKind: 'bracket' | 'groups' | 'roundRobin' | 'none' =
+    tvBracketMatches.length > 0 ? 'bracket' : groupIds.length > 0 ? 'groups' : roundRobinStandings.length > 0 ? 'roundRobin' : 'none'
+  // A bracket already shows upcoming rounds via its "Winner of Match #N"
+  // placeholders, so the TV board skips the separate upcoming strip for
+  // it entirely rather than repeating the same information twice.
+  const tvUpcomingMatches = tvMainPanelKind === 'bracket' ? [] : upcomingMatches.slice(0, 3)
+
   // Shared row for both the round-robin and the per-group match lists —
   // every match shows its rink/zone alongside the score/time so a
   // spectator screen never leaves a match's physical location ambiguous.
@@ -214,8 +254,163 @@ export default function TournamentSchedulePage() {
     )
   }
 
+  // TV dashboard's compact standings table — Team/P/W/D/L/Score/Pts, the
+  // same columns and translation keys as the admin's own richer table
+  // (TournamentGroupsGenerator.tsx), rather than the public
+  // TournamentStandingsTable's Team/Matches/Played/Score/Pts layout built
+  // for a scrollable phone view — a TV has the room for the full W/D/L
+  // breakdown a spectator would otherwise have to infer.
+  const renderTvStandings = (rows: GroupStandingRow[]) => (
+    <table className="border-separate border-spacing-0">
+      <thead>
+        <tr className="text-text-muted text-sm uppercase tracking-wide">
+          <th className="text-left pr-6 pb-2 font-semibold">{t('tournaments.standingsTeam')}</th>
+          <th className="text-center px-3 pb-2 font-semibold">{t('tournaments.standingsPlayed')}</th>
+          <th className="text-center px-3 pb-2 font-semibold">{t('tournaments.standingsWins')}</th>
+          <th className="text-center px-3 pb-2 font-semibold">{t('tournaments.standingsDraws')}</th>
+          <th className="text-center px-3 pb-2 font-semibold">{t('tournaments.standingsLosses')}</th>
+          <th className="text-center px-3 pb-2 font-semibold">{t('tournaments.standingsGoals')}</th>
+          <th className="text-center pl-3 pb-2 font-semibold">{t('tournaments.standingsPoints')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => {
+          const isFav = !!favoriteTeamId && row.teamId === favoriteTeamId
+          return (
+            <tr key={row.teamId} className={`border-t border-border ${isFav ? 'bg-primary/10' : ''}`}>
+              <td className={`text-left py-2 pr-6 font-bold whitespace-nowrap ${isFav ? 'text-primary' : 'text-white'}`}>{row.teamName}</td>
+              <td className="text-center px-3 text-text-secondary">{row.played}</td>
+              <td className="text-center px-3 text-text-secondary">{row.wins}</td>
+              <td className="text-center px-3 text-text-secondary">{row.draws}</td>
+              <td className="text-center px-3 text-text-secondary">{row.losses}</td>
+              <td className="text-center px-3 text-text-secondary mono">
+                {row.goalsFor}:{row.goalsAgainst}
+              </td>
+              <td className="text-center pl-3">
+                <span className="inline-flex items-center justify-center min-w-[2.5rem] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-bold">
+                  {row.points}
+                </span>
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+
   if (loading) {
     return <div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>
+  }
+
+  if (isTvMode) {
+    return (
+      <div className="h-full w-full bg-background-dark flex flex-col p-4 gap-3 text-white text-lg">
+        <div className="shrink-0 flex items-center justify-center rounded-2xl border border-border bg-background-card" style={{ height: '9vh' }}>
+          <h1 className="text-[clamp(1.5rem,3.2vw,3rem)] font-bold text-primary text-center px-6 truncate">
+            {activeTournament?.name ?? t('tournaments.publicTitle')}
+          </h1>
+        </div>
+
+        {matchesLoading ? (
+          <div className="flex-1 flex items-center justify-center text-text-muted text-2xl">{t('common.loading')}</div>
+        ) : matches.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-text-muted text-2xl">{t('tournaments.noMatches')}</div>
+        ) : (
+          <>
+            <div className="flex-1 min-h-0">
+              {tvMainPanelKind === 'bracket' && (
+                <ScaleToFit className="w-full h-full">
+                  <TournamentBracketDiagram matches={tvBracketMatches} rinks={rinks} zones={zones} highlightTeamId={favoriteTeamId} />
+                </ScaleToFit>
+              )}
+              {tvMainPanelKind === 'groups' && (
+                <ScaleToFit className="w-full h-full">
+                  <div className="flex flex-nowrap gap-6">
+                    {groupIds.map((g) => (
+                      <div key={g} className="rounded-2xl border border-border bg-background-card px-6 py-5 shrink-0">
+                        <h2 className="text-primary text-2xl font-bold mb-3 text-center whitespace-nowrap">
+                          {t('tournaments.groupLabel', { name: g })}
+                        </h2>
+                        {renderTvStandings(standingsByGroup.get(g) ?? [])}
+                      </div>
+                    ))}
+                  </div>
+                </ScaleToFit>
+              )}
+              {tvMainPanelKind === 'roundRobin' && (
+                <ScaleToFit className="w-full h-full">
+                  <div className="rounded-2xl border border-border bg-background-card px-8 py-6">{renderTvStandings(roundRobinStandings)}</div>
+                </ScaleToFit>
+              )}
+              {tvMainPanelKind === 'none' && (
+                <div className="h-full flex items-center justify-center text-text-muted text-2xl">{t('tournaments.noMatches')}</div>
+              )}
+            </div>
+
+            {liveMatches.length > 0 && (
+              <div
+                className="shrink-0 rounded-2xl border border-status-danger/50 bg-status-danger/5 px-6 py-3 flex flex-col"
+                style={{ height: '17vh' }}
+              >
+                <h2 className="shrink-0 flex items-center gap-2 text-status-danger text-lg font-bold uppercase tracking-wide mb-1">
+                  <span className="h-3 w-3 rounded-full bg-status-danger animate-pulse" />
+                  {t('tournaments.liveNow')}
+                </h2>
+                <ScaleToFit className="flex-1 min-h-0 w-full">
+                  <div className="flex flex-nowrap gap-6">
+                    {liveMatches.map((m) => (
+                      <div key={m.id} className="flex items-center gap-6 rounded-xl border border-status-danger/40 px-5 py-3 whitespace-nowrap">
+                        <span className="text-white text-2xl font-semibold">
+                          {m.teamA} <span className="text-text-muted text-lg font-normal">vs</span> {m.teamB}
+                        </span>
+                        <span className="text-status-danger text-3xl font-bold">
+                          {m.scoreA ?? 0} : {m.scoreB ?? 0}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </ScaleToFit>
+              </div>
+            )}
+
+            <div className="shrink-0 flex gap-4" style={{ height: '19vh' }}>
+              {tvUpcomingMatches.length > 0 && (
+                <div className="flex-1 min-w-0 rounded-2xl border border-border bg-background-card px-6 py-3 flex flex-col">
+                  <h2 className="shrink-0 text-white text-lg font-bold uppercase tracking-wide mb-1">{t('tournaments.upcomingMatches')}</h2>
+                  <ScaleToFit className="flex-1 min-h-0 w-full">
+                    <div className="flex flex-col gap-2">
+                      {tvUpcomingMatches.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between gap-8 whitespace-nowrap">
+                          <span className="text-white text-2xl font-semibold">
+                            {m.teamA} <span className="text-text-muted text-lg font-normal">vs</span> {m.teamB}
+                          </span>
+                          <span className="text-text-muted text-xl">
+                            {m.date} · {m.startTime}
+                            {m.rinkId ? ` · ${rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — ${zones.find((z) => z.id === m.zoneId)?.name ?? ''}` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </ScaleToFit>
+                </div>
+              )}
+              <div
+                className={`shrink-0 rounded-2xl border border-border bg-background-card px-4 py-3 flex flex-col items-center justify-center gap-1 ${
+                  tvUpcomingMatches.length === 0 ? 'ml-auto' : ''
+                }`}
+              >
+                {tvQrDataUrl ? (
+                  <img src={tvQrDataUrl} alt="" className="flex-1 min-h-0 aspect-square bg-white p-1 rounded object-contain" />
+                ) : (
+                  <div className="flex-1 min-h-0 aspect-square bg-background-dark rounded" />
+                )}
+                <p className="shrink-0 text-text-muted text-[11px] text-center">{t('tournaments.tvScanHint')}</p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    )
   }
 
   return (

@@ -240,6 +240,28 @@ export default function TournamentDetailPage() {
         </CardContent>
       </Card>
 
+      <Card className="arena-card">
+        <CardHeader>
+          <CardTitle className="text-white text-lg">{t('tournaments.tvScreenTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-start gap-4">
+          <QrCodeDisplay
+            value={`${window.location.origin}/turnaje?tournament=${tournament.id}&display=tv`}
+            filename={`turnaj-${tournament.name}-tv.png`}
+            label={tournament.name}
+          />
+          <div className="flex flex-col gap-2 max-w-md">
+            <p className="text-text-secondary text-sm">{t('tournaments.tvScreenHint')}</p>
+            <Link
+              to={`/turnaje?tournament=${tournament.id}&display=tv`}
+              className="text-primary hover:text-primary-gold text-sm underline w-fit"
+            >
+              {t('tournaments.openTvScreen')}
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       <TournamentLiveControlPanel tournamentId={tournament.id} rinks={rinks} zones={zones} />
 
       <TournamentTeamsPanel tournamentId={tournament.id} clubId={club.id} />
