@@ -1560,6 +1560,23 @@ and `withResolvedPlaceholders` substitutes only the sides that *can*
 currently resolve, leaving the other side's literal fallback text
 in place.
 
+**A regular visitor can toggle the same TV/spectator dashboard on their
+own phone**, not just staff pointing an actual TV at it — a small "View
+as screen" link on the regular scrollable `/turnaje` page (next to the
+`<h1>`) navigates to the exact same `?display=tv` URL used for a real
+kiosk. Since `App.tsx` already strips the header/back-button chrome for
+that mode (see the earlier TV dashboard note), a way back is added
+*inside* the TV layout itself: a small "Standard view" link sits in the
+header banner next to the tournament name. It's harmless on a genuine
+wall-mounted TV (nobody's there to tap it) but gives a phone visitor an
+escape hatch. This link sits in normal flex flow (`shrink-0` next to the
+title, not absolutely positioned) — an earlier version centered the
+title with an absolutely-positioned corner link, which overlapped a long
+tournament name on a narrow phone; the fix costs a perfectly-centered
+title on a wide screen, the smaller trade-off of the two, verified via
+the same local-harness-plus-Playwright-screenshot technique at both a
+375px phone width and 1920px.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
