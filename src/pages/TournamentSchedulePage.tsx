@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState, withResolvedPlaceholders, GroupStandingRow } from '@/lib/tournaments'
@@ -314,8 +314,24 @@ export default function TournamentSchedulePage() {
   if (isTvMode) {
     return (
       <div className="h-full w-full bg-background-dark flex flex-col p-4 gap-3 text-white text-lg">
-        <div className="shrink-0 flex items-center justify-center rounded-2xl border border-border bg-background-card" style={{ height: '9vh' }}>
-          <h1 className="text-[clamp(1.5rem,3.2vw,3rem)] font-bold text-primary text-center px-6 truncate">
+        <div className="shrink-0 flex items-center gap-3 rounded-2xl border border-border bg-background-card px-4" style={{ height: '9vh' }}>
+          {/* A real wall-mounted TV has no one to tap this — it's here for
+              a visitor who opened this same layout on their own phone (see
+              the "view as screen" link on the regular page) and needs a
+              way back without the header/back-button App.tsx strips out
+              for this mode. Sits in normal flex flow (not absolutely
+              positioned) so it never overlaps a long tournament name on a
+              narrow phone — the trade-off is the title isn't perfectly
+              centered on a wide screen, which is the smaller cost. */}
+          {activeId && (
+            <Link
+              to={`/turnaje?tournament=${activeId}`}
+              className="shrink-0 text-text-muted hover:text-primary text-xs sm:text-sm underline whitespace-nowrap"
+            >
+              {t('tournaments.backToStandardView')}
+            </Link>
+          )}
+          <h1 className="flex-1 min-w-0 text-[clamp(1.1rem,3.2vw,3rem)] font-bold text-primary text-center truncate">
             {activeTournament?.name ?? t('tournaments.publicTitle')}
           </h1>
         </div>
@@ -436,7 +452,17 @@ export default function TournamentSchedulePage() {
   return (
     <div className="content-container py-6 space-y-6">
       <BackButton fallback={backFallback} />
-      <h1 className="text-2xl font-bold text-white">{t('tournaments.publicTitle')}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold text-white">{t('tournaments.publicTitle')}</h1>
+        {activeId && (
+          <Link
+            to={`/turnaje?tournament=${activeId}&display=tv`}
+            className="text-primary hover:text-primary-gold text-sm underline w-fit"
+          >
+            {t('tournaments.viewAsScreen')}
+          </Link>
+        )}
+      </div>
 
       {tournaments.length === 0 ? (
         <p className="text-text-muted">{t('tournaments.publicNone')}</p>

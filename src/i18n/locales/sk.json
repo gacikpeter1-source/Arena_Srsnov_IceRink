@@ -515,7 +515,9 @@
     "matchImportHint": "Pre turnaj, ktorý sa hrá celý na inom mieste (napr. váš tím cestuje na cudzí turnaj) — nahrajte tabuľku so všetkými zápasmi naraz namiesto pridávania jedného po druhom nižšie. Riadok so Skupinou (A, B, ...) vytvorí/napáruje tímy a zápas sa premietne do živej tabuľky poradia. Skupinu nechajte prázdnu pre zápas o umiestnenie/nadstavbu, kde výsledok ešte nie je známy — napíšte \"A5\" pre \"5. miesto v skupine A\", \"W:label\" / \"L:label\" pre víťaza/porazeného iného riadku (tomu riadku dajte Label, napr. \"SF1\", aby naň mohli ostatné odkazovať) — skutočný názov tímu sa doplní automaticky, keď bude rozhodnuté. Akýkoľvek iný text v Tím A/B ostane presne tak, ako ho napíšete.",
     "downloadMatchTemplate": "Stiahnuť Excel šablónu",
     "matchImportNeedsVenue": "Najprv zadajte názov miesta.",
-    "matchImportSuccess": "Naimportovaných {{count}} zápasov."
+    "matchImportSuccess": "Naimportovaných {{count}} zápasov.",
+    "viewAsScreen": "Zobraziť ako na obrazovke",
+    "backToStandardView": "Štandardné zobrazenie"
   },
   "trainingEmail": {
     "trainer": "Tréner",
