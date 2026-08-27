@@ -27,6 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (firebaseUser) => {
+      // Re-arm loading on every firing, not just the first — a fresh
+      // sign-in re-triggers this listener too, and the `staff` doc fetch
+      // below is a real async gap where `user` is already set but
+      // `staff` isn't yet. Without this, `loading` stays stuck at its
+      // initial `false` and ProtectedRoute reads that gap as "signed in,
+      // no staff role" and bounces straight back to the login page —
+      // the second login attempt only "worked" because it happened to
+      // land after this fetch had already finished.
+      setLoading(true)
       setUser(firebaseUser)
       if (firebaseUser) {
         const staffSnap = await getDoc(doc(db, 'staff', firebaseUser.uid))

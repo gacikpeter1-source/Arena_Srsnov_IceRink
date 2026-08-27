@@ -73,6 +73,22 @@ shows the same confirmation message regardless of whether
 `sendPasswordResetEmail` actually found an account for that address, so
 the login page never reveals which emails are registered.
 
+**Fixed: a fresh sign-in sometimes needed two attempts.**
+`AuthContext`'s `loading` flag only ever flipped `false -> true` once,
+on the very first `onAuthStateChanged` firing at page load. But that
+same listener re-fires on every sign-in too, and its own `staff`-doc
+`getDoc` is a real async gap — `user` is set immediately, `staff` only
+once that read resolves. `AdminLoginPage.tsx` navigates to `/admin` as
+soon as `login()`'s `signInWithEmailAndPassword` promise resolves,
+which can land *inside* that gap: `ProtectedRoute` then sees
+`loading: false, staff: null` (loading was already stuck false from
+page load) and bounces straight back to `/admin/login` — a second
+login attempt only "worked" because it happened to submit after the
+`staff` fetch had already finished. Fixed by calling `setLoading(true)`
+at the start of every `onAuthStateChanged` firing, not just relying on
+its initial value, so `ProtectedRoute` correctly shows its loading state
+through that gap instead of treating it as "signed in, no staff role."
+
 ## Email delivery
 Client code queues emails by writing `{to, message:{subject, html}}` to
 the `mail` collection (src/lib/email.ts) — this part was always meant
