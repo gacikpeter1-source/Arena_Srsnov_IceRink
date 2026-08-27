@@ -63,6 +63,16 @@ existed). Each deployment serves one club (see multi-tenant section
 below), so none of this is scoped by clubId beyond what's already 
 implicit — revisit if a deployment ever needs to serve multiple clubs.
 
+**Password reset** is Firebase Auth's own hosted flow
+(`sendPasswordResetEmail`, exposed as `AuthContext.resetPassword`) —
+no custom email template or Cloud Function, unlike the rest of this
+app's mail which goes through the `mail`-collection queue for content
+this app actually controls. `AdminLoginPage.tsx`'s "Zabudli ste heslo?"
+link swaps the password field for an email-only form; submitting always
+shows the same confirmation message regardless of whether
+`sendPasswordResetEmail` actually found an account for that address, so
+the login page never reveals which emails are registered.
+
 ## Email delivery
 Client code queues emails by writing `{to, message:{subject, html}}` to
 the `mail` collection (src/lib/email.ts) — this part was always meant
