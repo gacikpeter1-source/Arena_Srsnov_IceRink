@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, User } from 'firebase/auth'
+import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, User } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { redeemTrainerInviteCode } from '@/lib/trainerInvites'
@@ -15,6 +15,7 @@ interface AuthContextValue {
   signup: (email: string, password: string, name: string) => Promise<void>
   signupTrainer: (email: string, password: string, name: string, inviteCode: string) => Promise<void>
   logout: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -95,8 +96,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(auth)
   }
 
+  // Sends Firebase Auth's own hosted password-reset email (its default
+  // template, action page, and link expiry — no custom email queue or
+  // Cloud Function needed, unlike the rest of this app's mail which goes
+  // through the `mail` collection since that's for content this app
+  // controls). AdminLoginPage.tsx shows the same generic confirmation
+  // whether or not this throws (e.g. `auth/user-not-found`), so the login
+  // form never reveals whether a given email has an account.
+  const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, staff, loading, login, signup, signupTrainer, logout }}>
+    <AuthContext.Provider value={{ user, staff, loading, login, signup, signupTrainer, logout, resetPassword }}>
       {children}
     </AuthContext.Provider>
   )
