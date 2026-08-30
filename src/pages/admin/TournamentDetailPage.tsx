@@ -27,7 +27,7 @@ import TournamentLiveControlPanel from '@/components/TournamentLiveControlPanel'
 import QrCodeDisplay from '@/components/QrCodeDisplay'
 import BackButton from '@/components/BackButton'
 
-const FORMATS: DivisionMode[] = ['full', 'half', 'third']
+const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
 
 /**
  * One tournament's full management view — teams, schedule generators,

@@ -59,7 +59,16 @@ export interface Rink {
   active: boolean
 }
 
-export type DivisionMode = 'full' | 'half' | 'third'
+// 'halfLengthwise' is a second way to cut the rink into two zones, alongside
+// 'half' — same two-slot shape, but the boundary runs along the rink's
+// length (mantinel-to-mantinel, left/right board side) instead of 'half's
+// center-line split (near end/far end). Unlike 'half'/'third', there's no
+// painted line on the ice marking this boundary, so RinkDiagram just splits
+// it 50/50 by image height rather than reading a measured percentage. Purely
+// additive — 'half' keeps its existing center-line meaning for every
+// already-configured zone; this is a distinct mode a rink can optionally
+// also have zones for.
+export type DivisionMode = 'full' | 'half' | 'third' | 'halfLengthwise'
 
 export interface Zone {
   id: string
@@ -67,11 +76,11 @@ export interface Zone {
   rinkId: string
   name: string // "Full Rink" | "Half A" | "Third 1" ...
   mode: DivisionMode
-  // Position within its mode (0 for full; 0/1 for half; 0/1/2 for third).
-  // Same-mode zones are physically disjoint slices of the rink, so they
-  // never conflict with each other — only one mode is ever offered for a
-  // given date/time (see DivisionRule), so there's nothing to block across
-  // modes either.
+  // Position within its mode (0 for full; 0/1 for half or halfLengthwise;
+  // 0/1/2 for third). Same-mode zones are physically disjoint slices of the
+  // rink, so they never conflict with each other — only one mode is ever
+  // offered for a given date/time (see DivisionRule), so there's nothing to
+  // block across modes either.
   slotIndex: number
   active: boolean
 }

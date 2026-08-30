@@ -870,6 +870,29 @@ highlighting whichever row currently has focus — reused as-is per an
 explicit product request to keep the visual consistent with the
 ice-booking flow rather than building a second diagram.
 
+**A second way to split "half".** `DivisionMode` gained a fourth value,
+`halfLengthwise`, alongside `full`/`half`/`third` — purely additive, not a
+replacement: `half` keeps its existing meaning (the center red line, near
+end/far end), `halfLengthwise` is a second two-slot split whose boundary
+instead runs along the rink's length (mantinel-to-mantinel, left/right
+board side). Since there's no painted line on the ice for this split (only
+the blue lines and center red line are real), `RinkDiagram.tsx` doesn't
+measure a percentage for it the way it does for `half`/`third` — it just
+divides 50/50 by image *height* instead of *width* (`BOUNDS[mode].axis:
+'vertical' | 'horizontal'` picks which). Zones have never had an admin UI
+(they're set up once via `scripts/seed.mjs` and rarely change), so a new
+mode's actual `Zone` docs are created via a small companion script,
+`scripts/add-zones.mjs` (same Admin-SDK, safe-to-re-run pattern) rather
+than a Firestore console edit. Adding only the `Zone` docs — with no
+matching `DivisionRule` — is deliberate: `resolveDivisionMode` (`lib/
+divisionRules.ts`) still only ever resolves to a mode an explicit rule
+names, so the public `/book` calendar's day-to-day schedule is completely
+unaffected; `halfLengthwise` only becomes reachable through the
+tournament match generators/manual-match form above, which pick zones
+directly by mode without consulting `DivisionRule` at all. If a club later
+wants customers to book a lengthwise half directly via `/book`, that would
+need its own `DivisionRule` (same script-only limitation as zones today).
+
 **Blocking real ice is a per-match choice, not automatic.** A tournament
 might run entirely on the club's own ice, or on a different surface this
 app doesn't manage a calendar for at all (a hokejbal/football pitch) —
