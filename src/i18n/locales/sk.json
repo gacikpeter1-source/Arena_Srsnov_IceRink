@@ -412,6 +412,7 @@
     "formatOption": {
       "full": "Celé ihrisko",
       "half": "Polovica",
+      "halfLengthwise": "Polovica – na dĺžku",
       "third": "Tretina"
     },
     "matchRowsHint": "Vyplňte tímy pre tie časti ihriska, kde sa bude hrať — nevyplnené časti ostanú voľné.",

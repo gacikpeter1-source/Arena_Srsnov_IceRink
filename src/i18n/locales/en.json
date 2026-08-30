@@ -412,6 +412,7 @@
     "formatOption": {
       "full": "Whole rink",
       "half": "Half",
+      "halfLengthwise": "Half – lengthwise",
       "third": "Third"
     },
     "matchRowsHint": "Fill in teams for whichever parts of the rink will be used — leave the rest blank.",

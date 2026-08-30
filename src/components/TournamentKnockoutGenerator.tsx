@@ -27,7 +27,7 @@ interface TournamentKnockoutGeneratorProps {
   zones: Zone[]
 }
 
-const FORMATS: DivisionMode[] = ['full', 'half', 'third']
+const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
 
 /**
  * Knockout ("pavúk") bracket — before generation, shows the same kind of

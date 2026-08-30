@@ -17,7 +17,7 @@ interface TournamentRoundRobinGeneratorProps {
   zones: Zone[]
 }
 
-const FORMATS: DivisionMode[] = ['full', 'half', 'third']
+const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
 
 /**
  * Round-robin ("každý s každým") schedule generator — every team plays

@@ -35,7 +35,7 @@ interface TournamentGroupsGeneratorProps {
   pointsForWin: number
 }
 
-const FORMATS: DivisionMode[] = ['full', 'half', 'third']
+const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
 
 /**
  * "Skupiny + play-off" (Fáza D) — teams are split into lettered groups,
