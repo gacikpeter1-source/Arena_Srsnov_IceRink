@@ -23,7 +23,29 @@ export interface Club {
     trainingReservationsUrl?: string
     tournamentsUrl?: string
   }
+  // Which paid add-on modules this deployment currently has switched on —
+  // see lib/entitlements.ts. Unset (or a missing key) reads as inactive.
+  // Only the app operator (role 'superadmin') can write this field —
+  // enforced in firestore.rules — so a club's own owner/assistant can
+  // never self-grant a module. Ice-rink booking itself is the always-on
+  // core product and isn't gated here.
+  entitlements?: {
+    treningy?: ClubEntitlement
+    turnaje?: ClubEntitlement
+  }
   createdAt: Date
+}
+
+// One module's on/off state. `enabled: false` (or the key missing
+// entirely) means inactive regardless of `expiresAt`. `expiresAt` unset
+// while enabled means an unlimited/permanent grant; set means a
+// time-boxed pay-as-you-go activation that expires at that instant —
+// always computed as "today + N days" at the moment it's turned on
+// (lib/entitlements.ts's activateEntitlement), never a floating
+// countdown that silently drifts.
+export interface ClubEntitlement {
+  enabled: boolean
+  expiresAt?: Date
 }
 
 // A club can run more than one physical ice surface (e.g. "Main Hall" +

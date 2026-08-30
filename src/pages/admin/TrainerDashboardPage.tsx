@@ -16,6 +16,7 @@ import {
   TrainingBundleSessionInput
 } from '@/lib/training'
 import { useClubData } from '@/hooks/useClubData'
+import { isModuleActive } from '@/lib/entitlements'
 import { fetchTrainers } from '@/lib/staff'
 import { formatDateISO } from '@/lib/utils'
 import { StaffUser, TrainingBundle, TrainingFrequency, TrainingSeries, TrainingSession } from '@/types'
@@ -35,6 +36,12 @@ export default function TrainerDashboardPage() {
   const { user, staff } = useAuth()
   const { club } = useClubData()
   const [tab, setTab] = useState<Tab>('sessions')
+  // Subscription gate (see CLAUDE.md's "Subscription / paid add-on
+  // modules") — only blocks creating NEW sessions/series/bundles; the
+  // roster/attendance tools and the public /treningy calendar for
+  // already-existing trainings are unaffected, per an explicit "only
+  // admin/management, never the public side" scoping decision.
+  const treningyActive = isModuleActive(club, 'treningy')
 
   const [sessions, setSessions] = useState<(TrainingSession & { id: string })[]>([])
   const [series, setSeries] = useState<(TrainingSeries & { id: string })[]>([])
@@ -275,6 +282,12 @@ export default function TrainerDashboardPage() {
         </div>
       </div>
 
+      {!treningyActive && (
+        <p className="text-status-danger text-sm bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
+          {t('subscription.moduleInactiveBanner')}
+        </p>
+      )}
+
       {availableTabs.length > 1 && (
         <select
           value={tab}
@@ -289,7 +302,7 @@ export default function TrainerDashboardPage() {
 
       {(staff?.isTrainer || isOwnerOrSuperadmin) && tab === 'sessions' && (
         <>
-          <Card className="arena-card">
+          <Card className={`arena-card ${treningyActive ? '' : 'opacity-60 pointer-events-none'}`}>
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newSession')}</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleCreateSession} className="grid gap-3 sm:grid-cols-4">
@@ -346,7 +359,7 @@ export default function TrainerDashboardPage() {
 
       {staff?.isTrainer && tab === 'series' && (
         <>
-          <Card className="arena-card">
+          <Card className={`arena-card ${treningyActive ? '' : 'opacity-60 pointer-events-none'}`}>
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newSeries')}</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleCreateSeries} className="grid gap-3 sm:grid-cols-4">
@@ -417,7 +430,7 @@ export default function TrainerDashboardPage() {
 
       {staff?.isTrainer && tab === 'bundles' && (
         <>
-          <Card className="arena-card">
+          <Card className={`arena-card ${treningyActive ? '' : 'opacity-60 pointer-events-none'}`}>
             <CardHeader><CardTitle className="text-white">{t('trainerDashboard.newBundle')}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <form onSubmit={handleCreateBundle} className="space-y-4">

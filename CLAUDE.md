@@ -1657,6 +1657,80 @@ header, booking page, and admin dashboard each fetch their own copy on
 mount via `useClubData`), saving triggers a full page reload so every
 screen picks up the new values immediately.
 
+## Subscription / paid add-on modules
+Once this app is resold to other clubs (see the multi-tenant section
+above), the operator needs a way to charge separately for the bigger
+domains built on top of the always-free core booking product, and to
+switch them on/off per club without a code change. `Club.entitlements`
+(`ClubEntitlement` in `types/index.ts`, `lib/entitlements.ts`) is a small
+per-module on/off map — `treningy` (training reservations) and `turnaje`
+(tournaments) are the two gate-able modules today; ice-rink booking
+itself is the always-on core and isn't gated at all.
+
+**Manual now, Stripe-shaped later — an explicit hybrid choice.** Nothing
+here talks to a payment processor yet: a club pays the operator by
+whatever means (bank transfer, invoice) and the operator flips the
+switch by hand. The data model is still built as if a webhook might
+write to it someday (`enabled` + `expiresAt`, not e.g. a plan-name
+string) specifically so wiring in real billing later is additive, not a
+rewrite.
+
+**Two ways to activate, matching the two ways a club actually pays.**
+`activateEntitlement(clubId, key, days?)` either turns a module on
+permanently (`days` omitted, clears any prior expiry) or for a fixed
+window starting *today* (`days` given — always "N days from the moment
+of activation", never extending some other reference date, so
+reactivating an expired pay-as-you-go module always gives a fresh full
+window). This covers both real requests this was built for: a club on a
+monthly training-reservations plan gets the unlimited toggle, while a
+club that only runs one tournament every few months buys, say, 30 days
+of `turnaje` right when they need it rather than paying for it
+year-round. `isEntitlementActive` treats a missing entitlement (a club
+predating this feature, or a module never activated) as inactive —
+nothing is free by default just because it was never explicitly turned
+off.
+
+**Superadmin-only, enforced in firestore.rules, not just hidden in the
+UI.** The `entitlements` map on `clubs/{clubId}` can only be written by
+`isSuperAdmin()` — a club's own `owner` can update every other club
+field (name, contact info, etc. via the existing `AdminClubSettingsPanel`
+flow) but can never grant themselves a paid module, even by crafting a
+direct Firestore write. This is also why the operator needs to hold the
+`superadmin` role on *each* customer's own deployment (bootstrapped the
+same way as any first superadmin, via `scripts/create-superadmin.mjs`) —
+there's no separate "app operator" concept layered on top of the
+existing four-tier staff role model, since `superadmin` already sits
+above a club's own `owner` and this slots in as one more thing only that
+top role can do.
+
+**"Cenník / Môj plán" (`AdminSubscriptionPage.tsx`, `/admin/predplatne`,
+linked from `HeaderMenu.tsx`'s dropdown) is one shared page for both
+audiences**, not two separate screens: any `owner`/`superadmin` sees
+every module listed with its description, price, and current status
+(Aktívne / Aktívne do `<dátum>` / Neaktívne) — a `superadmin` additionally
+sees inline activate/deactivate controls right on the same card. Per an
+explicit "don't hide, grey out" request, an inactive module's card still
+shows its full description and price at reduced opacity rather than
+disappearing — the owner should always see everything the app *can* do,
+not just what they currently pay for.
+
+**Enforcement is scoped to admin/management only, never the public
+side** — an explicit "len admin/správa" decision. When `turnaje` or
+`treningy` is inactive, the *public* `/turnaje` and `/treningy` pages,
+and any already-existing tournament/session/series/bundle, keep working
+exactly as before; only the "create something new" entry points get
+blocked: `TrainerDashboardPage.tsx`'s three "New session/series/bundle"
+cards and `TournamentsPage.tsx`'s "Vytvoriť turnaj" button (plus
+`TournamentCreatePage.tsx` itself, reachable directly by URL, as a second
+layer). A blocked creation form is shown at reduced opacity with
+`pointer-events-none` (not just a disabled submit button) — typing into
+its inputs is blocked, not only submitting — alongside a plain-language
+banner explaining the module isn't active. `TournamentsPage.tsx`'s
+create button specifically swaps from a `Link`-wrapped button to a bare
+`disabled` button (not a `Link` around a disabled button) when inactive,
+since a disabled button *inside* a `Link` still navigates on click — the
+wrapper itself has to go, not just the button's own disabled state.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 

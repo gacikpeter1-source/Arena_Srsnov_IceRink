@@ -27,6 +27,7 @@
     "menu": "Menu",
     "manageTrainings": "Manage trainings",
     "manageTournaments": "Manage tournaments",
+    "subscription": "Pricing / My plan",
     "website": "Website",
     "contactUs": "Contact us"
   },
@@ -545,5 +546,30 @@
     "bundleConfirmedSubject": "{{club}} — course / camp registration confirmed",
     "bundleConfirmedTitle": "Registration confirmed!",
     "bundleConfirmedIntro": "Your registration covers all {{count}} sessions. Details below."
+  },
+  "subscription": {
+    "title": "Pricing / My plan",
+    "intro": "An overview of what the app can do and its current status for your club.",
+    "notAuthorizedTitle": "No access",
+    "notAuthorizedNotice": "This page is only for the club owner.",
+    "statusActiveUnlimited": "Active",
+    "statusActiveUntil": "Active until {{date}}",
+    "statusInactive": "Inactive",
+    "activateUnlimited": "Activate permanently",
+    "activateForDays": "Activate for X days",
+    "deactivate": "Deactivate",
+    "moduleInactiveBanner": "This feature isn't active on your plan. Contact the app operator to activate it.",
+    "module": {
+      "treningy": {
+        "name": "Training reservations",
+        "description": "Skating training bookings, trainer registration and management, waitlist, attendance tracking, public calendar and trainer directory.",
+        "price": "Price by agreement — contact the app operator."
+      },
+      "turnaje": {
+        "name": "Tournaments",
+        "description": "Tournament planning (groups, knockout bracket, or a combination), live scoreboard and spectator screen, QR codes, bulk schedule import.",
+        "price": "Price by agreement — also suits a one-off activation just for when a tournament is actually running."
+      }
+    }
   }
 }

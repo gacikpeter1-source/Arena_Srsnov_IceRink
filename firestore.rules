@@ -55,7 +55,15 @@ service cloud.firestore {
     // login), writes restricted to the club's owner/superadmin.
     match /clubs/{clubId} {
       allow read: if true;
-      allow write: if isOwnerOrAbove();
+      allow create: if isOwnerOrAbove();
+      // The `entitlements` map (paid add-on modules — see
+      // lib/entitlements.ts) is superadmin-only: that's the app operator
+      // deciding what a club is subscribed to, not something the club's
+      // own owner/assistant can grant themselves. Every other club field
+      // stays owner-or-above, same as before.
+      allow update: if isSuperAdmin()
+        || (isOwnerOrAbove() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['entitlements']));
+      allow delete: if isSuperAdmin();
     }
 
     // A club's physical ice surfaces (e.g. "Main Hall", "Small Hall").

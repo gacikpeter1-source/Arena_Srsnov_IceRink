@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
+import { isModuleActive } from '@/lib/entitlements'
 import { createTournament } from '@/lib/tournaments'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,9 @@ export default function TournamentCreatePage() {
   const navigate = useNavigate()
   const { user, staff } = useAuth()
   const { club } = useClubData()
+  // Defense in depth — TournamentsPage.tsx already hides the link here
+  // when inactive, but this route is still directly reachable by URL.
+  const turnajeActive = isModuleActive(club, 'turnaje')
   const [name, setName] = useState('')
   const [pointsForWin, setPointsForWin] = useState(3)
   const [format, setFormat] = useState<TournamentFormat>('roundRobin')
@@ -64,7 +68,13 @@ export default function TournamentCreatePage() {
       <BackButton fallback="/admin/turnaje" />
       <h1 className="text-2xl font-bold text-white">{t('tournaments.createTournament')}</h1>
 
-      <Card className="arena-card">
+      {!turnajeActive && (
+        <p className="text-status-danger text-sm bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
+          {t('subscription.moduleInactiveBanner')}
+        </p>
+      )}
+
+      <Card className={`arena-card ${turnajeActive ? '' : 'opacity-60 pointer-events-none'}`}>
         <CardHeader>
           <CardTitle className="text-white text-lg">{t('tournaments.newTournamentName')}</CardTitle>
         </CardHeader>
