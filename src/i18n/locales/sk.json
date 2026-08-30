@@ -27,6 +27,7 @@
     "menu": "Menu",
     "manageTrainings": "Spravovať tréningy",
     "manageTournaments": "Spravovať turnaje",
+    "subscription": "Cenník / Môj plán",
     "website": "Webová stránka",
     "contactUs": "Kontaktujte nás"
   },
@@ -545,5 +546,30 @@
     "bundleConfirmedSubject": "{{club}} — registrácia na kurz / kemp potvrdená",
     "bundleConfirmedTitle": "Registrácia potvrdená!",
     "bundleConfirmedIntro": "Vaša registrácia pokrýva všetkých {{count}} tréningov. Podrobnosti nižšie."
+  },
+  "subscription": {
+    "title": "Cenník / Môj plán",
+    "intro": "Prehľad funkcií appky a ich stav pre váš klub.",
+    "notAuthorizedTitle": "Bez prístupu",
+    "notAuthorizedNotice": "Táto stránka je len pre majiteľa klubu.",
+    "statusActiveUnlimited": "Aktívne",
+    "statusActiveUntil": "Aktívne do {{date}}",
+    "statusInactive": "Neaktívne",
+    "activateUnlimited": "Aktivovať natrvalo",
+    "activateForDays": "Aktivovať na X dní",
+    "deactivate": "Deaktivovať",
+    "moduleInactiveBanner": "Táto funkcia nie je vo vašom pláne aktívna. Pre aktiváciu kontaktujte prevádzkovateľa appky.",
+    "module": {
+      "treningy": {
+        "name": "Tréningy (korčuľovanie)",
+        "description": "Rezervácie na tréningy korčuľovania, registrácia a správa trénerov, čakacia listina, evidencia dochádzky, verejný kalendár a adresár trénerov.",
+        "price": "Cena podľa dohody — kontaktujte prevádzkovateľa appky."
+      },
+      "turnaje": {
+        "name": "Turnaje",
+        "description": "Plánovanie turnajov (skupiny, vyraďovací pavúk, kombinácia oboch), live skóre a obrazovka pre divákov, QR kódy, hromadný import rozpisu.",
+        "price": "Cena podľa dohody — vhodné aj ako jednorazová aktivácia na obdobie, keď turnaj skutočne prebieha."
+      }
+    }
   }
 }

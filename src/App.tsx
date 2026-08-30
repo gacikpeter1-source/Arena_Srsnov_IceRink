@@ -30,6 +30,7 @@ const IceAttendancePage = lazy(() => import('./pages/admin/IceAttendancePage'))
 const TournamentsPage = lazy(() => import('./pages/admin/TournamentsPage'))
 const TournamentCreatePage = lazy(() => import('./pages/admin/TournamentCreatePage'))
 const TournamentDetailPage = lazy(() => import('./pages/admin/TournamentDetailPage'))
+const AdminSubscriptionPage = lazy(() => import('./pages/admin/AdminSubscriptionPage'))
 
 function Footer() {
   const { t } = useTranslation()
@@ -148,6 +149,16 @@ export default function App() {
               <ProtectedRoute>
                 <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
                   <TournamentDetailPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/predplatne"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <AdminSubscriptionPage />
                 </Suspense>
               </ProtectedRoute>
             }

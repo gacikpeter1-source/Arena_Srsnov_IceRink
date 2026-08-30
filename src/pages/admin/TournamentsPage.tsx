@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
+import { isModuleActive } from '@/lib/entitlements'
 import { fetchTournaments, deleteTournament } from '@/lib/tournaments'
 import { Tournament } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +27,11 @@ export default function TournamentsPage() {
   const { staff } = useAuth()
   const { club } = useClubData()
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
+  // Subscription gate (see CLAUDE.md's "Subscription / paid add-on
+  // modules") — only blocks creating a NEW tournament; an already-
+  // existing tournament stays fully manageable (view/edit/delete) even
+  // if the club's turnaje module has since lapsed.
+  const turnajeActive = isModuleActive(club, 'turnaje')
 
   const [tournaments, setTournaments] = useState<(Tournament & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,10 +71,25 @@ export default function TournamentsPage() {
       <BackButton fallback="/admin" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-white">{t('tournaments.title')}</h1>
-        <Link to="/admin/turnaje/novy">
-          <Button className="bg-primary hover:bg-primary-gold text-primary-foreground">{t('tournaments.createTournament')}</Button>
-        </Link>
+        {turnajeActive ? (
+          <Link to="/admin/turnaje/novy">
+            <Button className="bg-primary hover:bg-primary-gold text-primary-foreground">{t('tournaments.createTournament')}</Button>
+          </Link>
+        ) : (
+          // Not a Link when inactive — a disabled button inside a Link
+          // would still navigate on click, so the wrapper itself is
+          // dropped rather than just greying out the button inside it.
+          <Button disabled className="bg-primary text-primary-foreground opacity-60">
+            {t('tournaments.createTournament')}
+          </Button>
+        )}
       </div>
+
+      {!turnajeActive && (
+        <p className="text-status-danger text-sm bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
+          {t('subscription.moduleInactiveBanner')}
+        </p>
+      )}
 
       <Card className="arena-card">
         <CardHeader>

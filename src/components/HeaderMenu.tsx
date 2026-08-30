@@ -50,6 +50,11 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
   const canManageTrainings =
     staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
+  // The subscription/pricing overview is only meaningful to whoever
+  // decides what the club pays for — same role check
+  // AdminSubscriptionPage.tsx itself gates viewing on.
+  const canViewSubscription = staff?.role === 'owner' || staff?.role === 'superadmin'
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -114,6 +119,15 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
           >
             {t('nav.manageBooking')}
           </Link>
+          {canViewSubscription && (
+            <Link
+              to="/admin/predplatne"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-text-secondary hover:text-primary hover:bg-background-dark"
+            >
+              {t('nav.subscription')}
+            </Link>
+          )}
           {club && (
             <div className="px-4 py-2">
               <ContactUsButton club={club} />
