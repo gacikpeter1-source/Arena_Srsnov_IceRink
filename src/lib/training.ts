@@ -80,6 +80,8 @@ export interface CreateStandaloneSessionInput {
   durationMinutes: number
   capacity: number | null
   cancellationCutoffHours: number
+  // See TrainingSession.price — unset/0 = free.
+  price?: number
 }
 
 export async function createStandaloneSession(input: CreateStandaloneSessionInput): Promise<string> {
@@ -93,6 +95,7 @@ export async function createStandaloneSession(input: CreateStandaloneSessionInpu
     capacity: input.capacity,
     confirmedCount: 0,
     cancellationCutoffHours: input.cancellationCutoffHours,
+    ...(input.price ? { price: input.price } : {}),
     status: input.trainerId ? 'active' : 'unassigned',
     createdAt: serverTimestamp()
   })
@@ -110,6 +113,9 @@ export interface CreateTrainingSeriesInput {
   capacity: number | null
   cancellationCutoffHours: number
   recurrence: TrainingSeriesRecurrence
+  // See TrainingSession.price — copied onto every occurrence, same as
+  // capacity/cancellationCutoffHours already are.
+  price?: number
 }
 
 /**
@@ -157,6 +163,7 @@ export async function createTrainingSeries(
         capacity: input.capacity,
         confirmedCount: 0,
         cancellationCutoffHours: input.cancellationCutoffHours,
+        ...(input.price ? { price: input.price } : {}),
         seriesId: seriesRef.id,
         status: 'active',
         createdAt: serverTimestamp()
@@ -181,6 +188,9 @@ export interface CreateTrainingBundleInput {
   capacity: number | null
   cancellationCutoffHours: number
   sessions: TrainingBundleSessionInput[]
+  // See TrainingBundle.price — lives on the bundle doc alone (like
+  // capacity/confirmedCount), not per contained session.
+  price?: number
 }
 
 /**
@@ -206,6 +216,7 @@ export async function createTrainingBundle(input: CreateTrainingBundleInput): Pr
     capacity: input.capacity,
     confirmedCount: 0,
     cancellationCutoffHours: input.cancellationCutoffHours,
+    ...(input.price ? { price: input.price } : {}),
     createdAt: serverTimestamp()
   })
 
@@ -377,11 +388,12 @@ async function reclaimExpiredSessionRegistrations(sessionId: string): Promise<vo
       await runTransaction(db, async (tx) => {
         const regSnap = await tx.get(regDoc.ref)
         if (!regSnap.exists() || regSnap.data().status !== 'pending') return
+        const releasedCount = regSnap.data().attendeeCount ?? 1
         const sessionRef = doc(db, 'trainingSessions', sessionId)
         const sessionSnap = await tx.get(sessionRef)
         tx.update(regDoc.ref, { status: 'expired' })
         if (sessionSnap.exists()) {
-          tx.update(sessionRef, { confirmedCount: Math.max(0, (sessionSnap.data().confirmedCount ?? 0) - 1) })
+          tx.update(sessionRef, { confirmedCount: Math.max(0, (sessionSnap.data().confirmedCount ?? 0) - releasedCount) })
         }
       })
     } catch {
@@ -406,6 +418,15 @@ export interface RegisterForSessionInput {
   // so a later automatic waitlist promotion can still email them in it —
   // see TrainingRegistration.language.
   language?: SupportedLanguage
+  // How many people this one registration/QR covers — see
+  // TrainingRegistration.attendeeCount. Defaults to 1.
+  attendeeCount?: number
+  // Whether the club currently charges for trainings — see
+  // TrainingRegistration.payment. Only when true AND the session has a
+  // price is a payment actually attached; the caller passes
+  // club.paymentsEnabled through rather than this function re-fetching the
+  // club doc for a value that can't change mid-transaction anyway.
+  paymentsEnabled?: boolean
 }
 
 export interface RegisteredForSession {
@@ -418,6 +439,8 @@ export interface RegisteredForSession {
 
 export async function registerForSession(input: RegisterForSessionInput): Promise<RegisteredForSession> {
   await reclaimExpiredSessionRegistrations(input.sessionId).catch(() => {})
+
+  const attendeeCount = Math.max(1, input.attendeeCount ?? 1)
 
   const waitlistSnap = await getDocs(
     query(collection(db, 'trainingRegistrations'), where('sessionId', '==', input.sessionId), where('status', '==', 'waitlist'))
@@ -436,7 +459,7 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
       throw new SessionUnavailableError()
     }
     const session = sessionSnap.data()
-    const hasSpace = session.capacity === null || session.confirmedCount < session.capacity
+    const hasSpace = session.capacity === null || session.confirmedCount + attendeeCount <= session.capacity
 
     const base = {
       clubId: input.clubId,
@@ -453,11 +476,15 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
       tokenExpiresAt,
       startAtUtc: zonedTimeToUtc(session.date, session.startTime, input.timezone),
       ...(input.language ? { language: input.language } : {}),
+      attendeeCount,
+      ...(input.paymentsEnabled && session.price
+        ? { payment: { required: true, amount: session.price * attendeeCount, currency: 'EUR', status: 'unpaid' as const } }
+        : {}),
       createdAt: serverTimestamp()
     }
 
     if (hasSpace) {
-      tx.update(sessionRef, { confirmedCount: session.confirmedCount + 1 })
+      tx.update(sessionRef, { confirmedCount: session.confirmedCount + attendeeCount })
       if (input.instantConfirm) {
         tx.set(regRef, { ...base, status: 'confirmed' })
         return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
@@ -549,13 +576,18 @@ async function promoteNextWaitlistedSessionRegistration(
   const sessionRef = doc(db, 'trainingSessions', sessionId)
   for (const candidate of candidates) {
     const regRef = doc(db, 'trainingRegistrations', candidate.id)
+    const candidateCount = candidate.attendeeCount ?? 1
     const promoted = await runTransaction(db, async (tx) => {
       const sessionSnap = await tx.get(sessionRef)
       const regSnap = await tx.get(regRef)
       if (!sessionSnap.exists() || !regSnap.exists() || regSnap.data().status !== 'waitlist') return false
       const session = sessionSnap.data()
-      if (session.capacity !== null && session.confirmedCount >= session.capacity) return false
-      tx.update(sessionRef, { confirmedCount: session.confirmedCount + 1 })
+      // A larger party doesn't fit the space freed by this cancellation
+      // yet — leave them on the waitlist and try the next (possibly
+      // smaller) candidate instead, rather than blocking everyone behind
+      // them until a big-enough gap opens up.
+      if (session.capacity !== null && session.confirmedCount + candidateCount > session.capacity) return false
+      tx.update(sessionRef, { confirmedCount: session.confirmedCount + candidateCount })
       tx.update(regRef, { status: 'confirmed' })
       return true
     })
@@ -585,12 +617,13 @@ export async function cancelSessionRegistration(
     if (registration.status === 'cancelled') throw new Error('Registration is already cancelled')
 
     const heldSpot = registration.status === 'confirmed' || registration.status === 'pending'
+    const releasedCount = registration.attendeeCount ?? 1
     const sessionRef = doc(db, 'trainingSessions', registration.sessionId)
     const sessionSnap = heldSpot ? await tx.get(sessionRef) : null
 
     tx.update(regRef, { status: 'cancelled', cancelledAt: serverTimestamp() })
     if (heldSpot && sessionSnap?.exists()) {
-      tx.update(sessionRef, { confirmedCount: Math.max(0, (sessionSnap.data().confirmedCount ?? 0) - 1) })
+      tx.update(sessionRef, { confirmedCount: Math.max(0, (sessionSnap.data().confirmedCount ?? 0) - releasedCount) })
     }
     return heldSpot ? (registration.sessionId as string) : null
   })
@@ -628,11 +661,12 @@ async function reclaimExpiredBundleRegistrations(bundleId: string): Promise<void
       await runTransaction(db, async (tx) => {
         const regSnap = await tx.get(regDoc.ref)
         if (!regSnap.exists() || regSnap.data().status !== 'pending') return
+        const releasedCount = regSnap.data().attendeeCount ?? 1
         const bundleRef = doc(db, 'trainingBundles', bundleId)
         const bundleSnap = await tx.get(bundleRef)
         tx.update(regDoc.ref, { status: 'expired' })
         if (bundleSnap.exists()) {
-          tx.update(bundleRef, { confirmedCount: Math.max(0, (bundleSnap.data().confirmedCount ?? 0) - 1) })
+          tx.update(bundleRef, { confirmedCount: Math.max(0, (bundleSnap.data().confirmedCount ?? 0) - releasedCount) })
         }
       })
     } catch {
@@ -651,6 +685,10 @@ export interface RegisterForBundleInput {
   instantConfirm?: boolean
   // See RegisterForSessionInput.language.
   language?: SupportedLanguage
+  // See RegisterForSessionInput.attendeeCount.
+  attendeeCount?: number
+  // See RegisterForSessionInput.paymentsEnabled.
+  paymentsEnabled?: boolean
 }
 
 export interface RegisteredForBundle {
@@ -663,6 +701,8 @@ export interface RegisteredForBundle {
 
 export async function registerForBundle(input: RegisterForBundleInput): Promise<RegisteredForBundle> {
   await reclaimExpiredBundleRegistrations(input.bundleId).catch(() => {})
+
+  const attendeeCount = Math.max(1, input.attendeeCount ?? 1)
 
   const waitlistSnap = await getDocs(
     query(collection(db, 'trainingBundleRegistrations'), where('bundleId', '==', input.bundleId), where('status', '==', 'waitlist'))
@@ -679,7 +719,7 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
     const bundleSnap = await tx.get(bundleRef)
     if (!bundleSnap.exists()) throw new SessionUnavailableError()
     const bundle = bundleSnap.data()
-    const hasSpace = bundle.capacity === null || bundle.confirmedCount < bundle.capacity
+    const hasSpace = bundle.capacity === null || bundle.confirmedCount + attendeeCount <= bundle.capacity
 
     const base = {
       clubId: input.clubId,
@@ -692,11 +732,15 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
       cancellationToken,
       tokenExpiresAt,
       ...(input.language ? { language: input.language } : {}),
+      attendeeCount,
+      ...(input.paymentsEnabled && bundle.price
+        ? { payment: { required: true, amount: bundle.price * attendeeCount, currency: 'EUR', status: 'unpaid' as const } }
+        : {}),
       createdAt: serverTimestamp()
     }
 
     if (hasSpace) {
-      tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + 1 })
+      tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + attendeeCount })
       if (input.instantConfirm) {
         tx.set(regRef, { ...base, status: 'confirmed' })
         return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
@@ -761,13 +805,15 @@ async function promoteNextWaitlistedBundleRegistration(
   const bundleRef = doc(db, 'trainingBundles', bundleId)
   for (const candidate of candidates) {
     const regRef = doc(db, 'trainingBundleRegistrations', candidate.id)
+    const candidateCount = candidate.attendeeCount ?? 1
     const promoted = await runTransaction(db, async (tx) => {
       const bundleSnap = await tx.get(bundleRef)
       const regSnap = await tx.get(regRef)
       if (!bundleSnap.exists() || !regSnap.exists() || regSnap.data().status !== 'waitlist') return false
       const bundle = bundleSnap.data()
-      if (bundle.capacity !== null && bundle.confirmedCount >= bundle.capacity) return false
-      tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + 1 })
+      // See the matching note in promoteNextWaitlistedSessionRegistration.
+      if (bundle.capacity !== null && bundle.confirmedCount + candidateCount > bundle.capacity) return false
+      tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + candidateCount })
       tx.update(regRef, { status: 'confirmed' })
       return true
     })
@@ -789,12 +835,13 @@ export async function cancelBundleRegistration(
     if (registration.status === 'cancelled') throw new Error('Registration is already cancelled')
 
     const heldSpot = registration.status === 'confirmed' || registration.status === 'pending'
+    const releasedCount = registration.attendeeCount ?? 1
     const bundleRef = doc(db, 'trainingBundles', registration.bundleId)
     const bundleSnap = heldSpot ? await tx.get(bundleRef) : null
 
     tx.update(regRef, { status: 'cancelled', cancelledAt: serverTimestamp() })
     if (heldSpot && bundleSnap?.exists()) {
-      tx.update(bundleRef, { confirmedCount: Math.max(0, (bundleSnap.data().confirmedCount ?? 0) - 1) })
+      tx.update(bundleRef, { confirmedCount: Math.max(0, (bundleSnap.data().confirmedCount ?? 0) - releasedCount) })
     }
     return heldSpot ? (registration.bundleId as string) : null
   })

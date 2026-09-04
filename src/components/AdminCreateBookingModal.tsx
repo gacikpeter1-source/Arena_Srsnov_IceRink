@@ -46,6 +46,7 @@ export default function AdminCreateBookingModal({
   const [startTime, setStartTime] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
+  const [attendeeCount, setAttendeeCount] = useState(1)
   const [repeat, setRepeat] = useState(false)
   const [frequency, setFrequency] = useState<SeriesFrequency>('weekly')
   const [recurrenceType, setRecurrenceType] = useState<'count' | 'until'>('count')
@@ -87,6 +88,7 @@ export default function AdminCreateBookingModal({
     setStartTime('')
     setZoneId('')
     setFormData({ name: '', email: '', phone: '' })
+    setAttendeeCount(1)
     setRepeat(false)
     setFrequency('weekly')
     setError(null)
@@ -127,7 +129,8 @@ export default function AdminCreateBookingModal({
           email: formData.email,
           phone: formData.phone,
           timezone: club.timezone,
-          recurrence
+          recurrence,
+          attendeeCount
         })
         setSeriesResult(series)
         onCreated()
@@ -142,7 +145,8 @@ export default function AdminCreateBookingModal({
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          timezone: club.timezone
+          timezone: club.timezone,
+          attendeeCount
         })
         onCreated()
         handleClose()
@@ -317,6 +321,18 @@ export default function AdminCreateBookingModal({
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               className="bg-background-dark border-border text-white"
               required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="admin-attendee-count" className="text-white">{t('booking.attendeeCount')}</Label>
+            <Input
+              id="admin-attendee-count"
+              type="number"
+              min={1}
+              value={attendeeCount}
+              onChange={(e) => setAttendeeCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="bg-background-dark border-border text-white max-w-[100px]"
             />
           </div>
 

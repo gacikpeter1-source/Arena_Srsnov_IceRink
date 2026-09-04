@@ -279,7 +279,12 @@ export default function AdminDashboardPage() {
                       <td className="py-2 pr-3 mono text-primary">{b.startTime}</td>
                       <td className="py-2 pr-3">{rinkNameById.get(b.rinkId) ?? b.rinkId}</td>
                       <td className="py-2 pr-3">{zoneNameById.get(b.zoneId) ?? b.zoneId}</td>
-                      <td className="py-2 pr-3 text-white">{b.name}</td>
+                      <td className="py-2 pr-3 text-white">
+                        {b.name}
+                        {(b.attendeeCount ?? 1) > 1 && (
+                          <span className="ml-1 text-text-muted text-xs">×{b.attendeeCount}</span>
+                        )}
+                      </td>
                       <td className="py-2 pr-3 text-text-secondary">{b.email}</td>
                       <td className="py-2 pr-3 text-text-secondary">{b.phone}</td>
                       <td className={`py-2 pr-3 ${b.status === 'confirmed' ? 'text-status-success' : 'text-status-muted'}`}>
