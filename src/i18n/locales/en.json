@@ -26,6 +26,7 @@
     "manageBooking": "Manage my booking",
     "menu": "Menu",
     "manageTrainings": "Manage trainings",
+    "scanQr": "Scan QR code",
     "manageTournaments": "Manage tournaments",
     "subscription": "Pricing / My plan",
     "website": "Website",
@@ -376,6 +377,21 @@
     "walkIns": "Walk-ins",
     "walkInNamePlaceholder": "Name",
     "addWalkIn": "Add"
+  },
+  "qrScan": {
+    "title": "Scan QR code",
+    "intro": "Point the camera at a customer's confirmation QR code (from their email) to check them in.",
+    "cameraError": "Couldn't access the camera. Check your browser's camera permission and try again.",
+    "notAuthorizedTitle": "Not available",
+    "notAuthorizedNotice": "You don't have access to entrance check-in.",
+    "resultTitle": "Result",
+    "invalidCode": "This QR code isn't recognized or is no longer valid.",
+    "bookingNotSupported": "This is an ice-booking confirmation — entrance check-in for ice bookings isn't tracked yet.",
+    "notValidNotice": "This registration was cancelled or has expired.",
+    "notConfirmedNotice": "This registration isn't confirmed yet.",
+    "pickSession": "Which session?",
+    "selectSessionPlaceholder": "Select a session...",
+    "scanNext": "Scan next"
   },
   "trainerIceLog": {
     "title": "Trainer ice log",

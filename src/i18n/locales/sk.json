@@ -26,6 +26,7 @@
     "manageBooking": "Moja rezervácia",
     "menu": "Menu",
     "manageTrainings": "Spravovať tréningy",
+    "scanQr": "Skenovať QR kód",
     "manageTournaments": "Spravovať turnaje",
     "subscription": "Cenník / Môj plán",
     "website": "Webová stránka",
@@ -376,6 +377,21 @@
     "walkIns": "Bez registrácie",
     "walkInNamePlaceholder": "Meno",
     "addWalkIn": "Pridať"
+  },
+  "qrScan": {
+    "title": "Skenovať QR kód",
+    "intro": "Namierte kameru na potvrdzovací QR kód zákazníka (z jeho emailu) a označte ho ako prítomného.",
+    "cameraError": "Nepodarilo sa získať prístup ku kamere. Skontrolujte povolenie kamery v prehliadači a skúste to znova.",
+    "notAuthorizedTitle": "Nedostupné",
+    "notAuthorizedNotice": "Nemáte prístup k vstupnej kontrole.",
+    "resultTitle": "Výsledok",
+    "invalidCode": "Tento QR kód nie je rozpoznaný alebo už nie je platný.",
+    "bookingNotSupported": "Toto je potvrdenie rezervácie ľadu — vstupná kontrola pre rezervácie ľadu sa zatiaľ nesleduje.",
+    "notValidNotice": "Táto registrácia bola zrušená alebo jej platnosť vypršala.",
+    "notConfirmedNotice": "Táto registrácia ešte nie je potvrdená.",
+    "pickSession": "Ktorý tréning?",
+    "selectSessionPlaceholder": "Vyberte tréning...",
+    "scanNext": "Skenovať ďalší"
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",

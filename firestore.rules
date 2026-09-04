@@ -315,6 +315,11 @@ service cloud.firestore {
       allow update: if isTrainer()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendance'])
         && get(/databases/$(database)/documents/trainingSessions/$(resource.data.sessionId)).data.trainerId == request.auth.uid;
+      // Entrance QR-scan check-in (QrScanPage.tsx) — any ice-rink staff
+      // member, not just the owning trainer, since whoever's on door duty
+      // may not be the trainer running that particular session.
+      allow update: if isStaffMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendance']);
       allow update: if isOwnerOrAbove();
     }
 
@@ -339,6 +344,9 @@ service cloud.firestore {
       allow update: if isTrainer()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendanceBySession'])
         && get(/databases/$(database)/documents/trainingBundles/$(resource.data.bundleId)).data.trainerId == request.auth.uid;
+      // See the matching entrance QR-scan note on trainingRegistrations above.
+      allow update: if isStaffMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendanceBySession']);
       allow update: if isOwnerOrAbove();
     }
 

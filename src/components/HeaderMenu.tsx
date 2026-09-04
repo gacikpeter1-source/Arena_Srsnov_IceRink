@@ -96,6 +96,15 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               {t('nav.manageTrainings')}
             </Link>
           )}
+          {canManageTrainings && (
+            <Link
+              to="/admin/treningy/scan-qr"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-primary hover:text-primary-gold hover:bg-background-dark"
+            >
+              {t('nav.scanQr')}
+            </Link>
+          )}
           <Link
             to="/turnaje"
             onClick={() => setOpen(false)}
