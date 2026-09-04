@@ -901,12 +901,43 @@ no admin UI to attach a per-zone price to (see the "halfLengthwise" note
 below on that same limitation) and a club-wide/rink-wide default would be
 a bigger modeling decision than this pass needed to make.
 
-**Planned next**: the actual entrance QR-scanning check-in UI (camera-based,
-via a small client-side library) that motivated this — reading the same
-confirmation QR a customer already receives by email and checking their
-whole party in with one tap in `TrainerRosterModal.tsx` — and, further out,
-an ESP32-driven electromagnetic door lock triggered by a valid scan. Neither
-is built yet.
+**Entrance QR-scan check-in** (`QrScanPage.tsx`, `/admin/treningy/scan-qr`,
+linked from `HeaderMenu.tsx`'s dropdown right under "Spravovať tréningy",
+gated to the same `isTrainer || assistant/owner/superadmin` check as that
+link) is the piece the `attendeeCount` work above was built ahead of. Uses
+`qr-scanner` (camera access + decode, no backend) pointed at the device's
+video feed; on a decode, the scanned string is parsed as a URL and matched
+against the *exact* cancel-link path patterns the confirmation emails
+already embed as QR images (`queueTrainingConfirmationEmail`/
+`queueBundleConfirmationEmail` in `lib/email.ts`) — `/treningy/zrusit/:regId/:token`
+for a session registration, `/treningy/kurz/zrusit/:regId/:token` for a
+bundle one — rather than inventing a second QR payload. The registration
+doc is fetched by `regId` and the embedded `token` checked against its
+`cancellationToken` (same trust check `TrainingCancelPage.tsx` already
+does) before showing anything, so a garbled or tampered scan can't surface
+another customer's name. A `/my-booking/:bookingId/:token` (ice booking) QR
+is recognized but shown as "not supported yet" rather than erroring, since
+`Booking` has no attendance field to check into. Marking present calls the
+*same* `markSessionAttendance`/`markBundleSessionAttendance` functions
+`TrainerRosterModal.tsx`'s manual roster already uses — one tap checks in
+the registration's whole `attendeeCount` party, matching the "single scan,
+whole group" decision above, not a per-person count. For a bundle
+registration (which covers many sessions), the scanner fetches the
+bundle's own session list and auto-selects today's date's session when
+there's exactly one match, otherwise shows a picker — same "which session"
+ambiguity a bundle registration always has when checking in doesn't
+otherwise limit it to a single occurrence.
+
+**`firestore.rules` broadened**: the `attendance`/`attendanceBySession`
+public-writable-only-by-the-owning-trainer rule on `trainingRegistrations`/
+`trainingBundleRegistrations` gained an `isStaffMember()` (assistant/owner/
+superadmin) branch alongside the existing trainer-only one — whoever's on
+door duty checking people in may not be the trainer running that
+particular session, same reasoning the ice-attendance checklist's
+`trainerPresentConfirmed` rule already established.
+
+**Planned next**: an ESP32-driven electromagnetic door lock triggered by a
+valid scan — not built yet; this pass is the software check-in only.
 
 ## Tournaments
 A quick-planning tool for a trainer/assistant/owner/superadmin to
