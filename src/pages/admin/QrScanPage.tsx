@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import QrScanner from 'qr-scanner'
 import QrScannerWorkerPath from 'qr-scanner/qr-scanner-worker.min.js?url'
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, Timestamp, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { markSessionAttendance, markBundleSessionAttendance } from '@/lib/training'
@@ -14,14 +14,35 @@ import BackButton from '@/components/BackButton'
 
 QrScanner.WORKER_PATH = QrScannerWorkerPath
 
+// checkedInAt is written via serverTimestamp() so it arrives as a Firestore
+// Timestamp at runtime despite the TS type saying Date (same convention as
+// isLockExpired in lib/bookings.ts).
+function formatCheckedInAt(checkedInAt: Date | undefined): string {
+  if (!checkedInAt) return ''
+  return (checkedInAt as unknown as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 type Result =
-  | { kind: 'session'; reg: TrainingRegistration & { id: string }; session: (TrainingSession & { id: string }) | null }
+  | {
+      kind: 'session'
+      reg: TrainingRegistration & { id: string }
+      session: (TrainingSession & { id: string }) | null
+      // Snapshotted at scan time, never updated afterward — distinguishes
+      // "this code was already used on an earlier scan" (real reuse/sharing
+      // warning) from "I just marked it present in this very scan" (which
+      // also sets reg.attendance.checkedIn, but isn't reuse).
+      wasAlreadyCheckedIn: boolean
+    }
   | {
       kind: 'bundle'
       reg: TrainingBundleRegistration & { id: string }
       bundle: (TrainingBundle & { id: string }) | null
       sessions: (TrainingSession & { id: string })[]
       selectedSessionId: string | null
+      // Snapshotted at scan time, keyed by sessionId — see the session
+      // variant's wasAlreadyCheckedIn for why this can't just read the
+      // live (locally-mutated) reg.attendanceBySession instead.
+      originalAttendanceBySession: TrainingBundleRegistration['attendanceBySession']
     }
   | { kind: 'unsupported' }
   | { kind: 'invalid' }
@@ -93,7 +114,7 @@ export default function QrScanPage() {
       const reg = { id: snap.id, ...snap.data() } as TrainingRegistration & { id: string }
       const sessionSnap = await getDoc(doc(db, 'trainingSessions', reg.sessionId))
       const session = sessionSnap.exists() ? ({ id: sessionSnap.id, ...sessionSnap.data() } as TrainingSession & { id: string }) : null
-      setResult({ kind: 'session', reg, session })
+      setResult({ kind: 'session', reg, session, wasAlreadyCheckedIn: reg.attendance?.checkedIn === true })
     } else if (bundleMatch) {
       const [, regId, token] = bundleMatch
       const snap = await getDoc(doc(db, 'trainingBundleRegistrations', regId))
@@ -110,7 +131,14 @@ export default function QrScanPage() {
         .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
       const today = formatDateISO(new Date())
       const todaysSessions = sessions.filter((s) => s.date === today)
-      setResult({ kind: 'bundle', reg, bundle, sessions, selectedSessionId: todaysSessions.length === 1 ? todaysSessions[0].id : null })
+      setResult({
+        kind: 'bundle',
+        reg,
+        bundle,
+        sessions,
+        selectedSessionId: todaysSessions.length === 1 ? todaysSessions[0].id : null,
+        originalAttendanceBySession: reg.attendanceBySession
+      })
     } else if (isBooking) {
       setResult({ kind: 'unsupported' })
     } else {
@@ -196,6 +224,11 @@ export default function QrScanPage() {
                 {(result.reg.status === 'pending' || result.reg.status === 'waitlist') && (
                   <p className="text-status-muted text-sm">{t('qrScan.notConfirmedNotice')}</p>
                 )}
+                {result.wasAlreadyCheckedIn && (
+                  <p className="text-status-danger text-sm font-semibold bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
+                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(result.reg.attendance?.checkedInAt) })}
+                  </p>
+                )}
                 {result.reg.status !== 'cancelled' && result.reg.status !== 'expired' && (
                   <Button
                     onClick={handleMarkSessionPresent}
@@ -240,6 +273,11 @@ export default function QrScanPage() {
                       ))}
                     </select>
                   </div>
+                )}
+                {result.selectedSessionId && result.originalAttendanceBySession?.[result.selectedSessionId]?.checkedIn && (
+                  <p className="text-status-danger text-sm font-semibold bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
+                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(result.originalAttendanceBySession[result.selectedSessionId].checkedInAt) })}
+                  </p>
                 )}
                 {result.reg.status !== 'cancelled' && result.reg.status !== 'expired' && (
                   <Button

@@ -389,6 +389,7 @@
     "bookingNotSupported": "This is an ice-booking confirmation — entrance check-in for ice bookings isn't tracked yet.",
     "notValidNotice": "This registration was cancelled or has expired.",
     "notConfirmedNotice": "This registration isn't confirmed yet.",
+    "alreadyScannedWarning": "This code was already checked in at {{time}} — make sure this isn't the same code being shared by more than one person.",
     "pickSession": "Which session?",
     "selectSessionPlaceholder": "Select a session...",
     "scanNext": "Scan next"
