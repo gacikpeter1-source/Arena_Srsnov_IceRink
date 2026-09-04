@@ -36,14 +36,21 @@ interface TrainingRegistrationModalProps {
 export default function TrainingRegistrationModal({ isOpen, onClose, club, session, bundle, asStaff }: TrainingRegistrationModalProps) {
   const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
+  const [attendeeCount, setAttendeeCount] = useState(1)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ status: 'pending' | 'confirmed' | 'waitlist' } | null>(null)
 
   const lang = isSupportedLanguage(i18n.language) ? i18n.language : 'en'
+  // Price is only ever shown/charged once the club has actually turned
+  // payments on — see CLAUDE.md's payment-scaffold note. Today that flag
+  // stays off, so this branch never renders in production.
+  const unitPrice = bundle ? bundle.price : session.price
+  const totalPrice = club.paymentsEnabled && unitPrice ? unitPrice * attendeeCount : null
 
   const handleClose = () => {
     setFormData({ name: '', email: '', phone: '' })
+    setAttendeeCount(1)
     setError(null)
     setResult(null)
     onClose()
@@ -62,7 +69,9 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           email: formData.email,
           phone: formData.phone,
           instantConfirm: asStaff,
-          language: lang
+          language: lang,
+          attendeeCount,
+          paymentsEnabled: club.paymentsEnabled
         })
         if (registered.status === 'confirmed') {
           const sessionsSnap = await getDocs(query(collection(db, 'trainingSessions'), where('bundleId', '==', bundle.id)))
@@ -104,7 +113,9 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           phone: formData.phone,
           timezone: club.timezone,
           instantConfirm: asStaff,
-          language: lang
+          language: lang,
+          attendeeCount,
+          paymentsEnabled: club.paymentsEnabled
         })
         if (registered.status === 'confirmed') {
           await queueTrainingConfirmationEmail(
@@ -192,6 +203,20 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
             <Label htmlFor="training-phone" className="text-white">{t('common.phone')}</Label>
             <Input id="training-phone" type="tel" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="bg-background-dark border-border text-white" />
           </div>
+          <div>
+            <Label htmlFor="training-attendee-count" className="text-white">{t('booking.attendeeCount')}</Label>
+            <Input
+              id="training-attendee-count"
+              type="number"
+              min={1}
+              value={attendeeCount}
+              onChange={(e) => setAttendeeCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="bg-background-dark border-border text-white max-w-[100px]"
+            />
+          </div>
+          {totalPrice != null && (
+            <p className="text-text-secondary text-sm">{t('trainingRegistration.totalPrice', { amount: totalPrice.toFixed(2) })}</p>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
               {submitting ? t('trainingRegistration.submitting') : t('trainingRegistration.submit')}

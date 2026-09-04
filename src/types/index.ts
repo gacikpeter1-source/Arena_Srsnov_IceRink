@@ -175,6 +175,12 @@ export interface Booking {
   // Only set while status is 'pending' — when the emailed confirm link
   // stops working and the slot lock becomes reclaimable by someone else.
   pendingExpiresAt?: Date
+  // How many people this one booking/QR covers (e.g. a family of 5) —
+  // purely informational for ice bookings, since a zone/time slot is
+  // reserved as a whole regardless of headcount; unset/1 for a booking
+  // made before this field existed. See TrainingRegistration.attendeeCount
+  // for the training-domain equivalent, where it DOES affect capacity.
+  attendeeCount?: number
   payment?: Payment
 
   // Set when this occurrence was created as part of a recurring series (see
@@ -315,6 +321,12 @@ export interface TrainingBundle {
   capacity: number | null
   confirmedCount: number // maintained atomically in a transaction
   cancellationCutoffHours: number
+  // Per-person price for one registration, set by the trainer at creation —
+  // see the "Subscription / paid add-on modules"-adjacent payment scaffold
+  // note in CLAUDE.md. Unset = free. Only actually charged (payment written
+  // onto the registration) once Club.paymentsEnabled is true — today that
+  // flag stays off, so this is data ready for later, not an active price.
+  price?: number
   createdAt: Date
 }
 
@@ -352,6 +364,10 @@ export interface TrainingSession {
   // payroll-support record for the owner; unset = not yet confirmed
   // either way, not "trainer was absent".
   trainerPresentConfirmed?: boolean
+  // Per-person price for a standalone/series session, set by the trainer at
+  // creation — see TrainingBundle.price for the full rationale (same
+  // "ready but not active until Club.paymentsEnabled" scaffold).
+  price?: number
   createdAt: Date
 }
 
@@ -389,6 +405,16 @@ export interface TrainingRegistration {
   // them in their own language. Unset on registrations from before this
   // field existed — callers fall back to 'sk'.
   language?: SupportedLanguage
+  // How many people this one registration/QR covers (e.g. a family of 5
+  // registering together for a skating session) — defaults to 1 when
+  // unset (a registration from before this field existed). Unlike
+  // Booking.attendeeCount, this DOES affect capacity: registerForSession
+  // reserves/releases this many spots on the session's confirmedCount, not
+  // always exactly 1 — see lib/training.ts.
+  attendeeCount?: number
+  // Set only when Club.paymentsEnabled is true and the session/bundle has
+  // a price — amount is price * attendeeCount. See TrainingBundle.price.
+  payment?: Payment
 
   createdAt: Date
   cancelledAt?: Date
@@ -418,6 +444,10 @@ export interface TrainingBundleRegistration {
   attendanceBySession?: Record<string, { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }>
   // See TrainingRegistration.language.
   language?: SupportedLanguage
+  // See TrainingRegistration.attendeeCount — same meaning, scoped to the bundle's own confirmedCount.
+  attendeeCount?: number
+  // See TrainingRegistration.payment.
+  payment?: Payment
 
   createdAt: Date
   cancelledAt?: Date

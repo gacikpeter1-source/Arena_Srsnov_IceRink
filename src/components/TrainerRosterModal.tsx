@@ -132,7 +132,11 @@ export default function TrainerRosterModal({ isOpen, onClose, trainerId, session
                     return (
                       <div key={reg.id} className="flex items-center justify-between p-2 rounded border border-border">
                         <div>
-                          <p className="text-white text-sm">{reg.name}{reg.status === 'waitlist' ? ` (${t('trainerRoster.waitlisted')})` : ''}</p>
+                          <p className="text-white text-sm">
+                            {reg.name}
+                            {(reg.attendeeCount ?? 1) > 1 ? ` · ${t('trainerRoster.groupSize', { count: reg.attendeeCount })}` : ''}
+                            {reg.status === 'waitlist' ? ` (${t('trainerRoster.waitlisted')})` : ''}
+                          </p>
                           <p className="text-text-secondary text-xs mono">{reg.confirmationCode}</p>
                         </div>
                         <Button

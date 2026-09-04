@@ -138,6 +138,10 @@ export interface CreateBookingInput {
   // real, and a recurring series would need one confirmation per occurrence,
   // which is its own can of worms, so series stay instant-confirm for now.
   requiresConfirmation?: boolean
+  // How many people this one booking/QR covers — see Booking.attendeeCount.
+  // Purely informational (doesn't affect slot availability), unlike the
+  // training domain's attendeeCount which reserves real capacity.
+  attendeeCount?: number
 }
 
 export interface CreatedBooking {
@@ -204,6 +208,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
       // Firestore rejects `undefined` field values, so only include
       // seriesId when this occurrence actually belongs to one.
       ...(input.seriesId ? { seriesId: input.seriesId } : {}),
+      ...(input.attendeeCount && input.attendeeCount > 1 ? { attendeeCount: input.attendeeCount } : {}),
       ...(pendingExpiresAt ? { pendingExpiresAt } : {}),
       confirmationCode,
       cancellationToken,
@@ -314,6 +319,8 @@ export interface CreateSeriesInput {
   phone: string
   timezone: string
   recurrence: SeriesRecurrence
+  // See CreateBookingInput.attendeeCount — applied to every occurrence.
+  attendeeCount?: number
 }
 
 export interface SeriesOccurrenceResult {
@@ -399,7 +406,8 @@ export async function createBookingSeries(input: CreateSeriesInput): Promise<Cre
         email: input.email,
         phone: input.phone,
         timezone: input.timezone,
-        seriesId: seriesRef.id
+        seriesId: seriesRef.id,
+        attendeeCount: input.attendeeCount
       })
       created.push({ bookingId: booking.id, date, confirmationCode: booking.confirmationCode })
     } catch (err) {

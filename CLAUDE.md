@@ -845,6 +845,69 @@ switching views triggers a fresh fetch scoped to whatever's actually on
 screen rather than pre-loading everything. `getMonthStart`/`getMonthEnd`
 (`lib/utils.ts`) join the existing `getWeekStart` for this.
 
+### Fáza 5: group tickets (attendeeCount) + payment scaffold
+
+Built ahead of a planned entrance QR-scanning check-in flow (a staff
+tablet/phone at the door scans a customer's confirmation QR) — a family or
+group buying tickets together should be covered by that one QR, not one
+per person, and the door scan should check the whole party in with a
+single tap. Two additive pieces landed together since they compose (a
+price, once payments are real, is naturally "per person × headcount"):
+
+**`attendeeCount`** — new optional field on `Booking`, `TrainingRegistration`,
+and `TrainingBundleRegistration` (`src/types/index.ts`), defaulting to 1 when
+unset (a record from before this field existed). The customer/staff booking
+forms (`BookingModal.tsx`, `AdminCreateBookingModal.tsx`,
+`TrainingRegistrationModal.tsx`) all gained a plain "number of people" input
+next to name/email/phone. Its effect differs by domain, matching how each
+domain's capacity actually works:
+- **Ice bookings** — purely informational. A `Booking` reserves a whole
+  zone/time slot regardless of headcount, so `attendeeCount` doesn't affect
+  `createBooking`'s transaction at all — it only shows up for display (a
+  `×3` badge next to the name in `AdminDashboardPage.tsx`'s bookings table)
+  and, later, for the QR check-in screen to know how many people to expect.
+- **Training registrations/bundles** — genuinely affects capacity.
+  `registerForSession`/`registerForBundle` (`lib/training.ts`) now check
+  `confirmedCount + attendeeCount <= capacity` (not just "is there *a*
+  spot") and increment/decrement `confirmedCount` by `attendeeCount`
+  throughout — creation, the pending-window reclaim sweep, cancellation,
+  and waitlist promotion all use the registration's own stored
+  `attendeeCount` (falling back to 1 for a pre-existing registration)
+  rather than assuming exactly one spot per registration. Waitlist
+  promotion (`promoteNextWaitlistedSessionRegistration`/
+  `...BundleRegistration`) specifically skips a candidate whose party
+  doesn't fit the space just freed rather than blocking everyone behind
+  them — the next (possibly smaller) waitlisted party is tried instead, so
+  a cancellation doesn't stall on the front of the queue being a family of
+  6 when only 2 spots opened up. `TrainerRosterModal.tsx`'s check-in list
+  shows `Meno · N osôb` for any registration with `attendeeCount > 1`.
+
+**Payment scaffold — ready, not active.** `TrainingSession.price` and
+`TrainingBundle.price` (optional, per-person, set by the trainer at
+creation next to capacity/cancellationCutoffHours in
+`TrainerDashboardPage.tsx`'s three creation forms) are the first real use
+of the `Payment` type that's existed on `Booking` since this app's original
+spec but was never wired up. `registerForSession`/`registerForBundle` now
+accept a `paymentsEnabled` flag (the caller passes `club.paymentsEnabled`
+straight through — always `false` today, so this is inert in production)
+and only attach `payment: { required: true, amount: price * attendeeCount,
+currency: 'EUR', status: 'unpaid' }` to the registration when both that
+flag AND a price are set; `TrainingRegistrationModal.tsx` mirrors the same
+condition to show a running total, so nothing customer-facing changes
+until a club actually turns `paymentsEnabled` on. Deliberately scoped to
+the training domain only for now — ice bookings keep `attendeeCount` as
+informational-only, with no equivalent `price` field yet, since zones have
+no admin UI to attach a per-zone price to (see the "halfLengthwise" note
+below on that same limitation) and a club-wide/rink-wide default would be
+a bigger modeling decision than this pass needed to make.
+
+**Planned next**: the actual entrance QR-scanning check-in UI (camera-based,
+via a small client-side library) that motivated this — reading the same
+confirmation QR a customer already receives by email and checking their
+whole party in with one tap in `TrainerRosterModal.tsx` — and, further out,
+an ESP32-driven electromagnetic door lock triggered by a valid scan. Neither
+is built yet.
+
 ## Tournaments
 A quick-planning tool for a trainer/assistant/owner/superadmin to
 schedule tournament matches — deliberately no bracket/results/standings

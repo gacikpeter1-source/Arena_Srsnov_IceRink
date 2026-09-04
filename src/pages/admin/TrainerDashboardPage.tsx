@@ -55,6 +55,7 @@ export default function TrainerDashboardPage() {
   const [sTime, setSTime] = useState('17:00')
   const [sDuration, setSDuration] = useState(60)
   const [sCapacity, setSCapacity] = useState<string>('10')
+  const [sPrice, setSPrice] = useState<string>('')
   const [creatingSession, setCreatingSession] = useState(false)
   // Owner/superadmin creating a session isn't necessarily the trainer it's
   // for — see the trainer picker in the form below. Defaults to
@@ -70,6 +71,7 @@ export default function TrainerDashboardPage() {
   const [seTime, setSeTime] = useState('17:00')
   const [seDuration, setSeDuration] = useState(60)
   const [seCapacity, setSeCapacity] = useState<string>('10')
+  const [sePrice, setSePrice] = useState<string>('')
   const [seFrequency, setSeFrequency] = useState<TrainingFrequency>('weekly')
   const [seCount, setSeCount] = useState(8)
   const [creatingSeries, setCreatingSeries] = useState(false)
@@ -77,6 +79,7 @@ export default function TrainerDashboardPage() {
   // Bundle form
   const [buTitle, setBuTitle] = useState('')
   const [buCapacity, setBuCapacity] = useState<string>('10')
+  const [buPrice, setBuPrice] = useState<string>('')
   const [buSessions, setBuSessions] = useState<TrainingBundleSessionInput[]>([
     { date: formatDateISO(new Date()), startTime: '17:00', durationMinutes: 60 }
   ])
@@ -137,6 +140,8 @@ export default function TrainerDashboardPage() {
   }
 
   const parseCapacity = (v: string): number | null => (v.trim() === '' ? null : Math.max(0, parseInt(v, 10) || 0))
+  // See TrainingSession.price/TrainingBundle.price — unset (empty input) = free.
+  const parsePrice = (v: string): number | undefined => (v.trim() === '' ? undefined : Math.max(0, parseFloat(v) || 0))
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -158,7 +163,8 @@ export default function TrainerDashboardPage() {
         startTime: sTime,
         durationMinutes: sDuration,
         capacity: parseCapacity(sCapacity),
-        cancellationCutoffHours: DEFAULT_CUTOFF_HOURS
+        cancellationCutoffHours: DEFAULT_CUTOFF_HOURS,
+        price: parsePrice(sPrice)
       })
       refresh()
     } catch (err) {
@@ -185,9 +191,11 @@ export default function TrainerDashboardPage() {
         durationMinutes: seDuration,
         capacity: parseCapacity(seCapacity),
         cancellationCutoffHours: DEFAULT_CUTOFF_HOURS,
-        recurrence
+        recurrence,
+        price: parsePrice(sePrice)
       })
       setSeTitle('')
+      setSePrice('')
       refresh()
     } catch (err) {
       console.error('Error creating training series:', err)
@@ -209,9 +217,11 @@ export default function TrainerDashboardPage() {
         title: buTitle,
         capacity: parseCapacity(buCapacity),
         cancellationCutoffHours: DEFAULT_CUTOFF_HOURS,
-        sessions: buSessions
+        sessions: buSessions,
+        price: parsePrice(buPrice)
       })
       setBuTitle('')
+      setBuPrice('')
       setBuSessions([{ date: formatDateISO(new Date()), startTime: '17:00', durationMinutes: 60 }])
       refresh()
     } catch (err) {
@@ -337,6 +347,10 @@ export default function TrainerDashboardPage() {
                   <Label className="text-white">{t('trainerDashboard.capacity')}</Label>
                   <Input value={sCapacity} onChange={(e) => setSCapacity(e.target.value)} placeholder={t('trainerDashboard.unlimitedPlaceholder')} className="bg-background-dark border-border text-white" />
                 </div>
+                <div>
+                  <Label className="text-white">{t('trainerDashboard.pricePerPerson')}</Label>
+                  <Input type="number" min={0} step="0.01" value={sPrice} onChange={(e) => setSPrice(e.target.value)} placeholder={t('trainerDashboard.freePlaceholder')} className="bg-background-dark border-border text-white" />
+                </div>
                 <div className="sm:col-span-4">
                   <Button type="submit" disabled={creatingSession} className="bg-primary hover:bg-primary-gold text-primary-foreground">
                     {creatingSession ? t('common.saving') : t('trainerDashboard.createSession')}
@@ -394,6 +408,10 @@ export default function TrainerDashboardPage() {
                   <Label className="text-white">{t('trainerDashboard.capacity')}</Label>
                   <Input value={seCapacity} onChange={(e) => setSeCapacity(e.target.value)} placeholder={t('trainerDashboard.unlimitedPlaceholder')} className="bg-background-dark border-border text-white" />
                 </div>
+                <div>
+                  <Label className="text-white">{t('trainerDashboard.pricePerPerson')}</Label>
+                  <Input type="number" min={0} step="0.01" value={sePrice} onChange={(e) => setSePrice(e.target.value)} placeholder={t('trainerDashboard.freePlaceholder')} className="bg-background-dark border-border text-white" />
+                </div>
                 <div className="sm:col-span-4">
                   <Button type="submit" disabled={creatingSeries} className="bg-primary hover:bg-primary-gold text-primary-foreground">
                     {creatingSeries ? t('common.saving') : t('trainerDashboard.createSeries')}
@@ -442,6 +460,10 @@ export default function TrainerDashboardPage() {
                   <div>
                     <Label className="text-white">{t('trainerDashboard.capacity')}</Label>
                     <Input value={buCapacity} onChange={(e) => setBuCapacity(e.target.value)} placeholder={t('trainerDashboard.unlimitedPlaceholder')} className="bg-background-dark border-border text-white" />
+                  </div>
+                  <div>
+                    <Label className="text-white">{t('trainerDashboard.pricePerPerson')}</Label>
+                    <Input type="number" min={0} step="0.01" value={buPrice} onChange={(e) => setBuPrice(e.target.value)} placeholder={t('trainerDashboard.freePlaceholder')} className="bg-background-dark border-border text-white" />
                   </div>
                 </div>
 
