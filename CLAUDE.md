@@ -936,6 +936,31 @@ door duty checking people in may not be the trainer running that
 particular session, same reasoning the ice-attendance checklist's
 `trainerPresentConfirmed` rule already established.
 
+**Reuse/sharing warning.** A scanned code whose registration (or, for a
+bundle, its specific session) was already checked in shows a prominent red
+warning with the original check-in time, so staff notice if a customer's
+QR is being passed around to multiple people instead of covering one
+`attendeeCount` party as intended — deliberately *not* an outright block
+(e.g. staff might legitimately re-scan to double-check), just a visible
+flag. This required snapshotting the "was already checked in" state at
+scan time (`wasAlreadyCheckedIn` on the session result,
+`originalAttendanceBySession` on the bundle one) rather than reading the
+live `reg.attendance`/`attendanceBySession` — those get locally updated
+the instant staff taps "Mark present" on a *legitimate* first scan, which
+would otherwise make the warning flash on immediately after every normal
+check-in instead of only on a genuine second scan.
+
+**"Pay now vs. pay at the door" deliberately not built yet.** A club asked
+about letting a customer choose at booking time whether to pay online
+immediately (so their QR itself proves payment at the door) or pay in
+person (so the QR only identifies them, payment handled separately) — with
+the app tracking scan counts so a paid QR can't be reused by multiple
+people. This is explicitly on hold until a real payment gateway exists
+(see the payment-scaffold note above — `paymentsEnabled` stays off); adding
+a "pay now" choice with no actual charge behind it would be misleading, so
+this stays a single-path flow (pay-at-the-door only, informally) until
+Stripe or similar is actually wired in.
+
 **Planned next**: an ESP32-driven electromagnetic door lock triggered by a
 valid scan — not built yet; this pass is the software check-in only.
 

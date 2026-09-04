@@ -389,6 +389,7 @@
     "bookingNotSupported": "Toto je potvrdenie rezervácie ľadu — vstupná kontrola pre rezervácie ľadu sa zatiaľ nesleduje.",
     "notValidNotice": "Táto registrácia bola zrušená alebo jej platnosť vypršala.",
     "notConfirmedNotice": "Táto registrácia ešte nie je potvrdená.",
+    "alreadyScannedWarning": "Tento kód už bol naskenovaný o {{time}} — overte, či si ho niekto neposiela ďalej medzi viacerými ľuďmi.",
     "pickSession": "Ktorý tréning?",
     "selectSessionPlaceholder": "Vyberte tréning...",
     "scanNext": "Skenovať ďalší"
