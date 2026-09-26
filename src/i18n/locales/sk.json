@@ -28,6 +28,7 @@
     "manageTrainings": "Spravovať tréningy",
     "scanQr": "Skenovať QR kód",
     "rinkSchedule": "Rozvrh ihriska",
+    "manageRinkSchedule": "Spravovať rozvrh",
     "manageTournaments": "Spravovať turnaje",
     "subscription": "Cenník / Môj plán",
     "website": "Webová stránka",
@@ -416,7 +417,12 @@
     "importSuccess": "Pridaných {{count}} záznamov do rozvrhu.",
     "importRow": "Riadok {{row}}",
     "unknownRink": "Neznáme ihrisko \"{{rink}}\"",
-    "unknownZone": "Neznáma zóna \"{{zone}}\""
+    "unknownZone": "Neznáma zóna \"{{zone}}\"",
+    "upNext": "Nasleduje",
+    "boardNoUpcoming": "Nič ďalšie nie je naplánované.",
+    "boardScanHint": "Naskenujte pre rozvrh na telefóne",
+    "boardNone": "Dnes nie je nič naplánované.",
+    "boardNoneForRink": "Dnes nie je nič naplánované."
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",

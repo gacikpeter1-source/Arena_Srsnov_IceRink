@@ -1811,20 +1811,62 @@ columns — Rink+Zone resolved by name in the caller
 resolves rink+zone names itself (zone names aren't unique club-wide).
 Recurring entries stay a manual-form-only concept.
 
-**Planned next** (per explicit discussion, not yet built): a public TV
-dashboard merging this domain's entries with live `tournamentMatches` for
-the same rink into one shared "what's on each hall" feed (a tournament
-match shows richer detail — team names, live score — reusing the existing
-turnaje TV-dashboard patterns: `ScaleToFit`, `?display=tv`, periodic
-recompute with a smooth CSS transition rather than a true
-`requestAnimationFrame` loop, per an explicit "simpler is fine" answer);
-cross-domain conflict detection (scheduling a tournament match or a
-schedule entry into a zone/time the *other* domain already occupies
-prompts a "replace it?" confirmation rather than just failing) — both
-directions, and both proactively in the picker and reactively on submit,
-per discussion; per-team recolorable legend; logo-derived TV-board
-branding colors. None of this is built yet — this pass is the data model,
-manual create form, Excel import, and real ice-blocking only.
+### Fáza 2: public "who has the ice when" TV dashboard
+
+`RinkScheduleBoardPage.tsx` (`/rozvrh`, public, no login — linked from
+`HeaderMenu.tsx` right after "Spravovať turnaje", same place a plain
+public "Turnaje"/"Tréningy" link already sits) merges this domain's real
+`Booking`s with live `tournamentMatches` for the same rink/day into one
+feed per rink. Deliberately reads `Booking` directly (via the same
+`fetchBookingsInRange` the admin dashboard already uses) rather than
+`RinkScheduleEntry` for the ground truth of "what's happening when" — the
+entry doc is only cross-referenced afterward (by `bookingId`/`seriesId`)
+to attach its `room`, matching the "never a second source of truth"
+principle the Fáza 1 note above already establishes. This also means a
+customer's own direct booking (never touching the Rozvrh admin tool at
+all) shows up on the board correctly, same as a schedule-entry-created
+one — there's no special-casing by origin, only by what's actually
+reserved. A tournament match shows richer detail (team names, live score)
+via the existing `deriveMatchState`; its `teamA`/`teamB` are shown as
+literally stored, with no `withResolvedPlaceholders` resolution — a
+simpler "good enough for a glance" pass, `/turnaje` itself stays the
+authoritative resolved view for a tournament's own schedule.
+
+Same "one route, query params pick the case" pattern as `/turnaje`:
+the plain route is a normal scrollable per-rink list (for a phone
+visitor); `?display=tv` renders the fixed, no-scroll kiosk dashboard —
+one column per rink, each with its own mini sliding timeline (a fixed
+window, `now` line, `ScaleToFit`-wrapped "Nasleduje"/up-next list below
+it) plus a corner QR (always pointing at the plain page, same reasoning
+the turnaje TV board's own QR follows) and a live clock in the header.
+`App.tsx`'s TV-mode chrome-stripping check (no header/back-button/footer,
+full viewport) is now a path array (`['/turnaje', '/rozvrh']`), not a
+single hardcoded route.
+
+**Periodic recompute, not a true animation loop** — per an explicit
+"simpler is fine" answer: block positions/widths are plain CSS properties
+recomputed every 30s (a `now` tick) with a `transition`, so the shift
+*reads* as a smooth slide without a `requestAnimationFrame` loop
+continuously repainting.
+
+**Overlapping items get separate lanes, not stacked on top of each
+other.** Two items on the same rink can legitimately overlap in time —
+e.g. "half" split into two zones used simultaneously — caught by an
+actual harness+Playwright screenshot during this pass (two same-time
+blocks rendered fully overlapping, their labels illegible on top of each
+other) before shipping. Fixed with a small greedy lane-assignment pass
+(sort by start time, place each item in the first lane whose previous
+occupant already ended, else open a new lane) so overlapping blocks stack
+into visually separate rows within the timeline instead.
+
+**Still not built** (unchanged from the original discussion): cross-domain
+conflict detection (scheduling a tournament match or a schedule entry into
+a zone/time the *other* domain already occupies would prompt a "replace
+it?" confirmation, both directions, both proactively in the picker and
+reactively on submit — today a genuine collision just fails the same way
+any other double-booking attempt already does, with no special
+cross-domain messaging); per-team recolorable legend; logo-derived
+TV-board branding colors.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
