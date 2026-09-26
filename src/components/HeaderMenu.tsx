@@ -111,7 +111,7 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               onClick={() => setOpen(false)}
               className="block px-4 py-2 text-sm text-primary hover:text-primary-gold hover:bg-background-dark"
             >
-              {t('nav.rinkSchedule')}
+              {t('nav.manageRinkSchedule')}
             </Link>
           )}
           <Link
@@ -130,6 +130,13 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               {t('nav.manageTournaments')}
             </Link>
           )}
+          <Link
+            to="/rozvrh"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2 text-sm text-text-secondary hover:text-primary hover:bg-background-dark"
+          >
+            {t('nav.rinkSchedule')}
+          </Link>
           <Link
             to="/my-booking"
             onClick={() => setOpen(false)}

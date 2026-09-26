@@ -28,6 +28,7 @@
     "manageTrainings": "Manage trainings",
     "scanQr": "Scan QR code",
     "rinkSchedule": "Rink schedule",
+    "manageRinkSchedule": "Manage rink schedule",
     "manageTournaments": "Manage tournaments",
     "subscription": "Pricing / My plan",
     "website": "Website",
@@ -416,7 +417,12 @@
     "importSuccess": "Added {{count}} schedule entries.",
     "importRow": "Row {{row}}",
     "unknownRink": "Unknown rink \"{{rink}}\"",
-    "unknownZone": "Unknown zone \"{{zone}}\""
+    "unknownZone": "Unknown zone \"{{zone}}\"",
+    "upNext": "Up next",
+    "boardNoUpcoming": "Nothing else scheduled.",
+    "boardScanHint": "Scan for the schedule on your phone",
+    "boardNone": "Nothing scheduled today.",
+    "boardNoneForRink": "Nothing scheduled today."
   },
   "trainerIceLog": {
     "title": "Trainer ice log",

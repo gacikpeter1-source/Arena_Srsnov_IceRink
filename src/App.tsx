@@ -10,6 +10,7 @@ import SeriesCancelPage from './pages/SeriesCancelPage'
 import TrainingCalendarPage from './pages/TrainingCalendarPage'
 import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
 import TournamentSchedulePage from './pages/TournamentSchedulePage'
+import RinkScheduleBoardPage from './pages/RinkScheduleBoardPage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
@@ -53,12 +54,13 @@ export default function App() {
   const { t } = useTranslation()
   const { club } = useClubData()
   const location = useLocation()
-  // The TV/spectator dashboard (?display=tv on /turnaje) is meant for an
-  // unattended screen — no back button, no language switcher, no footer
-  // admin link, nothing clickable — and needs the full viewport for its
-  // own no-scroll layout, so the shared app chrome is skipped entirely
-  // rather than just hidden with CSS.
-  const isTvScreen = location.pathname === '/turnaje' && new URLSearchParams(location.search).get('display') === 'tv'
+  // The TV/spectator dashboard (?display=tv on /turnaje or /rozvrh) is
+  // meant for an unattended screen — no back button, no language switcher,
+  // no footer admin link, nothing clickable — and needs the full viewport
+  // for its own no-scroll layout, so the shared app chrome is skipped
+  // entirely rather than just hidden with CSS.
+  const isTvScreen =
+    ['/turnaje', '/rozvrh'].includes(location.pathname) && new URLSearchParams(location.search).get('display') === 'tv'
 
   return (
     <div className={isTvScreen ? 'h-screen overflow-hidden' : 'min-h-screen'}>
@@ -92,6 +94,7 @@ export default function App() {
           <Route path="/treningy/kurz/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="bundle" />} />
           <Route path="/treningy/kurz/zrusit/:regId/:token" element={<TrainingCancelPage kind="bundle" />} />
           <Route path="/turnaje" element={<TournamentSchedulePage />} />
+          <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
           <Route path="/admin/signup-trainer" element={<TrainerSignupPage />} />
