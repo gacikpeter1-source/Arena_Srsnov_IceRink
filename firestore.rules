@@ -417,6 +417,19 @@ service cloud.firestore {
       allow create, update, delete: if isTrainer() || isStaffMember();
     }
 
+    // A staff/trainer-curated "who has the ice when" schedule entry (see
+    // RinkScheduleEntry, CLAUDE.md's "Rink team schedule" section) — the
+    // real ice-blocking already happens via the normal public-write
+    // `bookings`/`bookingSeries` path (createBooking/createBookingSeries),
+    // so this collection only ever holds the richer wrapper doc (team
+    // name, room). Same collaborative access as tournaments above — any
+    // trainer/staff can manage any entry, not just its own creator, since
+    // door-duty/schedule upkeep is typically a shared club effort.
+    match /rinkScheduleEntries/{entryId} {
+      allow read: if true;
+      allow create, update, delete: if isTrainer() || isStaffMember();
+    }
+
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.
     // Anyone may enqueue a notification; only the extension (which bypasses
     // rules) reads or deletes.
