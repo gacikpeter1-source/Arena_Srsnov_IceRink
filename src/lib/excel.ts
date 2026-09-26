@@ -486,3 +486,104 @@ export function parseTournamentMatchesWorkbook(buffer: ArrayBuffer): ParsedTourn
 
   return { rows, errors }
 }
+
+// ---------------------------------------------------------------------
+// Rink team schedule bulk import (see CLAUDE.md's "Rink team schedule"
+// section) — each row is one non-recurring occurrence, same "bulk = many
+// individual rows, recurrence stays a manual-form-only concept" stance
+// the tournament match import above already takes. Rink name is required
+// for the same reason it is on the booking import: zone names aren't
+// unique club-wide, only within a rink.
+// ---------------------------------------------------------------------
+
+const RINK_SCHEDULE_HEADERS = {
+  rink: 'Rink',
+  zone: 'Zone',
+  team: 'Team',
+  room: 'Room',
+  date: 'Date',
+  startTime: 'Start Time',
+  duration: 'Duration (min)'
+} as const
+
+const RINK_SCHEDULE_IMPORT_HEADERS = [
+  RINK_SCHEDULE_HEADERS.rink,
+  RINK_SCHEDULE_HEADERS.zone,
+  RINK_SCHEDULE_HEADERS.team,
+  RINK_SCHEDULE_HEADERS.room,
+  RINK_SCHEDULE_HEADERS.date,
+  RINK_SCHEDULE_HEADERS.startTime,
+  RINK_SCHEDULE_HEADERS.duration
+]
+
+export function downloadRinkScheduleImportTemplate(filename = 'rink-schedule-template.xlsx'): void {
+  const ws = XLSX.utils.aoa_to_sheet([RINK_SCHEDULE_IMPORT_HEADERS])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
+  XLSX.writeFile(wb, filename)
+}
+
+export interface RinkScheduleImportRow {
+  rinkName: string
+  zoneName: string
+  teamName: string
+  room?: string
+  date: string
+  startTime: string
+  durationMinutes: number
+}
+
+export interface ParsedRinkScheduleImport {
+  rows: RinkScheduleImportRow[]
+  errors: ImportRowError[]
+}
+
+export function parseRinkScheduleWorkbook(buffer: ArrayBuffer): ParsedRinkScheduleImport {
+  const wb = XLSX.read(buffer)
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+
+  const rows: RinkScheduleImportRow[] = []
+  const errors: ImportRowError[] = []
+
+  raw.forEach((r, i) => {
+    const rowNumber = i + 2
+
+    const rinkName = String(r[RINK_SCHEDULE_HEADERS.rink] ?? '').trim()
+    const zoneName = String(r[RINK_SCHEDULE_HEADERS.zone] ?? '').trim()
+    const teamName = String(r[RINK_SCHEDULE_HEADERS.team] ?? '').trim()
+    const room = String(r[RINK_SCHEDULE_HEADERS.room] ?? '').trim()
+    const date = excelValueToDateString(r[RINK_SCHEDULE_HEADERS.date])
+    const startTime = excelValueToTimeString(r[RINK_SCHEDULE_HEADERS.startTime])
+    const durationMinutes = Number(r[RINK_SCHEDULE_HEADERS.duration])
+
+    if (!rinkName) {
+      errors.push({ rowNumber, message: `Missing "${RINK_SCHEDULE_HEADERS.rink}"` })
+      return
+    }
+    if (!zoneName) {
+      errors.push({ rowNumber, message: `Missing "${RINK_SCHEDULE_HEADERS.zone}"` })
+      return
+    }
+    if (!teamName) {
+      errors.push({ rowNumber, message: `Missing "${RINK_SCHEDULE_HEADERS.team}"` })
+      return
+    }
+    if (!date) {
+      errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.date}"` })
+      return
+    }
+    if (!startTime) {
+      errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.startTime}"` })
+      return
+    }
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.duration}"` })
+      return
+    }
+
+    rows.push({ rinkName, zoneName, teamName, room: room || undefined, date, startTime, durationMinutes })
+  })
+
+  return { rows, errors }
+}

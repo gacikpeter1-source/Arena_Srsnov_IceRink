@@ -221,6 +221,42 @@ export interface BookingSeries {
   createdAt: Date
 }
 
+// A staff/trainer-curated "who has the ice when" schedule for a standing
+// team practice, course, or public-skating block — distinct from a
+// customer's own self-service Booking (see CLAUDE.md's "Rink team
+// schedule" section). Every entry always creates a REAL Booking (single)
+// or BookingSeries (recurring) underneath via the exact same atomic
+// createBooking/createBookingSeries transaction ice bookings already use
+// — this doc is a thin, richer wrapper around that real reservation (team
+// name, optional room), never a second source of truth for whether the
+// ice is actually free. `teamName` is deliberately free text with no
+// club-wide team registry behind it (see the CLAUDE.md rationale) —
+// autocompleted client-side from previously-used names, not validated
+// against anything.
+export interface RinkScheduleEntry {
+  id: string
+  clubId: string
+  rinkId: string
+  zoneId: string
+  teamName: string
+  // Locker/changing room — optional, can be filled in later by editing
+  // this same entry rather than needing the whole schedule re-entered.
+  room?: string
+  createdBy: string
+  createdByName: string
+  // The entry's first (or only) occurrence.
+  date: string
+  startTime: string
+  durationMinutes: number
+  // Exactly one of these is set, matching whether this entry is
+  // recurring (points at the BookingSeries — see fetchSeriesBookings in
+  // lib/bookings.ts for finding every real occurrence) or a single
+  // occurrence (points at its one real Booking).
+  seriesId?: string
+  bookingId?: string
+  createdAt: Date
+}
+
 // Role hierarchy (ice-rink admin duties only — see isTrainer below for the
 // separate, orthogonal training-reservations track):
 // - superadmin: full control, and the only role that can grant/revoke 'owner'

@@ -1745,6 +1745,87 @@ title on a wide screen, the smaller trade-off of the two, verified via
 the same local-harness-plus-Playwright-screenshot technique at both a
 375px phone width and 1920px.
 
+## Rink team schedule
+
+A third, independent planning domain (alongside Training Reservations and
+Tournaments) for a standing "who has the ice when" schedule — recurring
+team practices, courses, and public-skating blocks — inspired by an
+external design concept the club shared (a TV-board spec written for a
+different platform, "Nexus"). Adapted rather than ported wholesale: that
+concept's `{halls, entries}` single-doc-wholesale-replace model doesn't
+fit this app's conventions or its own stated requirements once discussed
+concretely, so the actual data model below deliberately differs from it —
+see the per-decision notes.
+
+**`RinkScheduleEntry`** (`src/types/index.ts`, `lib/rinkSchedule.ts`,
+`/admin/rozvrh`, `RinkSchedulePage.tsx`) reuses this app's existing
+`Rink`/`Zone` concepts for "halls" and their sections — there's no reason
+to model those twice. Access is `isTrainer() || isStaffMember()`, same
+three-way check Trainings/Tournaments already use (an explicit "aj
+tréner" — trainer access matters — answer to what would otherwise default
+to ice-rink-staff-only). Unlike the reference concept, there's **no
+club-wide team/group registry** behind `teamName` — it's plain free text
+autocompleted client-side from previously-used names (a `<datalist>`,
+same pattern `AdminTrainerIceLogPanel.tsx`'s free-text trainer name field
+already uses) — an explicit choice: this app already has real "teams"
+(`TournamentTeam`) but they're tournament-scoped, not club-wide standing
+groups, and inventing a new registry just for this display label wasn't
+worth the added modeling for what's still Fáza 1.
+
+**Every entry always blocks real ice — no separate non-transactional
+schedule layer.** This is the one point where the reference concept's own
+design (a display-only schedule, "staff responsible for not double-
+booking themselves") was explicitly rejected in favor of real enforcement:
+`createRinkScheduleEntry` calls the *exact* `createBooking`/
+`createBookingSeries` transaction the customer-facing `/book` flow uses,
+so a schedule entry gets the same atomic double-booking protection a
+customer booking already has — colliding with an existing booking (from
+any source: a customer, another schedule entry, or a tournament match's
+`blocksIce`) throws the same `SlotUnavailableError` the rest of the app
+already surfaces. `RinkScheduleEntry` is a thin, richer wrapper doc around
+that real reservation (team name, optional room) — never a second source
+of truth for whether ice is free. It points at either a single `bookingId`
+or a `seriesId` (recurring, via the exact same `SeriesRecurrence` UI/types
+`BookingModal.tsx`/`AdminCreateBookingModal.tsx` already use), matching
+whichever `createBooking*` call created it. Deleting an entry cancels its
+underlying booking(s) directly via `cancelBooking` (**not**
+`cancelBookingSeries`, which enforces the customer self-cancel cutoff —
+this is staff deleting their own entry, same "staff are exempt from the
+cancellation lockdown" stance `cancelBooking` itself already takes) before
+removing the entry doc.
+
+**One real scenario this resolves without new logic**: a club worried
+about "verejné korčuľovanie" (public skating) overlapping with a
+customer's separately-booked private lesson at the same time — since
+entries are zone-scoped, not whole-rink-only, a public-skating entry on
+one half of the rink simply leaves the other half's zone bookable as
+normal through `/book` or the training domain; nothing extra was needed
+beyond already having zones.
+
+**Bulk import stays row-per-occurrence, matching the tournament-match
+importer's convention, not the reference concept's "recurrence in the
+import too".** `parseRinkScheduleWorkbook`/`downloadRinkScheduleImportTemplate`
+(`lib/excel.ts`) take Rink/Zone/Team/Room/Date/Start Time/Duration
+columns — Rink+Zone resolved by name in the caller
+(`RinkScheduleImportPanel.tsx`), same reason the booking import already
+resolves rink+zone names itself (zone names aren't unique club-wide).
+Recurring entries stay a manual-form-only concept.
+
+**Planned next** (per explicit discussion, not yet built): a public TV
+dashboard merging this domain's entries with live `tournamentMatches` for
+the same rink into one shared "what's on each hall" feed (a tournament
+match shows richer detail — team names, live score — reusing the existing
+turnaje TV-dashboard patterns: `ScaleToFit`, `?display=tv`, periodic
+recompute with a smooth CSS transition rather than a true
+`requestAnimationFrame` loop, per an explicit "simpler is fine" answer);
+cross-domain conflict detection (scheduling a tournament match or a
+schedule entry into a zone/time the *other* domain already occupies
+prompts a "replace it?" confirmation rather than just failing) — both
+directions, and both proactively in the picker and reactively on submit,
+per discussion; per-team recolorable legend; logo-derived TV-board
+branding colors. None of this is built yet — this pass is the data model,
+manual create form, Excel import, and real ice-blocking only.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

@@ -32,6 +32,7 @@ const TournamentCreatePage = lazy(() => import('./pages/admin/TournamentCreatePa
 const TournamentDetailPage = lazy(() => import('./pages/admin/TournamentDetailPage'))
 const AdminSubscriptionPage = lazy(() => import('./pages/admin/AdminSubscriptionPage'))
 const QrScanPage = lazy(() => import('./pages/admin/QrScanPage'))
+const RinkSchedulePage = lazy(() => import('./pages/admin/RinkSchedulePage'))
 
 function Footer() {
   const { t } = useTranslation()
@@ -170,6 +171,16 @@ export default function App() {
               <ProtectedRoute>
                 <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
                   <QrScanPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/rozvrh"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <RinkSchedulePage />
                 </Suspense>
               </ProtectedRoute>
             }
