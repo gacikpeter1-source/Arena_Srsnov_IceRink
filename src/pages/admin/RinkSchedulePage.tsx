@@ -7,6 +7,7 @@ import {
   deleteRinkScheduleEntry,
   fetchRinkScheduleEntries
 } from '@/lib/rinkSchedule'
+import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES } from '@/lib/bookings'
 import { formatDateISO, addDays } from '@/lib/utils'
 import { RinkScheduleEntry, SeriesFrequency } from '@/types'
@@ -50,6 +51,7 @@ export default function RinkSchedulePage() {
   const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(), 56)))
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [conflict, setConflict] = useState<SlotConflict | null>(null)
 
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
@@ -77,6 +79,28 @@ export default function RinkSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zonesForRink])
 
+  // Proactive heads-up before submitting: lets staff see, while still
+  // picking rink/zone/date/time, whether a tournament match (or another
+  // schedule entry) already sits there — before they hit the same
+  // SlotUnavailableError the reactive check in handleSubmit resolves.
+  // Debounced since it fires on every keystroke in the time field.
+  useEffect(() => {
+    if (!club || !rinkId || !zoneId || !date || !startTime) {
+      setConflict(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      findSlotConflict(club.id, zoneId, date, startTime).then((result) => {
+        if (!cancelled) setConflict(result)
+      })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [club, rinkId, zoneId, date, startTime])
+
   const handleFrequencyChange = (next: SeriesFrequency) => {
     setFrequency(next)
     setCount((c) => Math.min(c, SERIES_MAX_OCCURRENCES[next]))
@@ -87,32 +111,54 @@ export default function RinkSchedulePage() {
     if (!club || !user || !staff || !rinkId || !zoneId || !teamName.trim()) return
     setCreating(true)
     setError(null)
+    const recurrence: SeriesRecurrence | undefined = repeat
+      ? recurrenceType === 'count'
+        ? { type: 'count', frequency, count }
+        : { type: 'until', frequency, endDate: untilDate }
+      : undefined
+    const entryInput = {
+      clubId: club.id,
+      rinkId,
+      zoneId,
+      teamName: teamName.trim(),
+      room: room.trim() || undefined,
+      createdBy: user.uid,
+      createdByName: staff.name,
+      createdByEmail: staff.email,
+      date,
+      startTime,
+      durationMinutes,
+      timezone: club.timezone,
+      recurrence
+    }
     try {
-      const recurrence: SeriesRecurrence | undefined = repeat
-        ? recurrenceType === 'count'
-          ? { type: 'count', frequency, count }
-          : { type: 'until', frequency, endDate: untilDate }
-        : undefined
-      await createRinkScheduleEntry({
-        clubId: club.id,
-        rinkId,
-        zoneId,
-        teamName: teamName.trim(),
-        room: room.trim() || undefined,
-        createdBy: user.uid,
-        createdByName: staff.name,
-        createdByEmail: staff.email,
-        date,
-        startTime,
-        durationMinutes,
-        timezone: club.timezone,
-        recurrence
-      })
+      await createRinkScheduleEntry(entryInput)
       setTeamName('')
       setRoom('')
       refresh()
     } catch (err) {
-      setError(err instanceof SlotUnavailableError ? t('rinkSchedule.slotUnavailable') : t('common.error'))
+      if (err instanceof SlotUnavailableError && !recurrence) {
+        // Recurring series aren't retried here — createBookingSeries
+        // already skips per-date conflicts silently rather than throwing,
+        // so a thrown SlotUnavailableError only happens when every single
+        // occurrence collided, which isn't a single "replace this?" case.
+        const found = await findSlotConflict(club.id, zoneId, date, startTime)
+        if (found?.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
+          try {
+            await resolveSlotConflict(found)
+            await createRinkScheduleEntry(entryInput)
+            setTeamName('')
+            setRoom('')
+            refresh()
+          } catch {
+            setError(t('common.error'))
+          }
+        } else {
+          setError(t('rinkSchedule.slotUnavailable'))
+        }
+      } else {
+        setError(err instanceof SlotUnavailableError ? t('rinkSchedule.slotUnavailable') : t('common.error'))
+      }
     } finally {
       setCreating(false)
     }
@@ -152,6 +198,13 @@ export default function RinkSchedulePage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-4">
             {error && <p className="text-status-danger text-sm sm:col-span-4">{error}</p>}
+            {!error && conflict && (
+              <p className="text-status-warning text-sm sm:col-span-4">
+                {conflict.ownerId
+                  ? t('rinkSchedule.conflictNotice', { label: conflict.label })
+                  : t('rinkSchedule.conflictNoticeBooking')}
+              </p>
+            )}
             <div>
               <Label className="text-white">{t('admin.rink')}</Label>
               <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
