@@ -11,6 +11,7 @@ import {
   deleteTournamentMatch,
   SlotUnavailableError
 } from '@/lib/tournaments'
+import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { formatDateISO } from '@/lib/utils'
 import { DivisionMode, Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,6 +64,7 @@ export default function TournamentDetailPage() {
   const [highlightedZone, setHighlightedZone] = useState<number | null>(null)
   const [creatingMatch, setCreatingMatch] = useState(false)
   const [matchError, setMatchError] = useState<string | null>(null)
+  const [zoneConflicts, setZoneConflicts] = useState<Record<string, SlotConflict | null>>({})
 
   useEffect(() => {
     if (!tournamentId) return
@@ -93,6 +95,32 @@ export default function TournamentDetailPage() {
     setHighlightedZone(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rinkId, format, locationType])
+
+  // Proactive heads-up per zone row: lets a trainer see, while still
+  // filling in team names, whether the rink team schedule (or another
+  // tournament match) already holds that zone/date/time — before hitting
+  // the same SlotUnavailableError the reactive check in handleAddMatch
+  // resolves. Debounced since date/time fields fire on every keystroke.
+  const zoneIdsKey = zonesForSelection.map((z) => z.id).join(',')
+  useEffect(() => {
+    if (!club || locationType !== 'rink' || !zoneIdsKey) {
+      setZoneConflicts({})
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      Promise.all(
+        zonesForSelection.map(async (zone) => [zone.id, await findSlotConflict(club.id, zone.id, date, startTime)] as const)
+      ).then((results) => {
+        if (!cancelled) setZoneConflicts(Object.fromEntries(results))
+      })
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [club, locationType, zoneIdsKey, date, startTime])
 
   const handleDeleteTournament = async () => {
     if (!tournament || !confirm(t('tournaments.confirmDeleteTournament'))) return
@@ -138,8 +166,9 @@ export default function TournamentDetailPage() {
           setMatchError(t('tournaments.needAtLeastOneMatch'))
           return
         }
+        const skippedZones: string[] = []
         for (const { zone, row } of filledRows) {
-          await createTournamentMatch({
+          const matchInput = {
             tournamentId,
             clubId: club.id,
             date,
@@ -148,7 +177,7 @@ export default function TournamentDetailPage() {
             teamA: row.teamA.trim(),
             teamB: row.teamB.trim(),
             format,
-            location: 'rink',
+            location: 'rink' as const,
             rinkId,
             zoneId: zone.id,
             blocksIce,
@@ -156,7 +185,26 @@ export default function TournamentDetailPage() {
             ...(blocksIce
               ? { bookingContact: { name: `${t('tournaments.bookingLabel')}: ${tournament.name}`, email: staff.email, phone: '', timezone: club.timezone } }
               : {})
-          })
+          }
+          try {
+            await createTournamentMatch(matchInput)
+          } catch (err) {
+            if (!(err instanceof SlotUnavailableError)) throw err
+            const found = await findSlotConflict(club.id, zone.id, date, startTime)
+            if (found?.ownerId && confirm(t('tournaments.confirmReplaceSlot', { zone: zone.name, label: found.label }))) {
+              await resolveSlotConflict(found)
+              try {
+                await createTournamentMatch(matchInput)
+              } catch {
+                skippedZones.push(zone.name)
+              }
+            } else {
+              skippedZones.push(zone.name)
+            }
+          }
+        }
+        if (skippedZones.length > 0) {
+          setMatchError(t('tournaments.slotUnavailableForZones', { zones: skippedZones.join(', ') }))
         }
       }
       setTeamRows(Array.from({ length: locationType === 'rink' ? Math.max(zonesForSelection.length, 1) : 1 }, () => ({ teamA: '', teamB: '' })))
@@ -345,23 +393,35 @@ export default function TournamentDetailPage() {
 
                 <div className="space-y-2">
                   <p className="text-text-secondary text-sm">{t('tournaments.matchRowsHint')}</p>
-                  {zonesForSelection.map((zone, i) => (
-                    <div key={zone.id} className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] items-center" onFocus={() => setHighlightedZone(i)} onBlur={() => setHighlightedZone(null)}>
-                      <Input
-                        placeholder={t('tournaments.teamA')}
-                        value={teamRows[i]?.teamA ?? ''}
-                        onChange={(e) => setTeamRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, teamA: e.target.value } : r)))}
-                        className="bg-background-dark border-border text-white"
-                      />
-                      <span className="text-text-muted text-xs text-center">{zone.name}</span>
-                      <Input
-                        placeholder={t('tournaments.teamB')}
-                        value={teamRows[i]?.teamB ?? ''}
-                        onChange={(e) => setTeamRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, teamB: e.target.value } : r)))}
-                        className="bg-background-dark border-border text-white"
-                      />
-                    </div>
-                  ))}
+                  {zonesForSelection.map((zone, i) => {
+                    const zoneConflict = zoneConflicts[zone.id]
+                    return (
+                      <div key={zone.id} className="space-y-1">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] items-center" onFocus={() => setHighlightedZone(i)} onBlur={() => setHighlightedZone(null)}>
+                          <Input
+                            placeholder={t('tournaments.teamA')}
+                            value={teamRows[i]?.teamA ?? ''}
+                            onChange={(e) => setTeamRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, teamA: e.target.value } : r)))}
+                            className="bg-background-dark border-border text-white"
+                          />
+                          <span className="text-text-muted text-xs text-center">{zone.name}</span>
+                          <Input
+                            placeholder={t('tournaments.teamB')}
+                            value={teamRows[i]?.teamB ?? ''}
+                            onChange={(e) => setTeamRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, teamB: e.target.value } : r)))}
+                            className="bg-background-dark border-border text-white"
+                          />
+                        </div>
+                        {zoneConflict && (
+                          <p className="text-status-warning text-xs">
+                            {zoneConflict.ownerId
+                              ? t('tournaments.conflictNotice', { label: zoneConflict.label })
+                              : t('tournaments.conflictNoticeBooking')}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <label className="flex items-center gap-2 text-sm text-white">

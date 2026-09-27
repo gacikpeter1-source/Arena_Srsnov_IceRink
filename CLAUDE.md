@@ -1859,14 +1859,67 @@ other) before shipping. Fixed with a small greedy lane-assignment pass
 occupant already ended, else open a new lane) so overlapping blocks stack
 into visually separate rows within the timeline instead.
 
-**Still not built** (unchanged from the original discussion): cross-domain
-conflict detection (scheduling a tournament match or a schedule entry into
-a zone/time the *other* domain already occupies would prompt a "replace
-it?" confirmation, both directions, both proactively in the picker and
-reactively on submit — today a genuine collision just fails the same way
-any other double-booking attempt already does, with no special
-cross-domain messaging); per-team recolorable legend; logo-derived
-TV-board branding colors.
+**Still not built**: per-team recolorable legend; logo-derived TV-board
+branding colors. Cross-domain conflict detection (below) landed in a
+later pass.
+
+### Tournament ↔ rink schedule conflicts
+
+Both domains reserve real ice through the exact same `createBooking`/
+`createBookingSeries` transaction (`TournamentMatch.blocksIce`+`bookingId`,
+`RinkScheduleEntry.bookingId`/`seriesId`), so a genuine collision between
+them already failed safely — `SlotUnavailableError` — but with no
+awareness that the *other* domain, specifically, was what was in the way,
+and no way to resolve it without leaving the form and hunting down the
+conflicting match/entry manually. `src/lib/rinkConflicts.ts`
+(`findSlotConflict`/`resolveSlotConflict`) closes that gap without adding
+a new source of truth: given a clubId/zoneId/date/startTime, it reads the
+one real `slotLocks` doc for that slot (same doc `createBooking` itself
+locks against) and, if occupied, traces the lock's `bookingId` back to
+whichever collection references it — `tournamentMatches` by `bookingId`,
+`rinkScheduleEntries` by `bookingId` or (for a recurring entry) the
+booking's own `seriesId` — returning a `SlotConflict` with a
+human-readable label and, when the slot is owned by one of these two
+planning tools, an `ownerId` staff can act on. A slot held by a plain
+customer booking (found in neither collection) still returns a
+`SlotConflict`, deliberately with no `ownerId` — this app never lets a
+tournament/schedule form silently cancel a real customer's reservation on
+the other's behalf, so both callers below only ever offer a "replace"
+choice when `ownerId` is set, and just show an informational notice
+otherwise.
+
+Both directions are wired the same way, per the explicit product ask
+("obe naraz" — proactive in the form *and* reactive on submit):
+
+- **`RinkSchedulePage.tsx`** (single, non-recurring entries only — see
+  below) debounces `findSlotConflict` on every rink/zone/date/time change
+  and shows an inline `text-status-warning` notice under the form while
+  the slot is already taken. On submit, a caught `SlotUnavailableError`
+  re-runs the same lookup; if it resolves to an owned conflict, `confirm()`
+  offers to cancel it (`resolveSlotConflict`, which calls
+  `deleteTournamentMatch`/`deleteRinkScheduleEntry` — never a bare
+  `cancelBooking`, so the owning planning doc doesn't get left behind
+  pointing at a cancelled booking) and retries the same create call.
+- **`TournamentDetailPage.tsx`**'s manual "Add match" form can create
+  several matches in one submit (one per zone row, e.g. all three thirds
+  at once), so the same proactive lookup runs *per zone* and the reactive
+  replace-or-skip decision is made *per zone* too — declining to replace
+  one zone's conflict doesn't abort the other zones' matches, it just
+  skips that one and reports which zones were left out
+  (`slotUnavailableForZones`).
+
+**Deliberately out of scope for this pass**: the three batch schedule
+generators (round-robin/knockout/groups, which can create dozens of
+matches — and thus dozens of potential conflicts — across computed time
+slots in one call) and both Excel bulk importers
+(`TournamentMatchImportPanel.tsx`/`RinkScheduleImportPanel.tsx`) still
+just fail a colliding row the same way they always did, with no
+conflict-aware replace flow; a recurring `RinkScheduleEntry` (`repeat`
+checked) is also excluded from the reactive replace path specifically —
+`createBookingSeries` already skips any individually-conflicting
+occurrence rather than throwing, so a thrown `SlotUnavailableError` there
+only means *every* occurrence collided, which isn't a single "replace
+this one thing" case the existing confirm-dialog UX fits.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
