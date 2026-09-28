@@ -256,7 +256,11 @@ export default function RinkScheduleBoardPage() {
     return (
       <div className="h-full w-full bg-background-dark flex flex-col p-4 gap-3 text-white">
         <div className="shrink-0 flex items-center gap-3 rounded-2xl border border-border bg-background-card px-4" style={{ height: '9vh' }}>
-          <Link to="/rozvrh" className="shrink-0 text-text-muted hover:text-primary text-xs sm:text-sm underline whitespace-nowrap">
+          <Link
+            to="/rozvrh"
+            replace
+            className="shrink-0 text-text-muted hover:text-primary text-xs sm:text-sm underline whitespace-nowrap"
+          >
             {t('tournaments.backToStandardView')}
           </Link>
           <h1 className="flex-1 min-w-0 text-[clamp(1.1rem,3.2vw,3rem)] font-bold text-primary text-center truncate">

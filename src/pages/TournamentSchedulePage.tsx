@@ -326,6 +326,7 @@ export default function TournamentSchedulePage() {
           {activeId && (
             <Link
               to={`/turnaje?tournament=${activeId}`}
+              replace
               className="shrink-0 text-text-muted hover:text-primary text-xs sm:text-sm underline whitespace-nowrap"
             >
               {t('tournaments.backToStandardView')}
