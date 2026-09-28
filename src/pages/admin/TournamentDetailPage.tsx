@@ -9,6 +9,7 @@ import {
   createTournamentMatch,
   fetchTournamentMatches,
   deleteTournamentMatch,
+  ensureTournamentTvCode,
   SlotUnavailableError
 } from '@/lib/tournaments'
 import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
@@ -70,7 +71,25 @@ export default function TournamentDetailPage() {
     if (!tournamentId) return
     setLoading(true)
     fetchTournament(tournamentId)
-      .then(setTournament)
+      .then((found) => {
+        setTournament(found)
+        // Generated lazily rather than at creation time, so a tournament
+        // from before this field existed picks one up the next time its
+        // detail page loads instead of needing a migration.
+        if (found && !found.tvCode) {
+          // Best-effort: firestore.rules only lets the creating trainer (or
+          // any ice-rink staff member) update a tournament doc, so a
+          // different trainer viewing someone else's tournament can't
+          // write the code here — the shortcut section simply stays
+          // hidden for them rather than erroring, same as if it were never
+          // generated.
+          ensureTournamentTvCode(found.id)
+            .then((tvCode) => {
+              setTournament((current) => (current ? { ...current, tvCode } : current))
+            })
+            .catch(() => {})
+        }
+      })
       .finally(() => setLoading(false))
   }, [tournamentId])
 
@@ -307,6 +326,13 @@ export default function TournamentDetailPage() {
             >
               {t('tournaments.openTvScreen')}
             </Link>
+            {tournament.tvCode && (
+              <div className="mt-2 rounded-md border border-border bg-background-dark px-3 py-2">
+                <p className="text-text-muted text-xs">{t('tournaments.tvCodeHint')}</p>
+                <p className="mono text-primary text-2xl font-bold tracking-widest">{tournament.tvCode}</p>
+                <p className="text-text-muted text-xs mt-1">{window.location.origin}/tv/{tournament.tvCode}</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -10,6 +10,7 @@ import SeriesCancelPage from './pages/SeriesCancelPage'
 import TrainingCalendarPage from './pages/TrainingCalendarPage'
 import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
 import TournamentSchedulePage from './pages/TournamentSchedulePage'
+import TvCodeRedirectPage from './pages/TvCodeRedirectPage'
 import RinkScheduleBoardPage from './pages/RinkScheduleBoardPage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/treningy/kurz/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="bundle" />} />
           <Route path="/treningy/kurz/zrusit/:regId/:token" element={<TrainingCancelPage kind="bundle" />} />
           <Route path="/turnaje" element={<TournamentSchedulePage />} />
+          <Route path="/tv/:code" element={<TvCodeRedirectPage />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />

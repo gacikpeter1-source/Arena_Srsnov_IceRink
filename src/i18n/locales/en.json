@@ -578,6 +578,7 @@
     "tvScreenTitle": "TV screen",
     "tvScreenHint": "A fixed, no-scroll dashboard layout meant for an unattended screen (a TV, a lobby display) — standings/bracket, live scores, and the next matches, sized to fill the whole screen automatically.",
     "openTvScreen": "Open TV screen",
+    "tvCodeHint": "Or type this short code on the TV's remote instead of the full address:",
     "matchImportTitle": "Import match schedule",
     "matchImportHint": "For a tournament played entirely at another venue (e.g. your team travels to someone else's tournament) — upload a spreadsheet with every match at once instead of adding them one by one below. A row with a Group (A, B, ...) creates/matches its teams and feeds the live standings table. Leave Group blank for a placement/play-off row scheduled before the outcome is known — write \"A5\" for \"5th place in group A\", \"W:label\" / \"L:label\" for the winner/loser of another row (give that row a Label, e.g. \"SF1\", so others can reference it) — the real team name fills in automatically once it's decided. Any other text in Team A/B is kept exactly as typed.",
     "downloadMatchTemplate": "Download Excel template",
@@ -585,6 +586,11 @@
     "matchImportSuccess": "Imported {{count}} matches.",
     "viewAsScreen": "View as screen",
     "backToStandardView": "Standard view"
+  },
+  "tvCode": {
+    "invalidTitle": "Invalid code",
+    "invalidNotice": "This TV code doesn't match any tournament — it may have been deleted, or the code was typed incorrectly.",
+    "backToTournaments": "Back to tournaments"
   },
   "trainingEmail": {
     "trainer": "Trainer",

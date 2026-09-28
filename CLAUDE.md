@@ -1611,6 +1611,34 @@ regular scrollable page, since a customer/parent scanning it with their
 own phone wants the normal interactive view, not a fixed dashboard sized
 for a TV.
 
+**A short numeric code as a third way in, for when neither a QR nor the
+full URL is realistic.** A QR code needs a phone camera to scan, and
+typing `/turnaje?tournament=<firestore-id>&display=tv` via a TV remote's
+on-screen keyboard is impractical — a club asked for something a remote's
+number pad (or slow arrow-key typing) can actually handle. `Tournament.tvCode`
+(`src/types/index.ts`) is a short 4-digit code, lazily generated the first
+time `TournamentDetailPage.tsx` loads a tournament that doesn't have one
+yet (`ensureTournamentTvCode` in `lib/tournaments.ts` — retries a fresh
+random candidate on a collision against the `tournaments` collection,
+rare enough at this scale that a transaction wasn't worth it) rather than
+at creation time, so an existing tournament picks one up automatically
+instead of needing a migration. The public route `/tv/:code`
+(`TvCodeRedirectPage.tsx`) resolves it back to the tournament
+(`fetchTournamentByTvCode`, a single-equality query — no new
+`firestore.indexes.json` entry, same as every other `tournaments` query)
+and replaces straight into the real TV URL; an unrecognized code (typo,
+or the tournament was deleted) shows a plain "invalid code" notice
+instead of erroring. The code itself is shown in large text right next
+to the existing TV-screen QR/link on `TournamentDetailPage.tsx`. Writing
+the generated code is best-effort — `firestore.rules`' `tournaments`
+update rule only allows the creating trainer or any ice-rink staff
+member, so a different trainer opening someone else's tournament simply
+never sees the shortcut (the write is silently caught and dropped)
+rather than erroring, same as if the code had never been generated.
+Scoped to tournaments only — the rink schedule board's TV mode
+(`/rozvrh?display=tv`) has no per-tournament id in its URL to begin with,
+so it had no long string to shorten.
+
 **Row proportions tuned after a real landscape-phone test.** The initial
 `9vh`/`17vh`/`19vh` header/live/bottom split looked fine on a genuine
 large TV (1920×1080) but left the live-matches and upcoming-matches rows
