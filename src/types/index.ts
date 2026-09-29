@@ -262,6 +262,16 @@ export interface RinkScheduleEntry {
   // occurrence (points at its one real Booking).
   seriesId?: string
   bookingId?: string
+  // Per-occurrence room override for a recurring entry, keyed by that
+  // occurrence's *current* Booking id — e.g. one Tuesday practice moves to
+  // a different changing room while the rest of the series keeps using
+  // `room`. Only ever needed for a `seriesId` entry: a single-occurrence
+  // entry just edits `room` directly since there's only one booking to
+  // begin with. See `rescheduleRinkScheduleOccurrence` (lib/rinkSchedule.ts)
+  // — rescheduling an occurrence to a new date/time/rink/zone cancels its
+  // old Booking and creates a new one, so this map is keyed by whichever
+  // Booking id is current, not the occurrence's original one.
+  occurrenceRooms?: Record<string, string>
   createdAt: Date
 }
 

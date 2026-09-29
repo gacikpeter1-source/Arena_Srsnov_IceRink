@@ -1,23 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import {
   createRinkScheduleEntry,
   deleteRinkScheduleEntry,
-  fetchRinkScheduleEntries
+  fetchRinkScheduleEntries,
+  fetchRinkScheduleOccurrences
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
-import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES } from '@/lib/bookings'
+import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking } from '@/lib/bookings'
 import { formatDateISO, addDays, localizedName } from '@/lib/utils'
 import { Link } from 'react-router-dom'
-import { RinkScheduleEntry, SeriesFrequency } from '@/types'
+import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BackButton from '@/components/BackButton'
 import RinkScheduleImportPanel from '@/components/RinkScheduleImportPanel'
+import RinkScheduleEditModal from '@/components/RinkScheduleEditModal'
 import QrCodeDisplay from '@/components/QrCodeDisplay'
 
 /**
@@ -36,8 +38,10 @@ export default function RinkSchedulePage() {
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const [entries, setEntries] = useState<(RinkScheduleEntry & { id: string })[]>([])
+  const [occurrencesByEntry, setOccurrencesByEntry] = useState<Map<string, (Booking & { id: string })[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ entry: RinkScheduleEntry & { id: string }; occurrence: Booking & { id: string } } | null>(null)
 
   const [rinkId, setRinkId] = useState('')
   const [zoneId, setZoneId] = useState('')
@@ -65,7 +69,13 @@ export default function RinkSchedulePage() {
     if (!club) return
     setLoading(true)
     fetchRinkScheduleEntries(club.id)
-      .then(setEntries)
+      .then(async (fetchedEntries) => {
+        setEntries(fetchedEntries)
+        const pairs = await Promise.all(
+          fetchedEntries.map(async (e) => [e.id, await fetchRinkScheduleOccurrences(e)] as const)
+        )
+        setOccurrencesByEntry(new Map(pairs))
+      })
       .finally(() => setLoading(false))
   }
 
@@ -171,6 +181,21 @@ export default function RinkSchedulePage() {
     setBusyId(entry.id)
     try {
       await deleteRinkScheduleEntry(entry)
+      refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // Cancels just this one occurrence of a recurring entry, leaving the
+  // entry doc and every other occurrence untouched — distinct from
+  // handleDelete, which removes the whole series. Staff are exempt from
+  // the customer self-cancel cutoff, same as deleteRinkScheduleEntry.
+  const handleCancelOccurrence = async (occurrence: Booking & { id: string }) => {
+    if (!confirm(t('rinkSchedule.confirmCancelOccurrence'))) return
+    setBusyId(occurrence.id)
+    try {
+      await cancelBooking(occurrence.id)
       refresh()
     } finally {
       setBusyId(null)
@@ -377,27 +402,95 @@ export default function RinkSchedulePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="border-b border-border">
-                      <td className="py-2 pr-3 mono">{entry.date}{entry.seriesId ? ` (${t('rinkSchedule.recurring')})` : ''}</td>
-                      <td className="py-2 pr-3 mono text-primary">{entry.startTime}</td>
-                      <td className="py-2 pr-3">{rinkNameById.get(entry.rinkId) ?? entry.rinkId}</td>
-                      <td className="py-2 pr-3">{zoneNameById.get(entry.zoneId) ?? entry.zoneId}</td>
-                      <td className="py-2 pr-3 text-white">{entry.teamName}</td>
-                      <td className="py-2 pr-3 text-text-secondary">{entry.room ?? '—'}</td>
-                      <td className="py-2 pr-3">
-                        <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
-                          {t('common.delete')}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {entries.map((entry) => {
+                    const occurrences = occurrencesByEntry.get(entry.id) ?? []
+                    const isSeries = !!entry.seriesId
+                    return (
+                      <Fragment key={entry.id}>
+                        {occurrences.length === 0 && (
+                          <tr key={entry.id} className="border-b border-border">
+                            <td className="py-2 pr-3 mono text-text-muted" colSpan={4}>{t('rinkSchedule.noOccurrences')}</td>
+                            <td className="py-2 pr-3 text-white">{entry.teamName}</td>
+                            <td className="py-2 pr-3 text-text-secondary">{entry.room ?? '—'}</td>
+                            <td className="py-2 pr-3">
+                              <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                                {t('common.delete')}
+                              </Button>
+                            </td>
+                          </tr>
+                        )}
+                        {occurrences.map((occurrence) => {
+                          const room = entry.occurrenceRooms?.[occurrence.id] ?? entry.room
+                          return (
+                            <tr key={occurrence.id} className="border-b border-border">
+                              <td className="py-2 pr-3 mono">{occurrence.date}{isSeries ? ` (${t('rinkSchedule.recurring')})` : ''}</td>
+                              <td className="py-2 pr-3 mono text-primary">{occurrence.startTime}</td>
+                              <td className="py-2 pr-3">{rinkNameById.get(occurrence.rinkId) ?? occurrence.rinkId}</td>
+                              <td className="py-2 pr-3">{zoneNameById.get(occurrence.zoneId) ?? occurrence.zoneId}</td>
+                              <td className="py-2 pr-3 text-white">{occurrence.name}</td>
+                              <td className="py-2 pr-3 text-text-secondary">{room ?? '—'}</td>
+                              <td className="py-2 pr-3">
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={busyId === occurrence.id}
+                                    onClick={() => setEditing({ entry, occurrence })}
+                                  >
+                                    {t('common.edit')}
+                                  </Button>
+                                  {isSeries ? (
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      disabled={busyId === occurrence.id}
+                                      onClick={() => handleCancelOccurrence(occurrence)}
+                                    >
+                                      {t('rinkSchedule.cancelOccurrence')}
+                                    </Button>
+                                  ) : (
+                                    <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                                      {t('common.delete')}
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        {isSeries && occurrences.length > 0 && (
+                          <tr key={`${entry.id}-delete-series`} className="border-b border-border">
+                            <td className="py-2 pr-3" colSpan={7}>
+                              <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                                {t('rinkSchedule.deleteSeries')}
+                              </Button>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {editing && club && (
+        <RinkScheduleEditModal
+          clubId={club.id}
+          timezone={club.timezone}
+          rinks={activeRinks}
+          zones={zones}
+          entry={editing.entry}
+          occurrence={editing.occurrence}
+          currentRoom={editing.entry.occurrenceRooms?.[editing.occurrence.id] ?? editing.entry.room}
+          isOpen={!!editing}
+          onClose={() => setEditing(null)}
+          onSaved={refresh}
+        />
+      )}
     </div>
   )
 }
