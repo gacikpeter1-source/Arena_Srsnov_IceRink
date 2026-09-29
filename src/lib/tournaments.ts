@@ -50,6 +50,42 @@ export async function fetchTournament(tournamentId: string): Promise<(Tournament
   return { ...(snap.data() as Omit<Tournament, 'id'>), id: snap.id }
 }
 
+function generateTvCode(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
+/**
+ * Returns a tournament's short TV-screen code, generating and persisting
+ * one on first call if it doesn't have one yet (see Tournament.tvCode).
+ * Retries a handful of times against a fresh 4-digit code on a collision —
+ * the codespace (9000 possibilities) is large relative to how many
+ * tournaments a single club realistically runs at once, so a collision is
+ * rare and a few retries are enough rather than needing a transaction.
+ */
+export async function ensureTournamentTvCode(tournamentId: string): Promise<string> {
+  const snap = await getDoc(doc(db, 'tournaments', tournamentId))
+  const existing = snap.data()?.tvCode as string | undefined
+  if (existing) return existing
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = generateTvCode()
+    const clash = await getDocs(query(collection(db, 'tournaments'), where('tvCode', '==', candidate)))
+    if (clash.empty) {
+      await updateDoc(doc(db, 'tournaments', tournamentId), { tvCode: candidate })
+      return candidate
+    }
+  }
+  throw new Error('Could not generate a unique TV code')
+}
+
+/** Resolves a short TV-screen code (see Tournament.tvCode) back to its tournament, for the public /tv/:code redirect page. */
+export async function fetchTournamentByTvCode(code: string): Promise<(Tournament & { id: string }) | null> {
+  const snap = await getDocs(query(collection(db, 'tournaments'), where('tvCode', '==', code)))
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return { ...(d.data() as Omit<Tournament, 'id'>), id: d.id }
+}
+
 /** Cascades: cancels any booking a match blocked, deletes every match and team, then the tournament itself. */
 export async function deleteTournament(tournamentId: string): Promise<void> {
   const [matches, teams] = await Promise.all([fetchTournamentMatches(tournamentId), fetchTournamentTeams(tournamentId)])

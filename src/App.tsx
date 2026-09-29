@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import HubHomePage from './pages/HubHomePage'
 import BookingPage from './pages/BookingPage'
@@ -10,6 +10,7 @@ import SeriesCancelPage from './pages/SeriesCancelPage'
 import TrainingCalendarPage from './pages/TrainingCalendarPage'
 import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
 import TournamentSchedulePage from './pages/TournamentSchedulePage'
+import TvCodeRedirectPage from './pages/TvCodeRedirectPage'
 import RinkScheduleBoardPage from './pages/RinkScheduleBoardPage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
@@ -94,6 +95,11 @@ export default function App() {
           <Route path="/treningy/kurz/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="bundle" />} />
           <Route path="/treningy/kurz/zrusit/:regId/:token" element={<TrainingCancelPage kind="bundle" />} />
           <Route path="/turnaje" element={<TournamentSchedulePage />} />
+          {/* /tv (no code) is the rink schedule board's own TV shortcut —
+              unlike a tournament, there's only ever one of these per
+              deployment, so no random code is needed, just a fixed alias. */}
+          <Route path="/tv" element={<Navigate to="/rozvrh?display=tv" replace />} />
+          <Route path="/tv/:code" element={<TvCodeRedirectPage />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />

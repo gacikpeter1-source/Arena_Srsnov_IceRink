@@ -564,6 +564,15 @@ export interface Tournament {
   // falls back to showing all three generators for those, same as
   // before this feature shipped.
   format?: 'roundRobin' | 'knockout' | 'groups'
+  // A short numeric code (e.g. "2016") resolving to this tournament's TV
+  // screen via the public /tv/:code redirect — see lib/tournaments.ts's
+  // ensureTournamentTvCode/fetchTournamentByTvCode. Typing a long Firestore
+  // id on a TV remote is impractical, so this is the thing actually shown
+  // to staff to key in on the TV's browser instead of the full URL/QR.
+  // Lazily generated on first visit to TournamentDetailPage.tsx rather
+  // than at creation time, so a tournament from before this field existed
+  // still gets one the next time its detail page loads.
+  tvCode?: string
   createdAt: Date
 }
 

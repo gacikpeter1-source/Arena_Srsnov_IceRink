@@ -1611,6 +1611,40 @@ regular scrollable page, since a customer/parent scanning it with their
 own phone wants the normal interactive view, not a fixed dashboard sized
 for a TV.
 
+**A short numeric code as a third way in, for when neither a QR nor the
+full URL is realistic.** A QR code needs a phone camera to scan, and
+typing `/turnaje?tournament=<firestore-id>&display=tv` via a TV remote's
+on-screen keyboard is impractical — a club asked for something a remote's
+number pad (or slow arrow-key typing) can actually handle. `Tournament.tvCode`
+(`src/types/index.ts`) is a short 4-digit code, lazily generated the first
+time `TournamentDetailPage.tsx` loads a tournament that doesn't have one
+yet (`ensureTournamentTvCode` in `lib/tournaments.ts` — retries a fresh
+random candidate on a collision against the `tournaments` collection,
+rare enough at this scale that a transaction wasn't worth it) rather than
+at creation time, so an existing tournament picks one up automatically
+instead of needing a migration. The public route `/tv/:code`
+(`TvCodeRedirectPage.tsx`) resolves it back to the tournament
+(`fetchTournamentByTvCode`, a single-equality query — no new
+`firestore.indexes.json` entry, same as every other `tournaments` query)
+and replaces straight into the real TV URL; an unrecognized code (typo,
+or the tournament was deleted) shows a plain "invalid code" notice
+instead of erroring. The code itself is shown in large text right next
+to the existing TV-screen QR/link on `TournamentDetailPage.tsx`. Writing
+the generated code is best-effort — `firestore.rules`' `tournaments`
+update rule only allows the creating trainer or any ice-rink staff
+member, so a different trainer opening someone else's tournament simply
+never sees the shortcut (the write is silently caught and dropped)
+rather than erroring, same as if the code had never been generated.
+The numeric-code machinery (generation, collision retry, lookup) is
+tournament-only, since a tournament is the one thing here that comes in
+multiples needing to be told apart. The rink schedule board has no
+per-tournament id to shorten in the first place — it's one shared board
+per deployment — so it just gets a fixed alias instead: `/tv` (no code
+at all) is a plain `<Navigate>` straight to `/rozvrh?display=tv`, added
+right next to the `/tv/:code` route in `App.tsx`. Typing `arenasrsnov…/tv`
+on a remote is about as simple as a URL gets, so no random code was
+needed for this one.
+
 **Row proportions tuned after a real landscape-phone test.** The initial
 `9vh`/`17vh`/`19vh` header/live/bottom split looked fine on a genuine
 large TV (1920×1080) but left the live-matches and upcoming-matches rows
