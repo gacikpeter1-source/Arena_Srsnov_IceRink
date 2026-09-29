@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { Booking, MatchTeamPlaceholder, Rink, Zone } from '@/types'
+import { Booking, DivisionMode, MatchTeamPlaceholder, Rink, Zone } from '@/types'
 import { formatDateISO } from './utils'
 
 // Fixed English headers regardless of UI language — keeps the import/export
@@ -210,15 +210,31 @@ export function parseBookingsWorkbook(buffer: ArrayBuffer): ParsedImport {
 // rink's per-date schedule (see src/lib/scheduleOverrides.ts) rather than
 // creating bookings. One row per session; multiple rows sharing the same
 // Rink+Date together become that date's full slot list (a full replace,
-// same as the manual day editor's Save).
+// same as the manual day editor's Save). Mode is optional — blank (or an
+// unrecognized value) means 'full', same default as a session that's never
+// split in the manual day editor.
 const SCHEDULE_HEADERS = {
   rink: 'Rink',
   date: 'Date',
   startTime: 'Start Time',
-  duration: 'Duration (min)'
+  duration: 'Duration (min)',
+  mode: 'Mode (Full/Half/Third/HalfLengthwise)'
 } as const
 
-const SCHEDULE_IMPORT_HEADERS = [SCHEDULE_HEADERS.rink, SCHEDULE_HEADERS.date, SCHEDULE_HEADERS.startTime, SCHEDULE_HEADERS.duration]
+const SCHEDULE_IMPORT_HEADERS = [
+  SCHEDULE_HEADERS.rink,
+  SCHEDULE_HEADERS.date,
+  SCHEDULE_HEADERS.startTime,
+  SCHEDULE_HEADERS.duration,
+  SCHEDULE_HEADERS.mode
+]
+
+const MODE_BY_LOWERCASE: Record<string, DivisionMode> = {
+  full: 'full',
+  half: 'half',
+  third: 'third',
+  halflengthwise: 'halfLengthwise'
+}
 
 export function downloadScheduleImportTemplate(filename = 'schedule-import-template.xlsx'): void {
   const ws = XLSX.utils.aoa_to_sheet([SCHEDULE_IMPORT_HEADERS])
@@ -232,6 +248,7 @@ export interface ScheduleImportRow {
   date: string
   startTime: string
   durationMinutes: number
+  mode?: DivisionMode
 }
 
 export interface ParsedScheduleImport {
@@ -262,6 +279,8 @@ export function parseScheduleWorkbook(buffer: ArrayBuffer): ParsedScheduleImport
     const date = excelValueToDateString(r[SCHEDULE_HEADERS.date])
     const startTime = excelValueToTimeString(r[SCHEDULE_HEADERS.startTime])
     const durationMinutes = Number(r[SCHEDULE_HEADERS.duration])
+    const modeRaw = String(r[SCHEDULE_HEADERS.mode] ?? '').trim().toLowerCase()
+    const mode = modeRaw ? MODE_BY_LOWERCASE[modeRaw] : undefined
 
     if (!rinkName) {
       errors.push({ rowNumber, message: `Missing "${SCHEDULE_HEADERS.rink}"` })
@@ -280,7 +299,7 @@ export function parseScheduleWorkbook(buffer: ArrayBuffer): ParsedScheduleImport
       return
     }
 
-    rows.push({ rinkName, date, startTime, durationMinutes })
+    rows.push({ rinkName, date, startTime, durationMinutes, mode })
   })
 
   return { rows, errors }

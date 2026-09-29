@@ -49,8 +49,8 @@ export interface ClubEntitlement {
 }
 
 // A club can run more than one physical ice surface (e.g. "Main Hall" +
-// "Small Hall"). Each rink has its own zones/hours/division rules — a zone,
-// TimeSlotConfig, or DivisionRule always belongs to exactly one rink.
+// "Small Hall"). Each rink has its own zones/hours/schedule — a Zone or
+// TimeSlotConfig always belongs to exactly one rink.
 export interface Rink {
   id: string
   clubId: string
@@ -87,8 +87,8 @@ export interface Zone {
   // Position within its mode (0 for full; 0/1 for half or halfLengthwise;
   // 0/1/2 for third). Same-mode zones are physically disjoint slices of the
   // rink, so they never conflict with each other — only one mode is ever
-  // offered for a given date/time (see DivisionRule), so there's nothing to
-  // block across modes either.
+  // offered for a given date/time (see ScheduleOverride's per-slot `mode`),
+  // so there's nothing to block across modes either.
   slotIndex: number
   active: boolean
 }
@@ -121,26 +121,32 @@ export interface TimeSlotConfig {
 // that date, in order; when present for a rinkId+date, computeDaySchedule
 // uses it as-is instead of generating from slotDurationMinutes/breakMinutes.
 // One doc per rinkId+date (see scheduleOverrideId in lib/scheduleOverrides.ts).
+//
+// Each slot's own `mode` says whether that session is offered as the whole
+// rink or split (half/third/halfLengthwise) — set explicitly by the
+// owner/assistant per session, not derived from any recurring day-of-week
+// rule. Missing/undefined (a slot written before this field existed, or
+// simply never split) means 'full' — the standing default is "book the
+// whole rink unless staff specifically opened it up as split for this
+// exact session." This replaced an earlier recurring DivisionRule
+// (dayOfWeek + time-range → mode) table: that engine could only ever pick
+// one mode for a whole recurring window client never actually asked to
+// customize per-date, and it computed each date/time's offered zone(s)
+// independently of what other zones were already booked at that same
+// time — so a zone booked under a different mode (e.g. a "half" booked
+// while the window's rule said "third") never showed as unavailable to a
+// customer looking at the "wrong" mode's zone. Tying `mode` directly to
+// the same per-date slot list staff already hand-edit here removes that
+// whole class of bug, at the cost of no longer supporting a recurring
+// "every Wednesday" pattern without saving an override for each date (or
+// applying one across a date range, same as any other day-schedule edit).
 export interface ScheduleOverride {
   id: string
   clubId: string
   rinkId: string
   date: string // "2026-08-15"
-  slots: { startTime: string; durationMinutes: number }[]
+  slots: { startTime: string; durationMinutes: number; mode?: DivisionMode }[]
   updatedAt: Date
-}
-
-// Admin-configured recurring window where the rink is offered as halves or
-// thirds instead of the default whole-rink (1/1) booking. A date/time with
-// no matching rule falls back to 'full'.
-export interface DivisionRule {
-  id: string
-  clubId: string
-  rinkId: string
-  dayOfWeek: number // 0=Sun .. 6=Sat
-  startTime: string // "18:00", inclusive
-  endTime: string // "20:00", exclusive
-  mode: Exclude<DivisionMode, 'full'>
 }
 
 export interface Payment {

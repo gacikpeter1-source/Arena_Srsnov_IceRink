@@ -4,6 +4,16 @@
 // exact same shape createRinkScheduleEntry (lib/rinkSchedule.ts) would —
 // this is PRODUCTION data, visible on the live public site immediately.
 //
+// Also writes one `scheduleOverrides` doc per rink for this date, since
+// the public /book page only ever offers whichever division mode (full/
+// half/third) that date+time's override says (see lib/schedule.ts) — a
+// booking made on a "half"/"third" zone the override doesn't also mark
+// split for that exact slot would show as phantom availability on /book
+// (the picker would only offer the "full" zone, which isn't the one
+// actually locked). Every slot lines up on a clean hour boundary
+// specifically so the override's slot list and the bookings below never
+// disagree about timing.
+//
 // Every doc this writes is tagged `demoSeed: true` so scripts/
 // remove-demo-day.mjs can find and delete exactly these and nothing else.
 // Skips (and logs) any slot that's already locked, rather than
@@ -39,62 +49,101 @@ function randomToken(length = 32) {
   return token
 }
 
-function addMinutes(startTime, minutes) {
-  const [h, m] = startTime.split(':').map(Number)
-  const total = h * 60 + m + minutes
-  return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+// One entry per rink: 14 clean hourly slots (08:00-21:00), each declaring
+// its division mode and which of that mode's zones are actually booked —
+// any zone of that mode left out of `bookings` stays free, on purpose, so
+// the demo also shows partial availability (e.g. 2 of 3 thirds taken).
+const RINK_PLANS = {
+  'main-hall': [
+    { start: '08:00', mode: 'full', bookings: [] },
+    { start: '09:00', mode: 'third', bookings: [
+      { zoneId: 'main-hall-third-1', team: 'HK Zvolen U10 – tréning' },
+      { zoneId: 'main-hall-third-2', team: 'HK Zvolen U12 – tréning' }
+    ] },
+    { start: '10:00', mode: 'full', bookings: [
+      { zoneId: 'main-hall-full', team: 'Firemná akcia – XY s.r.o.' }
+    ] },
+    { start: '11:00', mode: 'half', bookings: [
+      { zoneId: 'main-hall-half-a', team: 'Krasokorčuľovanie – mladší dorast' },
+      { zoneId: 'main-hall-half-b', team: 'Škôlka Osloboditeľov – korčuľovací kurz' }
+    ] },
+    { start: '12:00', mode: 'full', bookings: [] },
+    { start: '13:00', mode: 'full', bookings: [] },
+    { start: '14:00', mode: 'full', bookings: [] },
+    { start: '15:00', mode: 'full', bookings: [] },
+    { start: '16:00', mode: 'third', bookings: [
+      { zoneId: 'main-hall-third-1', team: 'HK Zvolen U10 – tréning' },
+      { zoneId: 'main-hall-third-2', team: 'HK Zvolen U12 – tréning' },
+      { zoneId: 'main-hall-third-3', team: 'HK Zvolen dorast – tréning' }
+    ] },
+    { start: '17:00', mode: 'third', bookings: [
+      { zoneId: 'main-hall-third-1', team: 'HK Zvolen prípravka – tréning' }
+    ] },
+    { start: '18:00', mode: 'full', bookings: [
+      { zoneId: 'main-hall-full', team: 'Liga: HK Zvolen – HK Poprad' }
+    ] },
+    { start: '19:00', mode: 'half', bookings: [
+      { zoneId: 'main-hall-half-a', team: 'Verejné korčuľovanie' },
+      { zoneId: 'main-hall-half-b', team: 'HK Zvolen dorast – tréning' }
+    ] },
+    { start: '20:00', mode: 'full', bookings: [] },
+    { start: '21:00', mode: 'full', bookings: [] }
+  ],
+  'small-hall': [
+    { start: '08:00', mode: 'third', bookings: [
+      { zoneId: 'small-hall-third-1', team: 'HK Zvolen mladšie žiactvo – tréning' },
+      { zoneId: 'small-hall-third-2', team: 'HK Zvolen staršie žiactvo – tréning' }
+    ] },
+    { start: '09:00', mode: 'full', bookings: [
+      { zoneId: 'small-hall-full', team: 'Krasokorčuľovanie – veľká skupina' }
+    ] },
+    { start: '10:00', mode: 'half', bookings: [
+      { zoneId: 'small-hall-half-a', team: 'Škôlka Osloboditeľov – kurz (2. skupina)' }
+    ] },
+    { start: '11:00', mode: 'full', bookings: [] },
+    { start: '12:00', mode: 'full', bookings: [] },
+    { start: '13:00', mode: 'full', bookings: [] },
+    { start: '14:00', mode: 'full', bookings: [] },
+    { start: '15:00', mode: 'third', bookings: [
+      { zoneId: 'small-hall-third-1', team: 'HK Zvolen dorast B – tréning' },
+      { zoneId: 'small-hall-third-2', team: 'HK Zvolen dorast A – tréning' },
+      { zoneId: 'small-hall-third-3', team: 'HK Zvolen juniori – tréning' }
+    ] },
+    { start: '16:00', mode: 'full', bookings: [
+      { zoneId: 'small-hall-full', team: 'Firemná akcia – firemný večierok' }
+    ] },
+    { start: '17:00', mode: 'full', bookings: [] },
+    { start: '18:00', mode: 'half', bookings: [
+      { zoneId: 'small-hall-half-a', team: 'Verejné korčuľovanie' },
+      { zoneId: 'small-hall-half-b', team: 'Krasokorčuľovanie – dorast' }
+    ] },
+    { start: '19:00', mode: 'full', bookings: [
+      { zoneId: 'small-hall-full', team: 'Liga: HK Zvolen B – HK Detva' }
+    ] },
+    { start: '20:00', mode: 'full', bookings: [] },
+    { start: '21:00', mode: 'full', bookings: [] }
+  ]
 }
 
-// rinkId / zoneId use this club's real seeded ids (main-hall / small-hall,
-// each with -full / -half-a / -half-b / -third-1/2/3).
-const ENTRIES = [
-  // --- Hlavná hala (main-hall) ---
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-1', start: '07:00', duration: 60, team: 'HK Zvolen U10 – tréning' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-2', start: '07:00', duration: 60, team: 'HK Zvolen U12 – tréning' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-2', start: '09:00', duration: 60, team: 'Krasokorčuľovanie – deti' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-full', start: '10:00', duration: 60, team: 'Firemná akcia – XY s.r.o.' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-half-a', start: '11:15', duration: 60, team: 'Krasokorčuľovanie – mladší dorast' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-half-b', start: '11:15', duration: 60, team: 'Škôlka Osloboditeľov – korčuľovací kurz' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-1', start: '16:00', duration: 60, team: 'HK Zvolen U10 – tréning' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-2', start: '16:00', duration: 60, team: 'HK Zvolen U12 – tréning' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-3', start: '16:00', duration: 60, team: 'HK Zvolen dorast – tréning' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-third-1', start: '17:00', duration: 60, team: 'HK Zvolen prípravka – tréning' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-full', start: '18:00', duration: 90, team: 'Liga: HK Zvolen – HK Poprad' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-half-a', start: '19:30', duration: 60, team: 'Verejné korčuľovanie' },
-  { rinkId: 'main-hall', zoneId: 'main-hall-half-b', start: '19:30', duration: 60, team: 'HK Zvolen dorast – tréning' },
+const DURATION_MINUTES = 60
 
-  // --- Malá hala (small-hall) ---
-  { rinkId: 'small-hall', zoneId: 'small-hall-third-1', start: '08:00', duration: 60, team: 'HK Zvolen mladšie žiactvo – tréning' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-third-2', start: '08:00', duration: 60, team: 'HK Zvolen staršie žiactvo – tréning' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-full', start: '09:15', duration: 60, team: 'Krasokorčuľovanie – veľká skupina' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-half-a', start: '10:30', duration: 60, team: 'Škôlka Osloboditeľov – kurz (2. skupina)' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-third-1', start: '15:00', duration: 60, team: 'HK Zvolen dorast B – tréning' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-third-2', start: '15:00', duration: 60, team: 'HK Zvolen dorast A – tréning' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-third-3', start: '15:00', duration: 60, team: 'HK Zvolen juniori – tréning' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-full', start: '16:30', duration: 60, team: 'Firemná akcia – firemný večierok' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-half-a', start: '18:00', duration: 60, team: 'Verejné korčuľovanie' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-half-b', start: '18:00', duration: 60, team: 'Krasokorčuľovanie – dorast' },
-  { rinkId: 'small-hall', zoneId: 'small-hall-full', start: '19:15', duration: 90, team: 'Liga: HK Zvolen B – HK Detva' }
-]
-
-async function createEntry(e) {
-  const lockId = `${CLUB_ID}__${e.zoneId}__${DATE}__${e.start}`
+async function createBookingDoc(rinkId, zoneId, start, team) {
+  const lockId = `${CLUB_ID}__${zoneId}__${DATE}__${start}`
   const lockRef = db.doc(`slotLocks/${lockId}`)
   const existing = await lockRef.get()
   if (existing.exists) {
-    console.log(`  [skip] ${e.rinkId}/${e.zoneId} ${e.start} — already booked (not overwriting a real reservation)`)
+    console.log(`  [skip] ${rinkId}/${zoneId} ${start} — already booked (not overwriting a real reservation)`)
     return false
   }
 
   const bookingRef = db.collection('bookings').doc()
   const entryRef = db.collection('rinkScheduleEntries').doc()
-  const endTime = addMinutes(e.start, e.duration)
 
   await lockRef.set({
     clubId: CLUB_ID,
-    zoneId: e.zoneId,
+    zoneId,
     date: DATE,
-    startTime: e.start,
+    startTime: start,
     bookingId: bookingRef.id,
     demoSeed: true,
     createdAt: Timestamp.now()
@@ -102,18 +151,18 @@ async function createEntry(e) {
 
   await bookingRef.set({
     clubId: CLUB_ID,
-    rinkId: e.rinkId,
-    zoneId: e.zoneId,
+    rinkId,
+    zoneId,
     date: DATE,
-    startTime: e.start,
-    durationMinutes: e.duration,
-    name: e.team,
+    startTime: start,
+    durationMinutes: DURATION_MINUTES,
+    name: team,
     email: 'demo-seed@arenasrsnov.local',
     phone: '',
     confirmationCode: randomConfirmationCode(),
     cancellationToken: randomToken(),
     tokenExpiresAt: Timestamp.fromDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
-    startAtUtc: Timestamp.fromDate(new Date(`${DATE}T${e.start}:00${UTC_OFFSET}`)),
+    startAtUtc: Timestamp.fromDate(new Date(`${DATE}T${start}:00${UTC_OFFSET}`)),
     status: 'confirmed',
     demoSeed: true,
     createdAt: Timestamp.now()
@@ -121,33 +170,57 @@ async function createEntry(e) {
 
   await entryRef.set({
     clubId: CLUB_ID,
-    rinkId: e.rinkId,
-    zoneId: e.zoneId,
-    teamName: e.team,
+    rinkId,
+    zoneId,
+    teamName: team,
     createdBy: 'demo-seed-script',
     createdByName: 'Demo Seed',
     date: DATE,
-    startTime: e.start,
-    durationMinutes: e.duration,
+    startTime: start,
+    durationMinutes: DURATION_MINUTES,
     bookingId: bookingRef.id,
     demoSeed: true,
     createdAt: Timestamp.now()
   })
 
-  console.log(`  ${e.rinkId}/${e.zoneId} ${e.start}–${endTime} — ${e.team}`)
+  console.log(`  ${rinkId}/${zoneId} ${start} — ${team}`)
   return true
+}
+
+async function writeOverride(rinkId, slots) {
+  const overrideId = `${CLUB_ID}__${rinkId}__${DATE}`
+  await db.doc(`scheduleOverrides/${overrideId}`).set({
+    clubId: CLUB_ID,
+    rinkId,
+    date: DATE,
+    slots: slots.map((s) => ({ startTime: s.start, durationMinutes: DURATION_MINUTES, mode: s.mode })),
+    demoSeed: true,
+    updatedAt: Timestamp.now()
+  })
+  console.log(`  scheduleOverrides/${overrideId} written (${slots.length} slots)`)
 }
 
 async function run() {
   console.log(`Seeding demo schedule for ${DATE} (club "${CLUB_ID}"):`)
   let created = 0
   let skipped = 0
-  for (const entry of ENTRIES) {
-    const ok = await createEntry(entry)
-    if (ok) created++
-    else skipped++
+
+  for (const [rinkId, slots] of Object.entries(RINK_PLANS)) {
+    for (const slot of slots) {
+      for (const b of slot.bookings) {
+        const ok = await createBookingDoc(rinkId, b.zoneId, slot.start, b.team)
+        if (ok) created++
+        else skipped++
+      }
+    }
   }
-  console.log(`Done. ${created} created, ${skipped} skipped (slot already taken).`)
+
+  console.log('Writing per-day schedule overrides (so /book offers the right split at each slot):')
+  for (const [rinkId, slots] of Object.entries(RINK_PLANS)) {
+    await writeOverride(rinkId, slots)
+  }
+
+  console.log(`Done. ${created} bookings created, ${skipped} skipped (slot already taken).`)
   console.log('Run scripts/remove-demo-day.mjs afterwards to clean everything back out.')
 }
 

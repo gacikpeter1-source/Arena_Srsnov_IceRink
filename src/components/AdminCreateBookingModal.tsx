@@ -15,14 +15,13 @@ import {
 import { computeDaySchedule } from '@/lib/schedule'
 import { fetchScheduleOverride } from '@/lib/scheduleOverrides'
 import { addDays, formatDateISO, localizedName } from '@/lib/utils'
-import { Club, DivisionRule, Rink, ScheduleOverride, SeriesFrequency, TimeSlotConfig, Zone } from '@/types'
+import { Club, Rink, ScheduleOverride, SeriesFrequency, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
   club: Club
   rinks: Rink[]
   zones: Zone[]
   timeSlotConfigs: TimeSlotConfig[]
-  divisionRules: DivisionRule[]
   isOpen: boolean
   onClose: () => void
   onCreated: () => void
@@ -35,7 +34,6 @@ export default function AdminCreateBookingModal({
   rinks,
   zones,
   timeSlotConfigs,
-  divisionRules,
   isOpen,
   onClose,
   onCreated
@@ -62,7 +60,6 @@ export default function AdminCreateBookingModal({
   }
 
   const rinkZones = useMemo(() => zones.filter((z) => z.rinkId === rinkId), [zones, rinkId])
-  const rinkRules = useMemo(() => divisionRules.filter((r) => r.rinkId === rinkId), [divisionRules, rinkId])
   const timeSlotConfig = timeSlotConfigs.find((c) => c.rinkId === rinkId) ?? null
 
   const [override, setOverride] = useState<ScheduleOverride | null>(null)
@@ -75,8 +72,8 @@ export default function AdminCreateBookingModal({
   }, [club.id, rinkId, date])
 
   const schedule = useMemo(
-    () => (timeSlotConfig ? computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, rinkRules, rinkZones, override) : []),
-    [date, timeSlotConfig, rinkRules, rinkZones, override]
+    () => (timeSlotConfig ? computeDaySchedule(new Date(`${date}T00:00:00`), timeSlotConfig, rinkZones, override) : []),
+    [date, timeSlotConfig, rinkZones, override]
   )
 
   const selectedSlot = schedule.find((s) => s.time === startTime)

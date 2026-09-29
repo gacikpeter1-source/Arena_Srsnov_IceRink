@@ -13,7 +13,7 @@ initializeApp({
 })
 const db = getFirestore()
 
-const COLLECTIONS = ['bookings', 'slotLocks', 'rinkScheduleEntries']
+const COLLECTIONS = ['bookings', 'slotLocks', 'rinkScheduleEntries', 'scheduleOverrides']
 
 async function deleteTagged(collectionName) {
   const snap = await db.collection(collectionName).where('demoSeed', '==', true).get()

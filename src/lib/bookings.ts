@@ -154,12 +154,19 @@ export interface CreatedBooking {
 /**
  * Atomically checks and reserves a zone/date/time slot.
  *
- * Only one division mode (full/half/third) is ever offered for a given
- * date/time — decided by the admin's DivisionRule schedule, resolved
- * client-side before this is called (see resolveDivisionMode in
- * lib/divisionRules.ts). Same-mode zones are physically disjoint slices of
- * the rink, so a single lock document per zoneId+date+startTime is enough
- * to prevent double-booking; no cross-zone conflict check is needed.
+ * On the public /book page, only one division mode (full/half/third) is
+ * ever offered for a given date/time — per that slot's own `mode` in its
+ * ScheduleOverride (see computeDaySchedule in lib/schedule.ts), defaulting
+ * to 'full' when nothing was explicitly split. Same-mode zones are
+ * physically disjoint slices of the rink, so a single lock document per
+ * zoneId+date+startTime is enough to prevent double-booking within that
+ * mode; no cross-zone conflict check is needed there. Staff-side tools
+ * (RinkScheduleEntry, TournamentMatch, and the admin manual-create form's
+ * own zone picker) call this same function directly with whatever zoneId
+ * they choose, independent of the day's configured mode — same as before
+ * this comment was last updated — so keeping the customer-facing view
+ * accurate still relies on staff picking a mode/zone that matches the
+ * override actually set for that slot.
  *
  * A lock held by an expired, never-confirmed pending booking is silently
  * reclaimed rather than blocking the new attempt — that booking is left as
