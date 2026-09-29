@@ -54,7 +54,13 @@ export interface ClubEntitlement {
 export interface Rink {
   id: string
   clubId: string
-  name: string // "Main Hall" | "Small Hall"
+  name: string // "Main Hall" | "Small Hall" — the default/English display name
+  // Optional per-language override — see lib/utils.ts's localizedName. Only
+  // `sk` exists today since the app only ever needs one override on top of
+  // `name` (the app's two supported languages are 'en'/'sk', and `name`
+  // itself already serves as the English value) — add more keys here if a
+  // third language is ever supported.
+  translations?: { sk?: string }
   sortOrder: number
   active: boolean
 }
@@ -74,7 +80,9 @@ export interface Zone {
   id: string
   clubId: string
   rinkId: string
-  name: string // "Full Rink" | "Half A" | "Third 1" ...
+  name: string // "Full Rink" | "Half A" | "Third 1" ... — the default/English display name
+  // See Rink.translations — same optional Slovak override on top of `name`.
+  translations?: { sk?: string }
   mode: DivisionMode
   // Position within its mode (0 for full; 0/1 for half or halfLengthwise;
   // 0/1/2 for third). Same-mode zones are physically disjoint slices of the
