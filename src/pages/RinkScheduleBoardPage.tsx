@@ -115,9 +115,14 @@ export default function RinkScheduleBoardPage() {
   const roomByBookingId = new Map<string, string>()
   const roomBySeriesId = new Map<string, string>()
   entries.forEach((entry) => {
-    if (!entry.room) return
-    if (entry.bookingId) roomByBookingId.set(entry.bookingId, entry.room)
-    if (entry.seriesId) roomBySeriesId.set(entry.seriesId, entry.room)
+    if (entry.room) {
+      if (entry.bookingId) roomByBookingId.set(entry.bookingId, entry.room)
+      if (entry.seriesId) roomBySeriesId.set(entry.seriesId, entry.room)
+    }
+    // A rescheduled occurrence of a series can carry its own room override
+    // (see RinkScheduleEntry.occurrenceRooms) — checked first below, so it
+    // wins over the series' shared `room` default for that one booking.
+    Object.entries(entry.occurrenceRooms ?? {}).forEach(([bookingId, room]) => roomByBookingId.set(bookingId, room))
   })
 
   const bookingItems: BoardItem[] = bookings

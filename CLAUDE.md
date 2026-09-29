@@ -1926,6 +1926,83 @@ other) before shipping. Fixed with a small greedy lane-assignment pass
 occupant already ended, else open a new lane) so overlapping blocks stack
 into visually separate rows within the timeline instead.
 
+### Editing and cancelling individual occurrences
+
+Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
+whole-entry — a club pointed out that practices get cancelled or moved
+often enough that retyping a whole entry from scratch every time wasn't
+workable. Two related but distinct actions landed together:
+
+**Editing (`RinkScheduleEditModal.tsx`, `rescheduleRinkScheduleEntry`/
+`rescheduleRinkScheduleOccurrence` in `lib/rinkSchedule.ts`)** can move a
+team/rink/zone/date/time/duration/room to anything, including for one
+single occurrence inside an otherwise-unchanged recurring series — not
+just the whole series at once. This only works because each occurrence
+was already its own independent `Booking` doc (via `createBookingSeries`,
+see the "Recurring bookings" section) sharing nothing but a `seriesId`, so
+moving one occurrence is exactly "cancel this one Booking, create a new
+one with the same `seriesId`" — the rest of the series is untouched by
+construction, no special-casing needed. Reuses the exact same
+`findSlotConflict`/replace-confirm flow (`lib/rinkConflicts.ts`) the
+create form already has, since a moved occurrence can just as easily land
+on another tournament match or entry as a brand-new one can.
+
+A same-zone/date/time edit (only the team name, duration, or room
+changed) takes a different, cheaper path — patching the existing
+`Booking`'s `name`/`rinkId`/`durationMinutes` fields in place via
+`updateDoc` rather than cancel-and-recreate. This isn't just an
+optimization: trying to `createBooking` "into" the exact slot the
+existing booking already holds would immediately throw
+`SlotUnavailableError` against itself, since nothing was released yet.
+
+Once a series can have individually-diverging occurrences, its own entry
+doc's `date`/`startTime`/`rinkId`/`zoneId` fields stop meaning anything
+beyond "how the series was first set up" — they're never read again after
+creation. `fetchRinkScheduleOccurrences` (`lib/rinkSchedule.ts`) is the
+one place that now matters for display: it re-reads the live `Booking`
+docs (via `fetchSeriesBookings` for a series, or the entry's own
+`bookingId` for a single occurrence) rather than trusting the entry's own
+copies, so `RinkSchedulePage.tsx`'s table renders one row **per real
+occurrence**, not one summary row per entry — showing each occurrence's
+actual current rink/zone/date/time even after some have been individually
+moved.
+
+**Per-occurrence room override**: `room` was previously one field on the
+whole entry. A moved-and-rebooked-elsewhere occurrence might reasonably
+need a different locker room than the rest of the series, so
+`RinkScheduleEntry.occurrenceRooms?: Record<bookingId, string>` holds
+per-occurrence overrides, checked first (`occurrenceRooms[booking.id] ??
+entry.room`) everywhere a room is displayed — the admin table and
+`RinkScheduleBoardPage.tsx`'s room lookup. Keyed by the occurrence's
+*current* booking id specifically because rescheduling replaces that id
+(cancel old, create new) — the override is copied across to the new id
+and the stale old one is dropped, rather than being written once and
+going stale the first time that occurrence moves again.
+
+**Cancelling one occurrence** (`handleCancelOccurrence` in
+`RinkSchedulePage.tsx`, a direct `cancelBooking` call — the same "staff
+are exempt from the cutoff" function `deleteRinkScheduleEntry` already
+used) is new and distinct from deleting the whole entry: it removes just
+that one `Booking`, leaving the entry doc and every other occurrence in
+the series alone. Deleting the whole series (`deleteRinkScheduleEntry`,
+unchanged) is still available as its own separate button, since "the team
+disbanded, remove the whole standing block" and "this one Tuesday is
+cancelled" are different actions with different blast radius.
+
+**Known limitation, not new**: staff-only Firestore rules for canceling/
+editing a `Booking` (`firestore.rules`' `bookings` collection) grant full
+rights to `isStaffMember()` (assistant/owner/superadmin) but not to a pure
+`isTrainer()` account with no ice-rink role — this was already true of
+`deleteRinkScheduleEntry`'s use of the same `cancelBooking` call before
+this pass, just newly exercised by the same gap here. A trainer-only
+account trying to reschedule or cancel a same-day occurrence within the
+usual 24h customer cutoff window can hit a permission error; broadening
+`bookings`' rules to trust `isTrainer()` with unrestricted booking edits
+was deliberately not done here since it would grant far more than "let a
+trainer manage their own rink-schedule entries" (it has no way to check
+"is this booking mine" without a new field), so this is left as a
+documented gap rather than a quick-but-too-broad rules change.
+
 **Still not built**: per-team recolorable legend; logo-derived TV-board
 branding colors. Cross-domain conflict detection (below) landed in a
 later pass.
