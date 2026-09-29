@@ -1643,7 +1643,14 @@ per deployment — so it just gets a fixed alias instead: `/tv` (no code
 at all) is a plain `<Navigate>` straight to `/rozvrh?display=tv`, added
 right next to the `/tv/:code` route in `App.tsx`. Typing `arenasrsnov…/tv`
 on a remote is about as simple as a URL gets, so no random code was
-needed for this one.
+needed for this one. Unlike the tournament shortcut — which only ever
+appeared on `TournamentDetailPage.tsx`, the one place staff already look
+for it — the `/tv` alias had nowhere staff would think to look for it at
+all, since `RinkSchedulePage.tsx` (`/admin/rozvrh`) had no QR/link
+section to begin with (the only route in was the public page's own "View
+as screen" link). Fixed by giving `RinkSchedulePage.tsx` the same
+QR-code-plus-link card `TournamentDetailPage.tsx` already has for its TV
+screen, plus the plain `/tv` text underneath.
 
 **Row proportions tuned after a real landscape-phone test.** The initial
 `9vh`/`17vh`/`19vh` header/live/bottom split looked fine on a genuine

@@ -10,6 +10,7 @@ import {
 import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES } from '@/lib/bookings'
 import { formatDateISO, addDays } from '@/lib/utils'
+import { Link } from 'react-router-dom'
 import { RinkScheduleEntry, SeriesFrequency } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import BackButton from '@/components/BackButton'
 import RinkScheduleImportPanel from '@/components/RinkScheduleImportPanel'
+import QrCodeDisplay from '@/components/QrCodeDisplay'
 
 /**
  * Staff/trainer "who has the ice when" schedule — see CLAUDE.md's "Rink
@@ -190,6 +192,25 @@ export default function RinkSchedulePage() {
       <BackButton fallback="/admin" />
       <h1 className="text-2xl font-bold text-white">{t('rinkSchedule.title')}</h1>
       <p className="text-text-secondary text-sm">{t('rinkSchedule.intro')}</p>
+
+      <Card className="arena-card">
+        <CardHeader>
+          <CardTitle className="text-white text-lg">{t('rinkSchedule.tvScreenTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-start gap-4">
+          <QrCodeDisplay value={`${window.location.origin}/rozvrh?display=tv`} filename="rozvrh-tv.png" label={t('rinkSchedule.title')} />
+          <div className="flex flex-col gap-2 max-w-md">
+            <p className="text-text-secondary text-sm">{t('rinkSchedule.tvScreenHint')}</p>
+            <Link to="/rozvrh?display=tv" className="text-primary hover:text-primary-gold text-sm underline w-fit">
+              {t('tournaments.openTvScreen')}
+            </Link>
+            <div className="mt-2 rounded-md border border-border bg-background-dark px-3 py-2">
+              <p className="text-text-muted text-xs">{t('rinkSchedule.tvShortcutHint')}</p>
+              <p className="mono text-primary text-xl font-bold">{window.location.origin}/tv</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="arena-card">
         <CardHeader>
