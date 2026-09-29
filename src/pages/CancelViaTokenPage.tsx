@@ -7,6 +7,7 @@ import { useClubData } from '@/hooks/useClubData'
 import { cancelBooking, isPastCancellationCutoff } from '@/lib/bookings'
 import { queueCancellationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
+import { localizedName } from '@/lib/utils'
 import { Booking, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -109,7 +110,7 @@ export default function CancelViaTokenPage() {
           {state === 'ready' && booking && zone && club && (
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
-                <p><strong className="text-white">{zone.name}</strong></p>
+                <p><strong className="text-white">{localizedName(zone, i18n.language)}</strong></p>
                 <p>{t('common.dateAtTime', { date: booking.date, startTime: booking.startTime })}</p>
                 <p className="mono text-primary">{booking.confirmationCode}</p>
               </div>
@@ -117,7 +118,7 @@ export default function CancelViaTokenPage() {
                 events={[
                   {
                     uid: `${booking.id}@${window.location.hostname}`,
-                    title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+                    title: t('calendar.eventTitle', { club: club.name, zone: localizedName(zone, i18n.language) }),
                     description: t('calendar.eventDescription', {
                       code: booking.confirmationCode,
                       url: window.location.href

@@ -5,7 +5,7 @@ import { useClubData } from '@/hooks/useClubData'
 import { fetchLockedSlots, fetchLockedSlotsRange } from '@/lib/bookings'
 import { computeDaySchedule, ScheduleRow } from '@/lib/schedule'
 import { fetchScheduleOverridesRange } from '@/lib/scheduleOverrides'
-import { addDays, formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { Rink, ScheduleOverride, Zone } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -263,7 +263,7 @@ export default function BookingPage() {
                 onClick={() => setRinkFilter(rink.id)}
                 className={rinkFilter === rink.id ? 'bg-primary hover:bg-primary-gold text-primary-foreground' : ''}
               >
-                {rink.name}
+                {localizedName(rink, i18n.language)}
               </Button>
             ))}
           </div>
@@ -316,7 +316,7 @@ export default function BookingPage() {
 
               return (
                 <div key={rink.id} className="space-y-3">
-                  {rinks.length > 1 && <h2 className="text-white text-lg font-semibold">{rink.name}</h2>}
+                  {rinks.length > 1 && <h2 className="text-white text-lg font-semibold">{localizedName(rink, i18n.language)}</h2>}
 
                   {viewMode === 'grid' ? (
                     rinkConfig ? (
@@ -362,7 +362,7 @@ export default function BookingPage() {
                                       setPendingBooking({ rink, zone, time, durationMinutes })
                                     }}
                                   >
-                                    {zone.name}
+                                    {localizedName(zone, i18n.language)}
                                   </Button>
                                 )
                               })

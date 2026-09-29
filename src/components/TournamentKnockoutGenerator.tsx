@@ -12,7 +12,7 @@ import {
   KnockoutDrawError,
   ScheduleSlotLocation
 } from '@/lib/tournaments'
-import { formatDateISO } from '@/lib/utils'
+import { formatDateISO, localizedName } from '@/lib/utils'
 import { Club, DivisionMode, Rink, TournamentMatch, TournamentTeam, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -39,7 +39,7 @@ const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
  * auto-move, the trainer must actually enter the score.
  */
 export default function TournamentKnockoutGenerator({ tournamentId, club, rinks, zones }: TournamentKnockoutGeneratorProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, staff } = useAuth()
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
 
@@ -92,7 +92,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
     .filter((r) => rinkIds.includes(r.id))
     .flatMap((r) => zones.filter((z) => z.rinkId === r.id && z.mode === format).sort((a, b) => a.slotIndex - b.slotIndex))
   const slotLocations: ScheduleSlotLocation[] = zonesForSelection.map((z) => ({ rinkId: z.rinkId, zoneId: z.id }))
-  const rinkNameById = new Map(activeRinks.map((r) => [r.id, r.name]))
+  const rinkNameById = new Map(activeRinks.map((r) => [r.id, localizedName(r, i18n.language)]))
   const nameById = new Map(teams.map((tm) => [tm.id, tm.name]))
   const orderedTeams = order.map((id) => ({ id, name: nameById.get(id) ?? '' })).filter((tm) => tm.name)
   const orderedIds = orderedTeams.map((tm) => tm.id).join(',')
@@ -252,7 +252,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
                 {activeRinks.map((r) => (
                   <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
                     <input type="checkbox" checked={rinkIds.includes(r.id)} onChange={() => toggleRink(r.id)} className="h-4 w-4" />
-                    {r.name}
+                    {localizedName(r, i18n.language)}
                   </label>
                 ))}
               </div>
@@ -322,7 +322,7 @@ export default function TournamentKnockoutGenerator({ tournamentId, club, rinks,
                         {m.isBye && <span className="text-text-muted text-xs">({t('tournaments.byeLabel')})</span>}
                         {!m.isBye && m.zoneIndex != null && zonesForSelection[m.zoneIndex] && (
                           <span className="text-text-muted text-xs">
-                            ({rinkNameById.get(zonesForSelection[m.zoneIndex].rinkId) ?? ''} — {zonesForSelection[m.zoneIndex].name})
+                            ({rinkNameById.get(zonesForSelection[m.zoneIndex].rinkId) ?? ''} — {localizedName(zonesForSelection[m.zoneIndex], i18n.language)})
                           </span>
                         )}
                       </div>

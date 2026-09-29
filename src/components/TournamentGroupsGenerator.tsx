@@ -16,7 +16,7 @@ import {
   KnockoutDrawError,
   ScheduleSlotLocation
 } from '@/lib/tournaments'
-import { formatDateISO } from '@/lib/utils'
+import { formatDateISO, localizedName } from '@/lib/utils'
 import { Club, DivisionMode, Rink, TournamentMatch, TournamentTeam, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -52,7 +52,7 @@ const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
  * explicit request to support both ways.
  */
 export default function TournamentGroupsGenerator({ tournamentId, club, rinks, zones, pointsForWin }: TournamentGroupsGeneratorProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, staff } = useAuth()
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
 
@@ -125,7 +125,12 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
     setPlayoffRinkIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]))
   }
 
-  const rinkNameById = new Map(activeRinks.map((r) => [r.id, r.name]))
+  const rinkNameById = new Map(activeRinks.map((r) => [r.id, localizedName(r, i18n.language)]))
+  const rinkZoneLabel = (rinkId?: string, zoneId?: string) => {
+    const rink = rinks.find((r) => r.id === rinkId)
+    const zone = zones.find((z) => z.id === zoneId)
+    return `${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+  }
   const nameById = new Map(teams.map((tm) => [tm.id, tm.name]))
   const orderedTeams = order.map((id) => ({ id, name: nameById.get(id) ?? '' })).filter((tm) => tm.name)
   const groupLabels = Array.from({ length: groupCount }, (_, i) => String.fromCharCode(65 + i))
@@ -413,7 +418,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                 {activeRinks.map((r) => (
                   <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
                     <input type="checkbox" checked={rinkIds.includes(r.id)} onChange={() => toggleRink(r.id)} className="h-4 w-4" />
-                    {r.name}
+                    {localizedName(r, i18n.language)}
                   </label>
                 ))}
               </div>
@@ -481,7 +486,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                         <span key={pIdx} className="text-white text-sm">
                           <span className="text-text-muted">[{p.groupName}]</span> {p.teamAName} <span className="text-text-muted">vs</span> {p.teamBName}
                           <span className="text-text-muted text-xs">
-                            {' '}({rinkNameById.get(zonesForSelection[pIdx]?.rinkId) ?? ''} — {zonesForSelection[pIdx]?.name ?? ''})
+                            {' '}({rinkNameById.get(zonesForSelection[pIdx]?.rinkId) ?? ''} — {zonesForSelection[pIdx] ? localizedName(zonesForSelection[pIdx], i18n.language) : ''})
                           </span>
                           {pIdx < slot.pairs.length - 1 ? ' · ' : ''}
                         </span>
@@ -556,7 +561,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                               {m.teamA} <span className="text-text-muted">vs</span> {m.teamB}
                             </p>
                             <p className="text-text-muted text-xs">
-                              {m.date} · {m.startTime} · {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                              {m.date} · {m.startTime} · {rinkZoneLabel(m.rinkId, m.zoneId)}
                             </p>
                           </div>
                           {decided ? (
@@ -620,7 +625,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                       {activeRinks.map((r) => (
                         <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
                           <input type="checkbox" checked={playoffRinkIds.includes(r.id)} onChange={() => togglePlayoffRink(r.id)} className="h-4 w-4" />
-                          {r.name}
+                          {localizedName(r, i18n.language)}
                         </label>
                       ))}
                     </div>
@@ -694,7 +699,7 @@ export default function TournamentGroupsGenerator({ tournamentId, club, rinks, z
                               {m.isBye && <span className="text-text-muted text-xs">({t('tournaments.byeLabel')})</span>}
                               {!m.isBye && m.zoneIndex != null && playoffZonesForSelection[m.zoneIndex] && (
                                 <span className="text-text-muted text-xs">
-                                  ({rinkNameById.get(playoffZonesForSelection[m.zoneIndex].rinkId) ?? ''} — {playoffZonesForSelection[m.zoneIndex].name})
+                                  ({rinkNameById.get(playoffZonesForSelection[m.zoneIndex].rinkId) ?? ''} — {localizedName(playoffZonesForSelection[m.zoneIndex], i18n.language)})
                                 </span>
                               )}
                             </div>

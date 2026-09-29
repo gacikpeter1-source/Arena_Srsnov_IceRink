@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { cancelBooking, fetchBookingsInRange, createBooking, SlotUnavailableError } from '@/lib/bookings'
 import { downloadImportTemplate, exportBookingsToExcel, parseBookingsWorkbook } from '@/lib/excel'
-import { addDays, formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { Booking } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,7 @@ import AdminDaySchedulePanel from '@/components/AdminDaySchedulePanel'
 import BackButton from '@/components/BackButton'
 
 export default function AdminDashboardPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, staff, logout } = useAuth()
   const { club, rinks, zones, timeSlotConfigs, divisionRules } = useClubData()
 
@@ -36,8 +36,8 @@ export default function AdminDashboardPage() {
   const [importResult, setImportResult] = useState<{ imported: number; failed: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const zoneNameById = new Map(zones.map((z) => [z.id, z.name]))
-  const rinkNameById = new Map(rinks.map((r) => [r.id, r.name]))
+  const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
+  const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
 
   const refreshBookings = () => {
     if (!club) return
@@ -147,7 +147,7 @@ export default function AdminDashboardPage() {
           imported++
         } catch (err) {
           const reason = err instanceof SlotUnavailableError ? t('booking.slotUnavailable') : t('common.error')
-          failed.push(`${row.date} ${row.startTime} (${rink.name} · ${zone.name}): ${reason}`)
+          failed.push(`${row.date} ${row.startTime} (${localizedName(rink, i18n.language)} · ${localizedName(zone, i18n.language)}): ${reason}`)
         }
       }
 

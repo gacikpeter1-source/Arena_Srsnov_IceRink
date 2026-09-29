@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import AddToCalendarButtons from '@/components/AddToCalendarButtons'
 import { IcsEventInput } from '@/lib/ics'
+import { localizedName } from '@/lib/utils'
 import BackButton from '@/components/BackButton'
 
 type State = 'loading' | 'invalid' | 'expired' | 'ready' | 'error'
@@ -137,7 +138,7 @@ export default function SeriesCancelPage() {
           {state === 'ready' && series && zone && club && (
             <div className="space-y-4">
               <div className="text-text-secondary space-y-1">
-                <p><strong className="text-white">{zone.name}</strong></p>
+                <p><strong className="text-white">{localizedName(zone, lang)}</strong></p>
                 <p>
                   {series.startTime} · {t('common.minutes', { count: series.durationMinutes })} ·{' '}
                   {t(series.frequency === 'daily' ? 'booking.frequencyDaily' : 'booking.frequencyWeekly')}
@@ -150,7 +151,7 @@ export default function SeriesCancelPage() {
                   .map(
                     (o): IcsEventInput => ({
                       uid: `${o.id}@${window.location.hostname}`,
-                      title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+                      title: t('calendar.eventTitle', { club: club.name, zone: localizedName(zone, lang) }),
                       description: t('calendar.eventDescription', {
                         code: o.confirmationCode,
                         url: window.location.href

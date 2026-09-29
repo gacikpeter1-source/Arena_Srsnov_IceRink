@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateTimeSlotConfig } from '@/lib/timeSlotConfig'
+import { localizedName } from '@/lib/utils'
 import { DayHours, Rink, TimeSlotConfig } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -100,7 +101,7 @@ export default function AdminScheduleSettingsPanel({ rinks, timeSlotConfigs }: A
               className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
             >
               {rinks.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
+                <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
               ))}
             </select>
           </div>
