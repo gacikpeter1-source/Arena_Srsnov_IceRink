@@ -12,7 +12,7 @@ import {
 } from '@/lib/scheduleOverrides'
 import { downloadScheduleImportTemplate, parseScheduleWorkbook } from '@/lib/excel'
 import { addDays, formatDateISO, localizedName } from '@/lib/utils'
-import { Club, Rink, TimeSlotConfig } from '@/types'
+import { Club, DivisionMode, Rink, TimeSlotConfig, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -21,7 +21,16 @@ import { Label } from './ui/label'
 interface AdminDaySchedulePanelProps {
   club: Club
   rinks: Rink[]
+  zones: Zone[]
   timeSlotConfigs: TimeSlotConfig[]
+}
+
+const ALL_MODES: DivisionMode[] = ['full', 'half', 'third', 'halfLengthwise']
+const MODE_LABEL_KEY: Record<DivisionMode, string> = {
+  full: 'admin.modeFull',
+  half: 'admin.modeHalf',
+  third: 'admin.modeThird',
+  halfLengthwise: 'admin.modeHalfLengthwise'
 }
 
 /**
@@ -33,8 +42,15 @@ interface AdminDaySchedulePanelProps {
  * policy that one session running long reschedules the rest of that day
  * rather than trying to preserve whatever other custom durations those
  * later sessions happened to have.
+ *
+ * Each session also gets its own division-mode picker — the standing
+ * default is the whole rink; staff only split ice (half/third/lengthwise
+ * half) for a session by explicitly choosing that here, session by
+ * session. There's no recurring "every Wednesday" rule any more (see
+ * lib/schedule.ts) — a repeating split is set up the same way any other
+ * repeating day-schedule change is, via "apply to a range of days" above.
  */
-export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: AdminDaySchedulePanelProps) {
+export default function AdminDaySchedulePanel({ club, rinks, zones, timeSlotConfigs }: AdminDaySchedulePanelProps) {
   const { t, i18n } = useTranslation()
   const [rinkId, setRinkId] = useState(() => rinks[0]?.id ?? '')
   const [date, setDate] = useState(formatDateISO(new Date()))
@@ -42,6 +58,7 @@ export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: 
   const [rangeEndDate, setRangeEndDate] = useState(formatDateISO(new Date()))
 
   const config = timeSlotConfigs.find((c) => c.rinkId === rinkId) ?? null
+  const modesForRink = ALL_MODES.filter((m) => zones.some((z) => z.rinkId === rinkId && z.mode === m))
 
   const [slots, setSlots] = useState<ScheduleSlot[]>([])
   const [isCustom, setIsCustom] = useState(false)
@@ -63,7 +80,7 @@ export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: 
       setSlots(override.slots)
       setIsCustom(true)
     } else if (config) {
-      const defaultRows = computeDaySchedule(new Date(`${date}T00:00:00`), config, [], [])
+      const defaultRows = computeDaySchedule(new Date(`${date}T00:00:00`), config, [])
       setSlots(defaultRows.map((r) => ({ startTime: r.time, durationMinutes: r.durationMinutes })))
       setIsCustom(false)
     } else {
@@ -160,7 +177,7 @@ export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: 
         }
         const key = `${rink.id}::${row.date}`
         if (!grouped.has(key)) grouped.set(key, [])
-        grouped.get(key)!.push({ startTime: row.startTime, durationMinutes: row.durationMinutes })
+        grouped.get(key)!.push({ startTime: row.startTime, durationMinutes: row.durationMinutes, mode: row.mode })
       }
 
       let updated = 0
@@ -247,7 +264,7 @@ export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: 
                   <Input
                     type="time"
                     value={slot.startTime}
-                    onChange={(e) => editSlot(i, { startTime: e.target.value, durationMinutes: slot.durationMinutes })}
+                    onChange={(e) => editSlot(i, { startTime: e.target.value, durationMinutes: slot.durationMinutes, mode: slot.mode })}
                     className="bg-background-dark border-border text-white max-w-[130px]"
                   />
                   <span className="text-text-muted text-sm">{t('admin.hoursTo')}</span>
@@ -264,9 +281,22 @@ export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: 
                     type="number"
                     min={5}
                     value={slot.durationMinutes}
-                    onChange={(e) => editSlot(i, { startTime: slot.startTime, durationMinutes: Number(e.target.value) })}
+                    onChange={(e) => editSlot(i, { startTime: slot.startTime, durationMinutes: Number(e.target.value), mode: slot.mode })}
                     className="bg-background-dark border-border text-white max-w-[100px]"
                   />
+                  <Label htmlFor={`mode-${i}`} className="text-text-muted text-xs">{t('admin.slotMode')}</Label>
+                  <select
+                    id={`mode-${i}`}
+                    value={slot.mode ?? 'full'}
+                    onChange={(e) =>
+                      editSlot(i, { startTime: slot.startTime, durationMinutes: slot.durationMinutes, mode: e.target.value as DivisionMode })
+                    }
+                    className="flex h-9 rounded-md border border-input bg-background-dark px-2 text-sm text-white"
+                  >
+                    {modesForRink.map((m) => (
+                      <option key={m} value={m}>{t(MODE_LABEL_KEY[m])}</option>
+                    ))}
+                  </select>
                   <Button type="button" size="sm" variant="destructive" onClick={() => removeSlot(i)}>
                     {t('common.remove')}
                   </Button>

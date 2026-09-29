@@ -1,9 +1,9 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
-import { ScheduleOverride } from '@/types'
+import { DivisionMode, ScheduleOverride } from '@/types'
 import { minutesToTime, timeToMinutes } from './utils'
 
-export type ScheduleSlot = { startTime: string; durationMinutes: number }
+export type ScheduleSlot = { startTime: string; durationMinutes: number; mode?: DivisionMode }
 
 function overrideId(clubId: string, rinkId: string, date: string) {
   return `${clubId}__${rinkId}__${date}`
@@ -56,13 +56,13 @@ export async function deleteScheduleOverride(clubId: string, rinkId: string, dat
 }
 
 /**
- * Applies an edit (a new start time and/or duration) at `fromIndex` and
+ * Applies an edit (a new start time/duration/mode) at `fromIndex` and
  * re-flows every slot after it back to the club's default rhythm
- * (defaultDurationMinutes + breakMinutes) — matches the stated policy that
- * changing one session's length reschedules everything following it for
- * that day, rather than trying to preserve whatever custom durations those
- * later slots happened to have before. Slots before fromIndex are
- * untouched.
+ * (defaultDurationMinutes + breakMinutes, mode reset to 'full') — matches
+ * the stated policy that changing one session's length reschedules
+ * everything following it for that day, rather than trying to preserve
+ * whatever custom durations (or split mode) those later slots happened to
+ * have before. Slots before fromIndex are untouched.
  */
 export function cascadeSlotEdit(
   slots: ScheduleSlot[],

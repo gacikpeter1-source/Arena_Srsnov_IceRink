@@ -258,6 +258,64 @@ an already-live rink's schedule should never silently gain a gap and shed
 slots just because this feature shipped; 10 only becomes real once an
 owner/assistant explicitly saves it via the settings panel.
 
+### Division mode moved onto the per-slot schedule (DivisionRule removed)
+
+Originally, which zones a time slot offered (whole rink, or split into
+halves/thirds) was decided by a separate `DivisionRule` collection: a
+recurring dayOfWeek + time-range → mode table, seeded once by
+`scripts/seed.mjs` and never given any admin UI at all. This had two real
+problems, both surfaced while preparing demo data for a customer
+presentation: (1) it could only ever offer **one** mode for a whole
+recurring window, so a club wanting "split some Wednesdays but not
+others" had no way to express that; and worse, (2) `computeDaySchedule`
+resolved a slot's offered zone(s) purely from the day-of-week rule, with
+no awareness of what was actually booked — a zone booked under a
+*different* mode than the rule currently in effect (e.g. a "third" locked
+while the rule said "half" for that window) simply never showed as
+unavailable, since the customer picker only ever checked locks against
+whichever mode the rule happened to be offering. A customer could see a
+zone as free while the physical ice it covered was actually already
+taken.
+
+Per explicit product direction, `DivisionRule` is gone entirely (deleted
+`lib/divisionRules.ts`, the `divisionRules` Firestore collection is no
+longer read anywhere — old docs left in place, orphaned, harmless). The
+standing default is now simply **whole rink** for every session;
+splitting only happens when staff explicitly set it. `mode` moved onto
+each `ScheduleOverride` slot (`{ startTime, durationMinutes, mode? }`,
+`src/types/index.ts`) — missing/undefined still means `'full'`, both for
+an override slot written before this field existed and for every slot
+`computeDaySchedule` auto-generates from the recurring `TimeSlotConfig`
+(that generation path no longer resolves a mode at all — it's always
+`'full'`). `AdminDaySchedulePanel.tsx` gained a mode `<select>` next to
+each session's time/duration inputs (options limited to whichever modes
+that rink actually has zones for), and `cascadeSlotEdit`
+(`lib/scheduleOverrides.ts`) resets a cascaded-forward slot's mode back to
+`'full'` along with its duration, matching the existing "resets to
+default rhythm" policy for edits made earlier in the day. The Excel
+schedule importer (`parseScheduleWorkbook`/`downloadScheduleImportTemplate`
+in `lib/excel.ts`) gained a matching optional "Mode" column
+(Full/Half/Third/HalfLengthwise, case-insensitive; blank or unrecognized
+→ `'full'`).
+
+Net effect: a recurring "every Wednesday evening" split isn't a first-class
+concept any more — it's set up the same way any other repeating
+day-schedule change already is, via the day editor's "apply to a range of
+days" (see above), not a separate rule engine. In exchange, the
+customer-facing mode for a given slot is now *exactly* whatever staff
+declared for that specific session, which is the same source of truth a
+staff member actually books against — removing the whole class of
+mode/lock mismatch bug described above. This doesn't extend to
+staff-side tools that pick a zone directly and skip `computeDaySchedule`
+entirely (`RinkScheduleEntry`, `TournamentMatch`, and the admin
+manual-create modal's own zone picker, which — unlike those two — *is*
+still constrained to the day's configured mode since its zone dropdown is
+built from `computeDaySchedule`'s own slot data) — staff creating a
+rink-schedule entry or tournament match still need to pick a zone/mode
+that matches whatever override is set for that slot for the public `/book`
+page to stay accurate, same pre-existing responsibility as before this
+change, just no longer masked by an invisible seed-script rule.
+
 ## Recurring bookings
 Both customers (no login required) and staff can create a daily- or
 weekly-recurring series instead of a single slot — a "Repeat this

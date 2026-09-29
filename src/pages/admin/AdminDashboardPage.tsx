@@ -23,7 +23,7 @@ import BackButton from '@/components/BackButton'
 export default function AdminDashboardPage() {
   const { t, i18n } = useTranslation()
   const { user, staff, logout } = useAuth()
-  const { club, rinks, zones, timeSlotConfigs, divisionRules } = useClubData()
+  const { club, rinks, zones, timeSlotConfigs } = useClubData()
 
   const [dateFrom, setDateFrom] = useState(formatDateISO(new Date()))
   const [dateTo, setDateTo] = useState(formatDateISO(new Date()))
@@ -314,11 +314,11 @@ export default function AdminDashboardPage() {
         </CardContent>
       </Card>
 
-      {club && <AdminQrPanel club={club} rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} divisionRules={divisionRules} />}
+      {club && <AdminQrPanel club={club} rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} />}
 
       <AdminScheduleSettingsPanel rinks={rinks} timeSlotConfigs={timeSlotConfigs} />
 
-      {club && <AdminDaySchedulePanel club={club} rinks={rinks} timeSlotConfigs={timeSlotConfigs} />}
+      {club && <AdminDaySchedulePanel club={club} rinks={rinks} zones={zones} timeSlotConfigs={timeSlotConfigs} />}
 
       {canManageStaff && club && <AdminClubSettingsPanel club={club} />}
 
@@ -332,7 +332,6 @@ export default function AdminDashboardPage() {
           rinks={rinks}
           zones={zones}
           timeSlotConfigs={timeSlotConfigs}
-          divisionRules={divisionRules}
           isOpen={showCreate}
           onClose={() => setShowCreate(false)}
           onCreated={refreshBookings}

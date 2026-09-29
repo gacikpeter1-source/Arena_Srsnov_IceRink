@@ -30,7 +30,7 @@ export default function BookingPage() {
   const dateParam = searchParams.get('date')
   const timeParam = searchParams.get('time')
 
-  const { club, rinks, zones, timeSlotConfigs, divisionRules, loading, error } = useClubData()
+  const { club, rinks, zones, timeSlotConfigs, loading, error } = useClubData()
   const [selectedDate, setSelectedDate] = useState(() =>
     dateParam ? new Date(`${dateParam}T00:00:00`) : new Date()
   )
@@ -132,16 +132,15 @@ export default function BookingPage() {
         continue
       }
       const rinkZones = zones.filter((z) => z.rinkId === rink.id)
-      const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
       const override = overridesByRink.get(rink.id)?.get(dateISO) ?? null
-      let rows = computeDaySchedule(selectedDate, config, rinkRules, rinkZones, override)
+      let rows = computeDaySchedule(selectedDate, config, rinkZones, override)
       if (zoneParam) {
         rows = rows.map((row) => ({ ...row, zones: row.zones.filter((z) => z.id === zoneParam) }))
       }
       map.set(rink.id, rows)
     }
     return map
-  }, [visibleRinks, timeSlotConfigs, zones, divisionRules, selectedDate, dateISO, overridesByRink, zoneParam])
+  }, [visibleRinks, timeSlotConfigs, zones, selectedDate, dateISO, overridesByRink, zoneParam])
 
   // How full each of the 14 visible days is, across whichever rink(s) are
   // currently in view — "occupied" counts individually-bookable zone-time
@@ -158,9 +157,8 @@ export default function BookingPage() {
         const config = timeSlotConfigs.find((c) => c.rinkId === rink.id)
         if (!config) continue
         const rinkZones = zones.filter((z) => z.rinkId === rink.id)
-        const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
         const override = overridesByRink.get(rink.id)?.get(dISO) ?? null
-        const rows = computeDaySchedule(day, config, rinkRules, rinkZones, override)
+        const rows = computeDaySchedule(day, config, rinkZones, override)
         for (const row of rows) {
           for (const zone of row.zones) {
             total++
@@ -171,7 +169,7 @@ export default function BookingPage() {
       map.set(dISO, { total, occupied })
     }
     return map
-  }, [days, visibleRinks, timeSlotConfigs, zones, divisionRules, lockedSlotsRange, overridesByRink])
+  }, [days, visibleRinks, timeSlotConfigs, zones, lockedSlotsRange, overridesByRink])
 
   // Both rinks share one diagram now, so its highlight just follows
   // whichever zone the customer is currently interacting with — live
@@ -312,7 +310,6 @@ export default function BookingPage() {
               const schedule = schedulesByRink.get(rink.id) ?? []
               const rinkConfig = timeSlotConfigs.find((c) => c.rinkId === rink.id)
               const rinkZones = zones.filter((z) => z.rinkId === rink.id)
-              const rinkRules = divisionRules.filter((r) => r.rinkId === rink.id)
 
               return (
                 <div key={rink.id} className="space-y-3">
@@ -323,7 +320,6 @@ export default function BookingPage() {
                       <AvailabilityGrid
                         days={days}
                         timeSlotConfig={rinkConfig}
-                        divisionRules={rinkRules}
                         zones={rinkZones}
                         lockedSlotsByDate={lockedSlotsRange}
                         overridesByDate={overridesByRink.get(rink.id) ?? new Map()}

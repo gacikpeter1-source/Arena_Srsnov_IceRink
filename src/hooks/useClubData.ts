@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Club, DivisionRule, Rink, TimeSlotConfig, Zone } from '@/types'
+import { Club, Rink, TimeSlotConfig, Zone } from '@/types'
 
 const CLUB_ID = import.meta.env.VITE_CLUB_ID
 
@@ -11,7 +11,6 @@ interface ClubData {
   zones: Zone[]
   // One config per rink — index by rinkId, not a single shared config.
   timeSlotConfigs: TimeSlotConfig[]
-  divisionRules: DivisionRule[]
   loading: boolean
   error: string | null
 }
@@ -21,7 +20,6 @@ export function useClubData(): ClubData {
   const [rinks, setRinks] = useState<Rink[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [timeSlotConfigs, setTimeSlotConfigs] = useState<TimeSlotConfig[]>([])
-  const [divisionRules, setDivisionRules] = useState<DivisionRule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,11 +56,6 @@ export function useClubData(): ClubData {
           query(collection(db, 'timeSlotConfig'), where('clubId', '==', CLUB_ID))
         )
         setTimeSlotConfigs(configSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as TimeSlotConfig))
-
-        const rulesSnap = await getDocs(
-          query(collection(db, 'divisionRules'), where('clubId', '==', CLUB_ID))
-        )
-        setDivisionRules(rulesSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as DivisionRule))
       } catch (err) {
         console.error('Error loading club data:', err)
         setError('Failed to load club configuration')
@@ -73,5 +66,5 @@ export function useClubData(): ClubData {
     load()
   }, [])
 
-  return { club, rinks, zones, timeSlotConfigs, divisionRules, loading, error }
+  return { club, rinks, zones, timeSlotConfigs, loading, error }
 }
