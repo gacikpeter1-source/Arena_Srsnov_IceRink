@@ -1635,9 +1635,15 @@ update rule only allows the creating trainer or any ice-rink staff
 member, so a different trainer opening someone else's tournament simply
 never sees the shortcut (the write is silently caught and dropped)
 rather than erroring, same as if the code had never been generated.
-Scoped to tournaments only — the rink schedule board's TV mode
-(`/rozvrh?display=tv`) has no per-tournament id in its URL to begin with,
-so it had no long string to shorten.
+The numeric-code machinery (generation, collision retry, lookup) is
+tournament-only, since a tournament is the one thing here that comes in
+multiples needing to be told apart. The rink schedule board has no
+per-tournament id to shorten in the first place — it's one shared board
+per deployment — so it just gets a fixed alias instead: `/tv` (no code
+at all) is a plain `<Navigate>` straight to `/rozvrh?display=tv`, added
+right next to the `/tv/:code` route in `App.tsx`. Typing `arenasrsnov…/tv`
+on a remote is about as simple as a URL gets, so no random code was
+needed for this one.
 
 **Row proportions tuned after a real landscape-phone test.** The initial
 `9vh`/`17vh`/`19vh` header/live/bottom split looked fine on a genuine
