@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { localizedName } from '@/lib/utils'
 import { Rink, TournamentMatch, Zone } from '@/types'
 
 interface TournamentBracketDiagramProps {
@@ -32,7 +33,12 @@ const COLUMN_WIDTH_PX = 208
  * than an admin editing results does.
  */
 export default function TournamentBracketDiagram({ matches, rinks, zones, highlightTeamId }: TournamentBracketDiagramProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const rinkZoneLabel = (rinkId?: string, zoneId?: string) => {
+    const rink = rinks.find((r) => r.id === rinkId)
+    const zone = zones.find((z) => z.id === zoneId)
+    return `${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+  }
   const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
   matches.forEach((m) => {
     const r = m.round ?? 0
@@ -144,7 +150,7 @@ export default function TournamentBracketDiagram({ matches, rinks, zones, highli
                       )}
                       {!m.isBye && m.rinkId && (
                         <div className="px-3 py-1 text-text-muted text-[11px] border-t border-border">
-                          {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                          {rinkZoneLabel(m.rinkId, m.zoneId)}
                         </div>
                       )}
                     </div>

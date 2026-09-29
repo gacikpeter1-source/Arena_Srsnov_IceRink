@@ -13,7 +13,7 @@ import {
   SlotUnavailableError
 } from '@/lib/tournaments'
 import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
-import { formatDateISO } from '@/lib/utils'
+import { formatDateISO, localizedName } from '@/lib/utils'
 import { DivisionMode, Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,7 +39,7 @@ const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
  * inline behind a picker on one shared page.
  */
 export default function TournamentDetailPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { tournamentId } = useParams<{ tournamentId: string }>()
   const { user, staff } = useAuth()
@@ -210,15 +210,15 @@ export default function TournamentDetailPage() {
           } catch (err) {
             if (!(err instanceof SlotUnavailableError)) throw err
             const found = await findSlotConflict(club.id, zone.id, date, startTime)
-            if (found?.ownerId && confirm(t('tournaments.confirmReplaceSlot', { zone: zone.name, label: found.label }))) {
+            if (found?.ownerId && confirm(t('tournaments.confirmReplaceSlot', { zone: localizedName(zone, i18n.language), label: found.label }))) {
               await resolveSlotConflict(found)
               try {
                 await createTournamentMatch(matchInput)
               } catch {
-                skippedZones.push(zone.name)
+                skippedZones.push(localizedName(zone, i18n.language))
               }
             } else {
-              skippedZones.push(zone.name)
+              skippedZones.push(localizedName(zone, i18n.language))
             }
           }
         }
@@ -401,7 +401,7 @@ export default function TournamentDetailPage() {
                     <Label className="text-white">{t('tournaments.rink')}</Label>
                     <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
                       {activeRinks.map((r) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
+                        <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
                       ))}
                     </select>
                   </div>
@@ -430,7 +430,7 @@ export default function TournamentDetailPage() {
                             onChange={(e) => setTeamRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, teamA: e.target.value } : r)))}
                             className="bg-background-dark border-border text-white"
                           />
-                          <span className="text-text-muted text-xs text-center">{zone.name}</span>
+                          <span className="text-text-muted text-xs text-center">{localizedName(zone, i18n.language)}</span>
                           <Input
                             placeholder={t('tournaments.teamB')}
                             value={teamRows[i]?.teamB ?? ''}
@@ -508,7 +508,9 @@ export default function TournamentDetailPage() {
                     <p className="text-text-secondary text-sm">
                       {m.date} · {m.startTime} · {t('common.minutes', { count: m.durationMinutes })}
                       {' · '}
-                      {m.location === 'rink' ? `${rink?.name ?? ''} — ${zone?.name ?? ''}` : (m.venueName || t('tournaments.locationOther'))}
+                      {m.location === 'rink'
+                        ? `${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+                        : m.venueName || t('tournaments.locationOther')}
                     </p>
                     {m.blocksIce && <p className="text-status-success text-xs">{t('tournaments.blockedBadge')}</p>}
                   </div>

@@ -10,6 +10,7 @@ import {
   deriveMatchState,
   KnockoutDrawError
 } from '@/lib/tournaments'
+import { localizedName } from '@/lib/utils'
 import { Rink, TournamentMatch, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -40,7 +41,12 @@ const POLL_MS = 5000
  * for the match-day scoreboard workflow.
  */
 export default function TournamentLiveControlPanel({ tournamentId, rinks, zones }: TournamentLiveControlPanelProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const rinkZoneLabel = (rinkId?: string, zoneId?: string) => {
+    const rink = rinks.find((r) => r.id === rinkId)
+    const zone = zones.find((z) => z.id === zoneId)
+    return `${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+  }
   const [matches, setMatches] = useState<(TournamentMatch & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [errorByMatch, setErrorByMatch] = useState<Record<string, string>>({})
@@ -130,8 +136,6 @@ export default function TournamentLiveControlPanel({ tournamentId, rinks, zones 
 
   const renderMatch = (m: TournamentMatch & { id: string }) => {
     const state = deriveMatchState(m)
-    const rink = rinks.find((r) => r.id === m.rinkId)
-    const zone = zones.find((z) => z.id === m.zoneId)
     return (
       <div key={m.id} className="p-3 rounded border border-border space-y-2">
         <div className="flex justify-between items-center flex-wrap gap-2">
@@ -141,7 +145,7 @@ export default function TournamentLiveControlPanel({ tournamentId, rinks, zones 
             </p>
             <p className="text-text-muted text-xs">
               {m.date} · {m.startTime}
-              {m.location === 'rink' ? ` · ${rink?.name ?? ''} — ${zone?.name ?? ''}` : m.venueName ? ` · ${m.venueName}` : ''}
+              {m.location === 'rink' ? ` · ${rinkZoneLabel(m.rinkId, m.zoneId)}` : m.venueName ? ` · ${m.venueName}` : ''}
             </p>
           </div>
           {state === 'live' && (

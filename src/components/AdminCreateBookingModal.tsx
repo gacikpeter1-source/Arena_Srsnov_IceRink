@@ -14,7 +14,7 @@ import {
 } from '@/lib/bookings'
 import { computeDaySchedule } from '@/lib/schedule'
 import { fetchScheduleOverride } from '@/lib/scheduleOverrides'
-import { addDays, formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { Club, DivisionRule, Rink, ScheduleOverride, SeriesFrequency, TimeSlotConfig, Zone } from '@/types'
 
 interface AdminCreateBookingModalProps {
@@ -40,7 +40,7 @@ export default function AdminCreateBookingModal({
   onClose,
   onCreated
 }: AdminCreateBookingModalProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [rinkId, setRinkId] = useState(() => rinks[0]?.id ?? '')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('')
@@ -230,7 +230,7 @@ export default function AdminCreateBookingModal({
               >
                 <option value="">{t('admin.selectRink')}</option>
                 {rinks.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                  <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
                 ))}
               </select>
             </div>
@@ -284,7 +284,7 @@ export default function AdminCreateBookingModal({
             >
               <option value="">{t('admin.selectZone')}</option>
               {zoneOptions.map((z) => (
-                <option key={z.id} value={z.id}>{z.name}</option>
+                <option key={z.id} value={z.id}>{localizedName(z, i18n.language)}</option>
               ))}
             </select>
           </div>

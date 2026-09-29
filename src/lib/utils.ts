@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Displays a Rink/Zone's name in whichever language the app is currently
+ * in — `name` is always the default/English value, `translations.sk` an
+ * optional Slovak override on top of it (see Rink/Zone in types/index.ts).
+ * Falls back to `name` for a Slovak session when no override was ever set,
+ * or for any language other than 'sk'.
+ */
+export function localizedName(entity: { name: string; translations?: { sk?: string } }, lang: string): string {
+  return lang === 'sk' && entity.translations?.sk ? entity.translations.sk : entity.name
+}
+
 export function getWeekStart(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()

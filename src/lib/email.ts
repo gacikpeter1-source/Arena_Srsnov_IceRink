@@ -5,6 +5,7 @@ import { generateQrDataUrl } from './qrcode'
 import { buildGoogleCalendarUrl, buildIcsContent, IcsEventInput } from './ics'
 import { PENDING_CONFIRMATION_MINUTES } from './bookings'
 import { TRAINING_PENDING_CONFIRMATION_MINUTES } from './training'
+import { localizedName } from './utils'
 import { Club, Zone } from '@/types'
 
 interface MailAttachment {
@@ -109,7 +110,7 @@ export async function queuePendingConfirmationEmail(
   const body = `
     <p>${t('email.greeting', { name: booking.name })}</p>
     <p>${t('email.confirmPendingIntro', { count: PENDING_CONFIRMATION_MINUTES })}</p>
-    ${infoRow(t('email.zone'), zone.name)}
+    ${infoRow(t('email.zone'), localizedName(zone, lang))}
     ${infoRow(t('email.date'), booking.date)}
     ${infoRow(t('email.time'), booking.startTime)}
     ${infoRow(t('email.duration'), t('common.minutes', { count: booking.durationMinutes }))}
@@ -148,7 +149,7 @@ export async function queueBookingConfirmationEmail(
 
   const icsEvent: IcsEventInput = {
     uid: `${booking.bookingId}@${new URL(cancelBaseUrl).hostname}`,
-    title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+    title: t('calendar.eventTitle', { club: club.name, zone: localizedName(zone, lang) }),
     description: t('calendar.eventDescription', { code: booking.confirmationCode, url: cancelUrl }),
     location: club.contact.address || club.name,
     date: booking.date,
@@ -160,7 +161,7 @@ export async function queueBookingConfirmationEmail(
   const body = `
     <p>${t('email.greeting', { name: booking.name })}</p>
     <p>${t('email.confirmedIntro')}</p>
-    ${infoRow(t('email.zone'), zone.name)}
+    ${infoRow(t('email.zone'), localizedName(zone, lang))}
     ${infoRow(t('email.date'), booking.date)}
     ${infoRow(t('email.time'), booking.startTime)}
     ${infoRow(t('email.duration'), t('common.minutes', { count: booking.durationMinutes }))}
@@ -216,7 +217,7 @@ export async function queueSeriesConfirmationEmail(
 
   const icsEvents: IcsEventInput[] = series.created.map((o) => ({
     uid: `${o.bookingId}@${hostname}`,
-    title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+    title: t('calendar.eventTitle', { club: club.name, zone: localizedName(zone, lang) }),
     description: t('calendar.eventDescription', { code: o.confirmationCode, url: manageUrl }),
     location: club.contact.address || club.name,
     date: o.date,
@@ -237,7 +238,7 @@ export async function queueSeriesConfirmationEmail(
   const body = `
     <p>${t('email.greeting', { name: series.name })}</p>
     <p>${t('email.seriesConfirmedIntro', { count: series.created.length })}</p>
-    ${infoRow(t('email.zone'), zone.name)}
+    ${infoRow(t('email.zone'), localizedName(zone, lang))}
     ${infoRow(t('email.time'), series.startTime)}
     ${infoRow(t('email.duration'), t('common.minutes', { count: series.durationMinutes }))}
     <div style="margin: 16px 0; padding: 10px; background: white; border-left: 4px solid #FDB913;">
@@ -286,7 +287,7 @@ export async function queueSeriesCancellationEmail(
   const body = `
     <p>${t('email.greeting', { name: info.name })}</p>
     <p>${t('email.seriesCancelledIntro', { count: info.cancelledCount })}</p>
-    ${infoRow(t('email.zone'), zone.name, '#dc2626')}
+    ${infoRow(t('email.zone'), localizedName(zone, lang), '#dc2626')}
     ${infoRow(t('email.time'), info.startTime, '#dc2626')}
     ${infoRow(t('email.duration'), t('common.minutes', { count: info.durationMinutes }), '#dc2626')}
     <p style="margin-top: 20px;">${t('email.rebookNotice')}</p>
@@ -308,7 +309,7 @@ export async function queueCancellationEmail(
   const body = `
     <p>${t('email.greeting', { name: booking.name })}</p>
     <p>${t('email.cancelledIntro')}</p>
-    ${infoRow(t('email.zone'), zone.name, '#dc2626')}
+    ${infoRow(t('email.zone'), localizedName(zone, lang), '#dc2626')}
     ${infoRow(t('email.date'), booking.date, '#dc2626')}
     ${infoRow(t('email.time'), booking.startTime, '#dc2626')}
     ${infoRow(t('email.confirmationCode'), booking.confirmationCode, '#dc2626')}

@@ -11,6 +11,7 @@ import { Booking, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AddToCalendarButtons from '@/components/AddToCalendarButtons'
 import { IcsEventInput } from '@/lib/ics'
+import { localizedName } from '@/lib/utils'
 import BackButton from '@/components/BackButton'
 
 type State = 'confirming' | 'confirmed' | 'expired' | 'invalid' | 'error'
@@ -78,7 +79,7 @@ export default function ConfirmBookingPage() {
     booking && zone && club
       ? {
           uid: `${booking.id}@${window.location.hostname}`,
-          title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+          title: t('calendar.eventTitle', { club: club.name, zone: localizedName(zone, i18n.language) }),
           description: t('calendar.eventDescription', {
             code: booking.confirmationCode,
             url: `${window.location.origin}/my-booking/${booking.id}/${booking.cancellationToken}`
@@ -113,7 +114,7 @@ export default function ConfirmBookingPage() {
             <div className="space-y-4 text-center">
               <p className="text-status-success">{t('confirmBooking.success')}</p>
               <div className="text-text-secondary space-y-1">
-                <p><strong className="text-white">{zone.name}</strong></p>
+                <p><strong className="text-white">{localizedName(zone, i18n.language)}</strong></p>
                 <p>{t('common.dateAtTime', { date: booking.date, startTime: booking.startTime })}</p>
                 <p className="mono text-primary">{booking.confirmationCode}</p>
               </div>

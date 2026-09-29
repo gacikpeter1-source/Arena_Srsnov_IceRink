@@ -15,7 +15,7 @@ import {
 } from '@/lib/bookings'
 import { queuePendingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
-import { addDays, formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { IcsEventInput } from '@/lib/ics'
 import AddToCalendarButtons from './AddToCalendarButtons'
 import { Club, SeriesFrequency, Zone } from '@/types'
@@ -175,7 +175,7 @@ export default function BookingModal({
   if (seriesResult) {
     const seriesEvents: IcsEventInput[] = seriesResult.created.map((o) => ({
       uid: `${o.bookingId}@${window.location.hostname}`,
-      title: t('calendar.eventTitle', { club: club.name, zone: zone.name }),
+      title: t('calendar.eventTitle', { club: club.name, zone: localizedName(zone, i18n.language) }),
       description: t('calendar.eventDescription', {
         code: o.confirmationCode,
         url: `${window.location.origin}/my-series/${seriesResult.seriesId}/${seriesResult.cancellationToken}`
@@ -263,7 +263,7 @@ export default function BookingModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="bg-background-card max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white text-xl">{t('booking.bookZone', { zone: zone.name })}</DialogTitle>
+          <DialogTitle className="text-white text-xl">{t('booking.bookZone', { zone: localizedName(zone, i18n.language) })}</DialogTitle>
           <div className="text-text-muted text-sm mt-2">
             {t('booking.slotInfo', { date, startTime, duration: t('common.minutes', { count: durationMinutes }) })}
           </div>

@@ -11,7 +11,7 @@ import {
   ScheduleSlot
 } from '@/lib/scheduleOverrides'
 import { downloadScheduleImportTemplate, parseScheduleWorkbook } from '@/lib/excel'
-import { addDays, formatDateISO } from '@/lib/utils'
+import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { Club, Rink, TimeSlotConfig } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -35,7 +35,7 @@ interface AdminDaySchedulePanelProps {
  * later sessions happened to have.
  */
 export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: AdminDaySchedulePanelProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [rinkId, setRinkId] = useState(() => rinks[0]?.id ?? '')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [applyToRange, setApplyToRange] = useState(false)
@@ -199,7 +199,7 @@ export default function AdminDaySchedulePanel({ club, rinks, timeSlotConfigs }: 
                 className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
               >
                 {rinks.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                  <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
                 ))}
               </select>
             </div>

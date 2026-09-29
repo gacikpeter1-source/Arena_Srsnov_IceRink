@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowUp, ArrowDown, Shuffle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { fetchTournamentTeams, setTeamSeedOrder, buildRoundRobinPreview, createRoundRobinSchedule, ScheduleSlotLocation } from '@/lib/tournaments'
-import { formatDateISO } from '@/lib/utils'
+import { formatDateISO, localizedName } from '@/lib/utils'
 import { Club, DivisionMode, Rink, TournamentTeam, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -33,7 +33,7 @@ const FORMATS: DivisionMode[] = ['full', 'half', 'halfLengthwise', 'third']
  * clicking "generate" actually writes matches.
  */
 export default function TournamentRoundRobinGenerator({ tournamentId, club, rinks, zones }: TournamentRoundRobinGeneratorProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, staff } = useAuth()
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
 
@@ -86,7 +86,7 @@ export default function TournamentRoundRobinGenerator({ tournamentId, club, rink
     .filter((r) => rinkIds.includes(r.id))
     .flatMap((r) => zones.filter((z) => z.rinkId === r.id && z.mode === format).sort((a, b) => a.slotIndex - b.slotIndex))
   const slotLocations: ScheduleSlotLocation[] = zonesForSelection.map((z) => ({ rinkId: z.rinkId, zoneId: z.id }))
-  const rinkNameById = new Map(activeRinks.map((r) => [r.id, r.name]))
+  const rinkNameById = new Map(activeRinks.map((r) => [r.id, localizedName(r, i18n.language)]))
   const nameById = new Map(teams.map((tm) => [tm.id, tm.name]))
   const orderedTeams = order.map((id) => ({ id, name: nameById.get(id) ?? '' })).filter((tm) => tm.name)
   const orderedIds = orderedTeams.map((tm) => tm.id).join(',')
@@ -189,7 +189,7 @@ export default function TournamentRoundRobinGenerator({ tournamentId, club, rink
                 {activeRinks.map((r) => (
                   <label key={r.id} className="flex items-center gap-1.5 text-sm text-white">
                     <input type="checkbox" checked={rinkIds.includes(r.id)} onChange={() => toggleRink(r.id)} className="h-4 w-4" />
-                    {r.name}
+                    {localizedName(r, i18n.language)}
                   </label>
                 ))}
               </div>
@@ -252,7 +252,7 @@ export default function TournamentRoundRobinGenerator({ tournamentId, club, rink
                         <span key={pIdx} className="text-white text-sm">
                           {p.teamAName} <span className="text-text-muted">vs</span> {p.teamBName}
                           <span className="text-text-muted text-xs">
-                            {' '}({rinkNameById.get(zonesForSelection[pIdx]?.rinkId) ?? ''} — {zonesForSelection[pIdx]?.name ?? ''})
+                            {' '}({rinkNameById.get(zonesForSelection[pIdx]?.rinkId) ?? ''} — {zonesForSelection[pIdx] ? localizedName(zonesForSelection[pIdx], i18n.language) : ''})
                           </span>
                           {pIdx < slot.pairs.length - 1 ? ' · ' : ''}
                         </span>

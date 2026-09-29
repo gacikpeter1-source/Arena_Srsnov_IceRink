@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchTournaments, fetchTournamentMatches, computeGroupStandings, deriveMatchState, withResolvedPlaceholders, GroupStandingRow } from '@/lib/tournaments'
 import { generateQrDataUrl } from '@/lib/qrcode'
+import { localizedName } from '@/lib/utils'
 import { Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import TournamentBracketDiagram from '@/components/TournamentBracketDiagram'
@@ -35,7 +36,7 @@ const FAVORITE_TEAM_STORAGE_KEY = 'turnaje-favorite-team'
  * `tournamentTeams`, which stays staff-only.
  */
 export default function TournamentSchedulePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const [searchParams] = useSearchParams()
@@ -231,6 +232,15 @@ export default function TournamentSchedulePage() {
   // it entirely rather than repeating the same information twice.
   const tvUpcomingMatches = tvMainPanelKind === 'bracket' ? [] : upcomingMatches.slice(0, 3)
 
+  // Shared "Rink — Zone" label for a match, in the current UI language —
+  // used everywhere a match's location is rendered as a one-line lookup
+  // rather than through renderMatchRow's own named rink/zone variables.
+  const rinkZoneLabel = (rinkId?: string, zoneId?: string) => {
+    const rink = rinks.find((r) => r.id === rinkId)
+    const zone = zones.find((z) => z.id === zoneId)
+    return `${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+  }
+
   // Shared row for both the round-robin and the per-group match lists —
   // every match shows its rink/zone alongside the score/time so a
   // spectator screen never leaves a match's physical location ambiguous.
@@ -246,7 +256,11 @@ export default function TournamentSchedulePage() {
           </p>
           <p className="text-text-muted text-xs">
             {m.date} · {m.startTime}
-            {m.rinkId ? ` · ${rink?.name ?? ''} — ${zone?.name ?? ''}` : m.venueName ? ` · ${m.venueName}` : ''}
+            {m.rinkId
+              ? ` · ${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+              : m.venueName
+                ? ` · ${m.venueName}`
+                : ''}
           </p>
         </div>
         {state === 'finished' ? (
@@ -412,7 +426,7 @@ export default function TournamentSchedulePage() {
                           </span>
                           <span className="text-text-muted text-2xl">
                             {m.date} · {m.startTime}
-                            {m.rinkId ? ` · ${rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — ${zones.find((z) => z.id === m.zoneId)?.name ?? ''}` : ''}
+                            {m.rinkId ? ` · ${rinkZoneLabel(m.rinkId, m.zoneId)}` : ''}
                           </span>
                         </div>
                       ))}
@@ -536,7 +550,7 @@ export default function TournamentSchedulePage() {
                               </p>
                               {m.rinkId && (
                                 <p className="text-text-muted text-xs">
-                                  {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                                  {rinkZoneLabel(m.rinkId, m.zoneId)}
                                 </p>
                               )}
                             </div>
@@ -557,7 +571,7 @@ export default function TournamentSchedulePage() {
                             </p>
                             <span className="text-text-muted text-xs">
                               {m.date} · {m.startTime}
-                              {m.rinkId ? ` · ${rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — ${zones.find((z) => z.id === m.zoneId)?.name ?? ''}` : ''}
+                              {m.rinkId ? ` · ${rinkZoneLabel(m.rinkId, m.zoneId)}` : ''}
                             </span>
                           </div>
                         ))}
@@ -627,8 +641,6 @@ export default function TournamentSchedulePage() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {otherFinishedMatches.map((m) => {
-                      const rink = rinks.find((r) => r.id === m.rinkId)
-                      const zone = zones.find((z) => z.id === m.zoneId)
                       return (
                         <div key={m.id} className="flex justify-between items-center flex-wrap gap-2 p-2 rounded border border-border">
                           <div>
@@ -638,7 +650,7 @@ export default function TournamentSchedulePage() {
                             <p className="text-text-secondary text-sm">
                               {m.date} · {m.startTime} · {t('common.minutes', { count: m.durationMinutes })}
                               {' · '}
-                              {m.location === 'rink' ? `${rink?.name ?? ''} — ${zone?.name ?? ''}` : m.venueName || t('tournaments.locationOther')}
+                              {m.location === 'rink' ? rinkZoneLabel(m.rinkId, m.zoneId) : m.venueName || t('tournaments.locationOther')}
                             </p>
                           </div>
                           <span className="text-status-success text-sm font-medium">{m.scoreA} : {m.scoreB}</span>

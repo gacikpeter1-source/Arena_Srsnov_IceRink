@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { computeDaySchedule } from '@/lib/schedule'
 import { fetchScheduleOverride } from '@/lib/scheduleOverrides'
-import { formatDateISO } from '@/lib/utils'
+import { formatDateISO, localizedName } from '@/lib/utils'
 import { Club, DivisionRule, Rink, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -19,7 +19,7 @@ interface AdminQrPanelProps {
 }
 
 export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs, divisionRules }: AdminQrPanelProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const origin = window.location.origin
 
   const [zoneRinkId, setZoneRinkId] = useState(() => rinks[0]?.id ?? '')
@@ -84,7 +84,7 @@ export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs, divi
                 className="flex h-10 w-full rounded-md border border-input bg-background-dark px-3 py-2 text-sm text-white"
               >
                 {rinks.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                  <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
                 ))}
               </select>
             </div>
@@ -99,7 +99,7 @@ export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs, divi
                   key={zone.id}
                   value={`${origin}/book?zone=${encodeURIComponent(zone.id)}`}
                   filename={`zone-${zone.id}-qr.png`}
-                  label={zone.name}
+                  label={localizedName(zone, i18n.language)}
                 />
               ))}
             </div>
@@ -122,9 +122,9 @@ export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs, divi
               >
                 <option value="">{t('admin.selectZone')}</option>
                 {rinks.map((rink) => (
-                  <optgroup key={rink.id} label={rink.name}>
+                  <optgroup key={rink.id} label={localizedName(rink, i18n.language)}>
                     {zones.filter((z) => z.rinkId === rink.id).map((z) => (
-                      <option key={z.id} value={z.id}>{z.name}</option>
+                      <option key={z.id} value={z.id}>{localizedName(z, i18n.language)}</option>
                     ))}
                   </optgroup>
                 ))}
@@ -171,7 +171,7 @@ export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs, divi
             <QrCodeDisplay
               value={generatedSlotUrl}
               filename={`${qrZone.id}-${qrDate}-${qrTime}-qr.png`}
-              label={`${qrZone.name} · ${qrDate} ${qrTime}`}
+              label={`${localizedName(qrZone, i18n.language)} · ${qrDate} ${qrTime}`}
             />
           )}
         </div>

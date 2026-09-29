@@ -177,6 +177,32 @@ and tapped selections stay lit after the pointer moves away or the
 booking form closes — matters most on touch devices, which have no real
 hover.
 
+**Rink/zone names are bilingual, not hardcoded English.** `Rink.name`/
+`Zone.name` (`src/types/index.ts`) stay the default/English value; an
+optional `translations?: { sk?: string }` on each doc holds a Slovak
+override. `localizedName(entity, lang)` (`src/lib/utils.ts`) is the single
+place that picks between them — every UI display site (booking pages,
+admin dashboards, the QR panel, the tournament schedule generators/
+bracket views, confirmation/cancel pages, the rink schedule board,
+emails) calls it with `i18n.language` rather than reading `.name`
+directly. `lib/email.ts` already threads an explicit `lang` through every
+function it exports (emails render in whatever language the customer was
+using at booking time, independent of the live UI), so it passes that
+straight through instead. Deliberately **not** extended to Excel import/
+export (`lib/excel.ts`) — the Rink/Zone column values there stay matched
+and written against the canonical English `name` only, same reasoning
+already documented for that file's fixed English column *headers*: an
+unambiguous, language-independent interchange format that can always be
+re-imported regardless of which language produced or is reading it.
+
+Since rinks/zones have no admin UI at all (see the Excel-import-editing
+note two sections up), the Slovak overrides are written the same way any
+other rink/zone data is set — a one-off Admin-SDK script,
+`scripts/translate-rinks-zones.mjs` (same pattern as `add-zones.mjs`):
+matches each doc by its current English `name` against a small mapping
+table and sets `translations.sk`, skipping (and logging) any name with no
+entry rather than guessing. Safe to re-run.
+
 ## Configurable schedule
 Session length and hours were previously set once by `scripts/seed.mjs`
 and never editable through the app. Owner/assistant self-service now

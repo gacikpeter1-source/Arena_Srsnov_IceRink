@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { localizedName } from '@/lib/utils'
 import { Rink, TournamentMatch, Zone } from '@/types'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -27,7 +28,12 @@ interface TournamentBracketViewProps {
  * tagged with a different `schema`.
  */
 export default function TournamentBracketView({ matches, rinks, zones, readOnly, scoreInputs, onScoreChange, onSaveResult, savingMatchId }: TournamentBracketViewProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const rinkZoneLabel = (rinkId?: string, zoneId?: string) => {
+    const rink = rinks.find((r) => r.id === rinkId)
+    const zone = zones.find((z) => z.id === zoneId)
+    return `${rink ? localizedName(rink, i18n.language) : ''} — ${zone ? localizedName(zone, i18n.language) : ''}`
+  }
   const rounds = new Map<number, (TournamentMatch & { id: string })[]>()
   matches.forEach((m) => {
     const r = m.round ?? 0
@@ -69,7 +75,7 @@ export default function TournamentBracketView({ matches, rinks, zones, readOnly,
                   </div>
                   {!m.isBye && m.rinkId && (
                     <p className="text-text-muted text-xs">
-                      {rinks.find((r) => r.id === m.rinkId)?.name ?? ''} — {zones.find((z) => z.id === m.zoneId)?.name ?? ''}
+                      {rinkZoneLabel(m.rinkId, m.zoneId)}
                     </p>
                   )}
                   {playable && onScoreChange && onSaveResult && (

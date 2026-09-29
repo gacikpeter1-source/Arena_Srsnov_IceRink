@@ -7,7 +7,7 @@ import { fetchBookingsInRange } from '@/lib/bookings'
 import { fetchRinkScheduleEntries } from '@/lib/rinkSchedule'
 import { fetchTournaments, fetchTournamentMatches, deriveMatchState } from '@/lib/tournaments'
 import { generateQrDataUrl } from '@/lib/qrcode'
-import { formatDateISO, timeToMinutes, minutesToTime } from '@/lib/utils'
+import { formatDateISO, timeToMinutes, minutesToTime, localizedName } from '@/lib/utils'
 import { Booking, RinkScheduleEntry, TournamentMatch } from '@/types'
 import ScaleToFit from '@/components/ScaleToFit'
 import BackButton from '@/components/BackButton'
@@ -48,7 +48,7 @@ interface BoardItem {
  * authoritative detailed view for a tournament's own resolved schedule.
  */
 export default function RinkScheduleBoardPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const [searchParams] = useSearchParams()
@@ -107,7 +107,10 @@ export default function RinkScheduleBoardPage() {
   }, [isTvMode])
 
   const nowMin = now.getHours() * 60 + now.getMinutes()
-  const zoneName = (zoneId: string) => zones.find((z) => z.id === zoneId)?.name ?? ''
+  const zoneName = (zoneId: string) => {
+    const zone = zones.find((z) => z.id === zoneId)
+    return zone ? localizedName(zone, i18n.language) : ''
+  }
 
   const roomByBookingId = new Map<string, string>()
   const roomBySeriesId = new Map<string, string>()
@@ -272,7 +275,7 @@ export default function RinkScheduleBoardPage() {
         <div className="flex-1 min-h-0 flex gap-3">
           {activeRinks.map((rink) => (
             <div key={rink.id} className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border bg-background-card p-3 gap-2">
-              <h2 className="shrink-0 text-white text-lg font-bold text-center truncate">{rink.name}</h2>
+              <h2 className="shrink-0 text-white text-lg font-bold text-center truncate">{localizedName(rink, i18n.language)}</h2>
               {renderTimeline(itemsByRink.get(rink.id) ?? [])}
               <div className="shrink-0" style={{ height: '24vh' }}>
                 <h3 className="text-text-muted text-xs uppercase tracking-wide mb-1">{t('rinkSchedule.upNext')}</h3>
@@ -315,7 +318,7 @@ export default function RinkScheduleBoardPage() {
             const items = itemsByRink.get(rink.id) ?? []
             return (
               <div key={rink.id} className="rounded-lg border border-border bg-background-card p-4 space-y-3">
-                <h2 className="text-white text-lg font-bold">{rink.name}</h2>
+                <h2 className="text-white text-lg font-bold">{localizedName(rink, i18n.language)}</h2>
                 {items.length === 0 ? (
                   <p className="text-text-muted text-sm">{t('rinkSchedule.boardNoneForRink')}</p>
                 ) : (

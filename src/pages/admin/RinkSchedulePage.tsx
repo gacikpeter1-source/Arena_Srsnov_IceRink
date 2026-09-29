@@ -9,7 +9,7 @@ import {
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES } from '@/lib/bookings'
-import { formatDateISO, addDays } from '@/lib/utils'
+import { formatDateISO, addDays, localizedName } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { RinkScheduleEntry, SeriesFrequency } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,7 +30,7 @@ import QrCodeDisplay from '@/components/QrCodeDisplay'
  * surfaces its result.
  */
 export default function RinkSchedulePage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
@@ -58,8 +58,8 @@ export default function RinkSchedulePage() {
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
   const teamNames = useMemo(() => Array.from(new Set(entries.map((e) => e.teamName))).sort(), [entries])
-  const rinkNameById = new Map(rinks.map((r) => [r.id, r.name]))
-  const zoneNameById = new Map(zones.map((z) => [z.id, z.name]))
+  const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
+  const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
 
   const refresh = () => {
     if (!club) return
@@ -230,7 +230,7 @@ export default function RinkSchedulePage() {
               <Label className="text-white">{t('admin.rink')}</Label>
               <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
                 {activeRinks.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                  <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
                 ))}
               </select>
             </div>
@@ -238,7 +238,7 @@ export default function RinkSchedulePage() {
               <Label className="text-white">{t('admin.zone')}</Label>
               <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
                 {zonesForRink.map((z) => (
-                  <option key={z.id} value={z.id}>{z.name}</option>
+                  <option key={z.id} value={z.id}>{localizedName(z, i18n.language)}</option>
                 ))}
               </select>
             </div>
