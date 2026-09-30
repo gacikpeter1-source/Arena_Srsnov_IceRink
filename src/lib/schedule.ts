@@ -1,4 +1,4 @@
-import { ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
+import { Booking, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 import { minutesToTime, timeToMinutes } from './utils'
 
 export interface ScheduleRow {
@@ -59,4 +59,53 @@ export function computeDaySchedule(
     rows.push({ time, durationMinutes: timeSlotConfig.slotDurationMinutes, zones: zones.filter((z) => z.mode === 'full') })
   }
   return rows
+}
+
+/**
+ * For a rink's already-computed day schedule, which `${zoneId}__${time}`
+ * keys are actually blocked by a real overlapping booking — same
+ * interval-overlap + 'full'-blocks-everything logic as
+ * findOverlapConflict (lib/rinkConflicts.ts), but computed once over the
+ * whole day locally instead of one Firestore query per candidate slot, so
+ * the public /book page can grey out a zone/time it would otherwise (via
+ * plain exact-slot matching) show as free even though it truly overlaps
+ * an ad-hoc-timed booking — see CLAUDE.md's "Real time-interval overlap
+ * detection" note. `bookings` should already be filtered to the relevant
+ * date; this only filters by rinkId and active status (cancelled/expired
+ * excluded; an unexpired 'pending' hold still blocks, matching how
+ * fetchLockedSlots already treats a pending lock).
+ */
+export function computeOverlapBlockedKeys(
+  rows: ScheduleRow[],
+  rinkId: string,
+  zones: Zone[],
+  bookings: (Booking & { id: string })[]
+): Set<string> {
+  const now = Date.now()
+  const activeBookings = bookings.filter(
+    (b) =>
+      b.rinkId === rinkId &&
+      (b.status === 'confirmed' ||
+        (b.status === 'pending' && (!b.pendingExpiresAt || new Date(b.pendingExpiresAt).getTime() > now)))
+  )
+
+  const blocked = new Set<string>()
+  for (const row of rows) {
+    const rowStart = timeToMinutes(row.time)
+    const rowEnd = rowStart + row.durationMinutes
+    for (const zone of row.zones) {
+      const overlaps = activeBookings.some((b) => {
+        if (b.zoneId !== zone.id) {
+          const bZone = zones.find((z) => z.id === b.zoneId)
+          const eitherFull = zone.mode === 'full' || bZone?.mode === 'full'
+          if (!eitherFull) return false
+        }
+        const bStart = timeToMinutes(b.startTime)
+        const bEnd = bStart + b.durationMinutes
+        return rowStart < bEnd && bStart < rowEnd
+      })
+      if (overlaps) blocked.add(`${zone.id}__${row.time}`)
+    }
+  }
+  return blocked
 }

@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
-import { fetchLockedSlots, fetchLockedSlotsRange } from '@/lib/bookings'
-import { computeDaySchedule, ScheduleRow } from '@/lib/schedule'
+import { fetchBookingsInRange, fetchLockedSlots, fetchLockedSlotsRange } from '@/lib/bookings'
+import { computeDaySchedule, computeOverlapBlockedKeys, ScheduleRow } from '@/lib/schedule'
 import { fetchScheduleOverridesRange } from '@/lib/scheduleOverrides'
 import { addDays, formatDateISO, localizedName } from '@/lib/utils'
-import { Rink, ScheduleOverride, Zone } from '@/types'
+import { Booking, Rink, ScheduleOverride, Zone } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BookingModal from '@/components/BookingModal'
@@ -35,6 +35,12 @@ export default function BookingPage() {
     dateParam ? new Date(`${dateParam}T00:00:00`) : new Date()
   )
   const [lockedSlots, setLockedSlots] = useState<Set<string>>(new Set())
+  // Real bookings for the selected day, across every rink — used to catch a
+  // genuine time-interval overlap that a different-but-overlapping exact
+  // start time (e.g. an ad-hoc rink-schedule entry at 11:30) would slip
+  // past the exact-match `lockedSlots` check above. See
+  // computeOverlapBlockedKeys (lib/schedule.ts).
+  const [dayBookings, setDayBookings] = useState<(Booking & { id: string })[]>([])
   // Locked slots across the whole visible day range, one Set per date —
   // powers the day-picker's occupancy dots, separate from lockedSlots
   // above which is just the currently selected day (used for graying out
@@ -70,6 +76,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (!club) return
     fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
+    fetchBookingsInRange(club.id, dateISO, dateISO).then(setDayBookings)
   }, [club, dateISO])
 
   useEffect(() => {
@@ -115,6 +122,7 @@ export default function BookingPage() {
     if (!club) return
     fetchLockedSlots(club.id, dateISO).then(setLockedSlots)
     fetchLockedSlotsRange(club.id, rangeStart, rangeEnd).then(setLockedSlotsRange)
+    fetchBookingsInRange(club.id, dateISO, dateISO).then(setDayBookings)
   }
 
   const visibleRinks = rinkFilter === 'all' ? rinks : rinks.filter((r) => r.id === rinkFilter)
@@ -141,6 +149,20 @@ export default function BookingPage() {
     }
     return map
   }, [visibleRinks, timeSlotConfigs, zones, selectedDate, dateISO, overridesByRink, zoneParam])
+
+  // Real overlap-blocked `${zoneId}__${time}` keys per visible rink, for
+  // the currently selected day only — merged with the exact-match
+  // `lockedSlots` when deciding whether a zone button is disabled. See
+  // computeOverlapBlockedKeys's own doc comment for why exact-match alone
+  // can miss a genuine conflict.
+  const overlapBlockedByRink = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    for (const rink of visibleRinks) {
+      const rows = schedulesByRink.get(rink.id) ?? []
+      map.set(rink.id, computeOverlapBlockedKeys(rows, rink.id, zones, dayBookings))
+    }
+    return map
+  }, [visibleRinks, schedulesByRink, zones, dayBookings])
 
   // How full each of the 14 visible days is, across whichever rink(s) are
   // currently in view — "occupied" counts individually-bookable zone-time
@@ -340,7 +362,9 @@ export default function BookingPage() {
                               <span className="text-text-muted text-xs">{t('home.noZonesConfigured')}</span>
                             ) : (
                               slotZones.map((zone) => {
-                                const isTaken = lockedSlots.has(`${zone.id}__${time}`)
+                                const isTaken =
+                                  lockedSlots.has(`${zone.id}__${time}`) ||
+                                  (overlapBlockedByRink.get(rink.id)?.has(`${zone.id}__${time}`) ?? false)
                                 const isSelected = selected?.rinkId === rink.id && selected.zone.id === zone.id
                                 return (
                                   <Button
@@ -380,6 +404,7 @@ export default function BookingPage() {
           club={club}
           rinkId={pendingBooking.rink.id}
           zone={pendingBooking.zone}
+          zones={zones}
           date={dateISO}
           startTime={pendingBooking.time}
           durationMinutes={pendingBooking.durationMinutes}

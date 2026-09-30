@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Menu, ChevronDown } from 'lucide-react'
+import { Menu, ChevronDown, Download } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { roleLabelKey } from '@/lib/staff'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { promptInstall } from '@/lib/pwaInstall'
 import { Club } from '@/types'
 import ContactUsButton from './ContactUsButton'
 
@@ -24,6 +26,7 @@ interface HeaderMenuProps {
 export default function HeaderMenu({ club }: HeaderMenuProps) {
   const { t } = useTranslation()
   const { staff } = useAuth()
+  const { canInstall } = usePwaInstall()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -79,6 +82,19 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               <p className="text-white text-sm font-medium truncate">{staff.name}</p>
               <p className="text-text-muted text-xs">{roleLabel}</p>
             </div>
+          )}
+          {canInstall && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                promptInstall()
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-text-secondary hover:text-primary hover:bg-background-dark"
+            >
+              <Download className="h-4 w-4" />
+              {t('nav.installApp')}
+            </button>
           )}
           <Link
             to="/treningy"

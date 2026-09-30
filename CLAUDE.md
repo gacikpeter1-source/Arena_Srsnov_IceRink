@@ -2186,6 +2186,28 @@ fallback inside the existing `catch (SlotUnavailableError)` branch, for
 the narrow race where someone else books the exact same slot in the gap
 between the proactive check and the actual write.
 
+**The same gap existed on the public `/book` page itself, not just the
+staff-side forms.** `BookingPage.tsx`'s zone buttons only greyed out an
+exact `${zoneId}__${time}` match against `slotLocks` (via
+`fetchLockedSlots`) — so a zone genuinely occupied by an ad-hoc-timed
+booking (e.g. a rink-schedule entry at 11:30) could still show as bookable
+at, say, 11:00 if nothing held that exact key. `computeOverlapBlockedKeys`
+(`lib/schedule.ts`) is the display-side equivalent of `findOverlapConflict`
+— given a rink's already-computed `ScheduleRow[]` and that day's real
+`Booking` docs (fetched once via `fetchBookingsInRange`, not one query per
+candidate cell), it returns the full set of blocked `${zoneId}__${time}`
+keys using the same interval-overlap + `'full'`-blocks-everything rule,
+merged into `BookingPage.tsx`'s existing `lockedSlots` check. `BookingModal.tsx`
+also runs `findOverlapConflict` reactively before ever calling
+`createBooking` (non-recurring bookings only, same scope boundary as the
+staff-side forms) — unlike the staff flow, a blocked customer booking is
+never offered a "replace" option, since a customer can never cancel
+someone else's reservation. Deliberately **not** extended to the 14-day
+day-picker dots or the week-view `AvailabilityGrid` heatmap in this pass —
+those stay on the faster exact-match `lockedSlotsRange` check, since
+they're approximate at-a-glance indicators rather than what actually gates
+a real booking attempt.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
