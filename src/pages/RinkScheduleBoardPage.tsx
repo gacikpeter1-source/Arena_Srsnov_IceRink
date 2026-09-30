@@ -14,16 +14,13 @@ import BackButton from '@/components/BackButton'
 
 const POLL_MS = 30000
 const CLOCK_TICK_MS = 30000
-// A fixed 12-hour window centered near "now" (per the club's own design
+// A fixed 3-hour window centered near "now" (per the club's own design
 // concept — see CLAUDE.md's "Rink team schedule" section), recomputed
 // every POLL_MS rather than animated frame-by-frame (an explicit "simpler
 // is fine" answer) — CSS `transition` on each block's left/width is what
 // makes that periodic recompute read as a smooth slide instead of a jump-cut.
-// Widened from an initial 3-hour window (30 before/150 after) per explicit
-// request so a whole day's morning-to-evening sessions stay visible on the
-// timeline at once, not just in the "Nasleduje" list below it.
-const WINDOW_BEFORE_MIN = 60
-const WINDOW_AFTER_MIN = 660
+const WINDOW_BEFORE_MIN = 30
+const WINDOW_AFTER_MIN = 150
 
 interface BoardItem {
   id: string
