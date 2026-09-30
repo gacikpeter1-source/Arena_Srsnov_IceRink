@@ -2018,6 +2018,31 @@ hood (just restyled as a clock, no visible underline) — harmless on a
 real TV and a convenient escape hatch when someone previews TV mode on
 a phone or laptop.
 
+**Cells stretch to the column's real width; colors tuned after seeing it
+live.** The first cut of the above wrapped the whole event list in
+`ScaleToFit`, same as every other TV screen in this app — but
+`ScaleToFit`'s inner content is `display: inline-block` (shrink-to-fit),
+so a `w-full` cell inside it only ever stretched to the *widest row's own
+natural text width*, not the column's actual available width — the list
+sat centered with wasted space on both sides instead of filling the
+column, exactly the "not readable enough" feedback this got. Fixed by
+dropping `ScaleToFit` from this list entirely: `renderEventList`'s root is
+now a plain `w-full h-full` flex column directly in the rink column's own
+block context (no `inline-block` ancestor in the way), so every cell
+genuinely spans the full column width and `justify-between` correctly
+pushes a room label all the way to the right edge. Text sizes switched
+from fixed Tailwind steps to `clamp()` (same technique the header's club
+name already used) so they scale continuously with screen size rather
+than jumping between a couple of breakpoints. Losing `ScaleToFit` also
+means losing its "always fits, no matter how many events" guarantee, so
+`MAX_UPCOMING_SLOTS` (5) caps how many upcoming slots render — matches
+the cap the very first pre-timeline version of this list already used,
+before more precision was needed. Separately, the "next" cell's color changed from red to **amber/yellow**
+(`status-warning` — the same token the conflict-detection notices
+elsewhere already use for "heads up, not an error") after seeing red
+read as an alarm rather than "starting soon" on an actual screen — green
+(`status-success`) for "live now" was correct from the start and stayed.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
