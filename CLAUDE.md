@@ -1982,6 +1982,18 @@ text that was typed, so the existing date/time string parsing behaves
 identically whether the row came from a `.csv`/`.txt` file or was read
 back out of the generated `.xlsx` template.
 
+**Duration column added back, optional.** The "no Duration column at
+all" decision two paragraphs up didn't survive contact with a real club
+that does want to vary session length per row — **Trvanie** (minutes) is
+now a column again, positioned between **Cas** and **Satna** to match how
+the club actually reads the sheet left to right. Still optional: a blank
+cell books `RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES` (60) exactly
+as before, so a sheet of same-length sessions still never needs to repeat
+that number — a non-blank cell that isn't a valid positive number is a
+row error (`Invalid "Trvanie"`), same "collect every row error" pattern
+the other required columns already use, rather than silently falling back
+to 60 for a typo.
+
 ### Fáza 2: public "who has the ice when" TV dashboard
 
 `RinkScheduleBoardPage.tsx` (`/rozvrh`, public, no login — linked from

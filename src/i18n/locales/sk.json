@@ -432,7 +432,7 @@
     "conflictNotice": "Pozor: tento termín už obsadzuje {{label}}. Pri odoslaní budete môcť túto udalosť nahradiť.",
     "conflictNoticeBooking": "Pozor: tento termín je už obsadený zákazníckou rezerváciou a nedá sa odtiaľto nahradiť.",
     "importTitle": "Hromadný import",
-    "importHint": "Nahrajte tabuľku (alebo obyčajný .csv/.txt súbor s rovnakými stĺpcami) a pridajte viacero záznamov naraz — jeden riadok na dátum, pre opakujúci sa záznam použite formulár vyššie. Povinné stĺpce: Hala (číslo haly, napr. 1 alebo 2), Nazov (názov), Datum (dátum v tvare dd.mm.rrrr), Cas (čas začiatku, 24-hodinový formát). Nepovinné: Satna (šatňa), Ihrisko (ktorá časť ľadovej plochy — ak nevyplníte, použije sa celé ihrisko). Každý riadok vytvorí rezerváciu na 60 minút.",
+    "importHint": "Nahrajte tabuľku (alebo obyčajný .csv/.txt súbor s rovnakými stĺpcami) a pridajte viacero záznamov naraz — jeden riadok na dátum, pre opakujúci sa záznam použite formulár vyššie. Povinné stĺpce: Hala (číslo haly, napr. 1 alebo 2), Nazov (názov), Datum (dátum v tvare dd.mm.rrrr), Cas (čas začiatku, 24-hodinový formát). Nepovinné: Trvanie (dĺžka v minútach — ak nevyplníte, použije sa 60), Satna (šatňa), Ihrisko (ktorá časť ľadovej plochy — ak nevyplníte, použije sa celé ihrisko).",
     "downloadTemplate": "Stiahnuť šablónu na import",
     "importSuccess": "Pridaných {{count}} záznamov do rozvrhu.",
     "importRow": "Riadok {{row}}",

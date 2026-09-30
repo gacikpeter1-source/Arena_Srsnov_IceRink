@@ -526,11 +526,12 @@ export function parseTournamentMatchesWorkbook(buffer: ArrayBuffer): ParsedTourn
 // text and optional — left blank, the row books the whole rink; filled
 // in, it's matched against the zone's name, its Slovak translation, or
 // (for a split zone) the same A/B/C letter RinkScheduleBoardPage.tsx's TV
-// board now shows for exactly this purpose. There's deliberately no
-// Duration column — a hand-typed row shouldn't need to restate the same
-// number on every line, so every imported row uses one fixed default
-// (see RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES below), matching the
-// manual create form's own 60-minute default.
+// board now shows for exactly this purpose. "Trvanie" (duration, minutes)
+// is optional too — left blank, the row books
+// RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES (60, matching the manual
+// create form's own default) rather than erroring, so a hand-typed sheet
+// of same-length sessions doesn't need to restate the same number on
+// every line.
 // ---------------------------------------------------------------------
 
 const RINK_SCHEDULE_HEADERS = {
@@ -538,6 +539,7 @@ const RINK_SCHEDULE_HEADERS = {
   team: 'Nazov',
   date: 'Datum',
   startTime: 'Cas',
+  duration: 'Trvanie',
   room: 'Satna',
   zonePart: 'Ihrisko'
 } as const
@@ -547,17 +549,19 @@ const RINK_SCHEDULE_IMPORT_HEADERS = [
   RINK_SCHEDULE_HEADERS.team,
   RINK_SCHEDULE_HEADERS.date,
   RINK_SCHEDULE_HEADERS.startTime,
+  RINK_SCHEDULE_HEADERS.duration,
   RINK_SCHEDULE_HEADERS.room,
   RINK_SCHEDULE_HEADERS.zonePart
 ]
 
 // One concrete example row shown right under the header row in the
 // downloaded template, so staff hand-typing further rows have a working
-// sample to copy the format from.
-const RINK_SCHEDULE_EXAMPLE_ROW = [1, 'Gaca', '01.10.2026', '21:45', 'Satna 5', '']
+// sample to copy the format from. Duration left blank to also demonstrate
+// the 60-minute default.
+const RINK_SCHEDULE_EXAMPLE_ROW = [1, 'Gaca', '01.10.2026', '21:45', '', 'Satna 5', '']
 
-// Every imported row books this long when no Duration column exists to
-// say otherwise — same default the manual create form itself starts at.
+// What a blank "Trvanie" column books — same default the manual create
+// form itself starts at.
 export const RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES = 60
 
 export function downloadRinkScheduleImportTemplate(filename = 'rink-schedule-template.xlsx'): void {
@@ -575,6 +579,7 @@ export interface RinkScheduleImportRow {
   teamName: string
   date: string
   startTime: string
+  durationMinutes: number
   room?: string
   // Free text naming which part of the ice — blank means the whole rink.
   // Resolved by the caller against a zone's name/translation/A-B-C letter.
@@ -643,6 +648,7 @@ export function parseRinkScheduleWorkbook(input: ArrayBuffer | string): ParsedRi
     const teamName = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.team) ?? '').trim()
     const date = excelValueToDateString(getFieldCI(r, RINK_SCHEDULE_HEADERS.date))
     const startTime = excelValueToTimeString(getFieldCI(r, RINK_SCHEDULE_HEADERS.startTime))
+    const durationRaw = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.duration) ?? '').trim()
     const room = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.room) ?? '').trim()
     const zonePart = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.zonePart) ?? '').trim()
 
@@ -662,8 +668,17 @@ export function parseRinkScheduleWorkbook(input: ArrayBuffer | string): ParsedRi
       errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.startTime}"` })
       return
     }
+    let durationMinutes = RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES
+    if (durationRaw) {
+      const parsed = Number(durationRaw)
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        errors.push({ rowNumber, message: `Invalid "${RINK_SCHEDULE_HEADERS.duration}"` })
+        return
+      }
+      durationMinutes = parsed
+    }
 
-    rows.push({ rinkNumber, teamName, date, startTime, room: room || undefined, zonePart: zonePart || undefined })
+    rows.push({ rinkNumber, teamName, date, startTime, durationMinutes, room: room || undefined, zonePart: zonePart || undefined })
   })
 
   return { rows, errors }
