@@ -211,37 +211,32 @@ export default function RinkScheduleBoardPage() {
         : variant === 'next'
           ? 'border-status-danger bg-status-danger/15'
           : 'border-status-warning bg-status-warning/15'
-    const timeClasses =
-      variant === 'live'
-        ? 'text-status-success text-[clamp(0.85rem,1.3vw,1.1rem)]'
-        : variant === 'next'
-          ? 'text-status-danger text-[clamp(1.15rem,2vw,1.75rem)]'
-          : 'text-status-warning text-[clamp(0.8rem,1.1vw,0.95rem)]'
-    const nameClasses =
+    const lineClasses =
       variant === 'next'
         ? 'text-[clamp(0.95rem,1.6vw,1.3rem)] text-white'
         : variant === 'live'
           ? 'text-[clamp(0.8rem,1.15vw,1rem)] text-white'
           : 'text-[clamp(0.75rem,1vw,0.9rem)] text-white'
-    const roomClasses = variant === 'next' ? 'text-[clamp(0.7rem,1vw,0.85rem)] text-text-muted' : 'text-[clamp(0.65rem,0.85vw,0.75rem)] text-text-muted'
 
     return (
       <div key={slot.startMin} className={`w-full rounded-lg border px-3 py-1.5 ${cellClasses}`}>
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className={`font-bold mono ${timeClasses}`}>{minutesToTime(slot.startMin)}</span>
-          {variant === 'live' && <span className="text-status-success text-[0.65rem] uppercase tracking-wide font-semibold">{t('tournaments.liveNow')}</span>}
-          {variant === 'next' && <span className="text-status-danger text-[0.65rem] uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
-        </div>
-        <div className="flex flex-col gap-0 w-full">
-          {slot.items.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-3 w-full">
-              <span className={`font-semibold truncate ${nameClasses}`}>
-                {it.label}
+        {(variant === 'live' || variant === 'next') && (
+          <div className="mb-0.5">
+            {variant === 'live' && <span className="text-status-success text-[0.65rem] uppercase tracking-wide font-semibold">{t('tournaments.liveNow')}</span>}
+            {variant === 'next' && <span className="text-status-danger text-[0.65rem] uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
+          </div>
+        )}
+        <div className="flex flex-col gap-0.5 w-full">
+          {slot.items.map((it) => {
+            const room = formatRoomLine(t, it.room, it.awayRoom)
+            return (
+              <div key={it.id} className={`font-semibold truncate ${lineClasses}`}>
+                {it.label} - {minutesToTime(slot.startMin)}
+                {room ? ` - ${room}` : ''}
                 {it.liveScore ? ` (${it.liveScore})` : ''}
-              </span>
-              {formatRoomLine(t, it.room, it.awayRoom) && <span className={`whitespace-nowrap shrink-0 ${roomClasses}`}>{formatRoomLine(t, it.room, it.awayRoom)}</span>}
-            </div>
-          ))}
+              </div>
+            )
+          })}
         </div>
       </div>
     )
