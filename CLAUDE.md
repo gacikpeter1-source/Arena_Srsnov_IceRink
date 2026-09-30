@@ -2065,6 +2065,24 @@ documented gap rather than a quick-but-too-broad rules change.
 branding colors. Cross-domain conflict detection (below) landed in a
 later pass.
 
+**Separate home/away locker rooms for a match entry.** `room` alone
+couldn't express a league game where the two teams need different
+changing rooms — `RinkScheduleEntry.awayRoom` (plus its own
+`occurrenceAwayRooms?: Record<bookingId, string>` per-occurrence override,
+mirroring `room`/`occurrenceRooms` exactly) covers that: `room` is the
+home side, `awayRoom` the visiting side, both optional and independent —
+a normal single-team entry (training, public skating) just leaves
+`awayRoom` unset. `RinkSchedulePage.tsx`'s create form and
+`RinkScheduleEditModal.tsx` both gained a second "Šatňa hostí" input next
+to the existing room field. Wherever a room is displayed
+(`RinkScheduleBoardPage.tsx`'s TV timeline blocks, its "Nasleduje" list,
+and the plain list view), `formatRoomLine` shows just `room` when
+`awayRoom` is unset, or both labeled ("Domáci: X · Hostia: Y") when both
+are set — never silently dropping the away room. Not extended to the
+Excel bulk importer (`parseRinkScheduleWorkbook`) — that's for recurring
+standing blocks (practices/courses), not one-off matches, which are
+already a manual-form case.
+
 ### Tournament ↔ rink schedule conflicts
 
 Both domains reserve real ice through the exact same `createBooking`/

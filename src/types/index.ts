@@ -255,7 +255,12 @@ export interface RinkScheduleEntry {
   teamName: string
   // Locker/changing room — optional, can be filled in later by editing
   // this same entry rather than needing the whole schedule re-entered.
+  // When the entry is a match between two teams, `room` is the home
+  // side's room and `awayRoom` the visiting side's — set both to show
+  // them separately everywhere a room is displayed; leave `awayRoom`
+  // unset for a normal single-team entry (training, public skating, ...).
   room?: string
+  awayRoom?: string
   createdBy: string
   createdByName: string
   // The entry's first (or only) occurrence.
@@ -278,6 +283,10 @@ export interface RinkScheduleEntry {
   // old Booking and creates a new one, so this map is keyed by whichever
   // Booking id is current, not the occurrence's original one.
   occurrenceRooms?: Record<string, string>
+  // Same per-occurrence override, for `awayRoom` — kept as its own map
+  // rather than folding into occurrenceRooms since a given occurrence can
+  // override just one side's room without touching the other.
+  occurrenceAwayRooms?: Record<string, string>
   createdAt: Date
 }
 
