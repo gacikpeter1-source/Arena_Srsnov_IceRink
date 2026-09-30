@@ -47,6 +47,7 @@ export default function RinkSchedulePage() {
   const [zoneId, setZoneId] = useState('')
   const [teamName, setTeamName] = useState('')
   const [room, setRoom] = useState('')
+  const [awayRoom, setAwayRoom] = useState('')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('17:00')
   const [durationMinutes, setDurationMinutes] = useState(60)
@@ -134,6 +135,7 @@ export default function RinkSchedulePage() {
       zoneId,
       teamName: teamName.trim(),
       room: room.trim() || undefined,
+      awayRoom: awayRoom.trim() || undefined,
       createdBy: user.uid,
       createdByName: staff.name,
       createdByEmail: staff.email,
@@ -147,6 +149,7 @@ export default function RinkSchedulePage() {
       await createRinkScheduleEntry(entryInput)
       setTeamName('')
       setRoom('')
+      setAwayRoom('')
       refresh()
     } catch (err) {
       if (err instanceof SlotUnavailableError && !recurrence) {
@@ -161,6 +164,7 @@ export default function RinkSchedulePage() {
             await createRinkScheduleEntry(entryInput)
             setTeamName('')
             setRoom('')
+            setAwayRoom('')
             refresh()
           } catch {
             setError(t('common.error'))
@@ -298,6 +302,10 @@ export default function RinkSchedulePage() {
               <Label className="text-white">{t('rinkSchedule.room')}</Label>
               <Input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={t('rinkSchedule.roomPlaceholder')} className="bg-background-dark border-border text-white" />
             </div>
+            <div>
+              <Label className="text-white">{t('rinkSchedule.awayRoom')}</Label>
+              <Input value={awayRoom} onChange={(e) => setAwayRoom(e.target.value)} placeholder={t('rinkSchedule.awayRoomPlaceholder')} className="bg-background-dark border-border text-white" />
+            </div>
 
             <div className="sm:col-span-4 border-t border-border pt-3">
               <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
@@ -398,6 +406,7 @@ export default function RinkSchedulePage() {
                     <th className="py-2 pr-3">{t('admin.zone')}</th>
                     <th className="py-2 pr-3">{t('rinkSchedule.teamName')}</th>
                     <th className="py-2 pr-3">{t('rinkSchedule.room')}</th>
+                    <th className="py-2 pr-3">{t('rinkSchedule.awayRoom')}</th>
                     <th className="py-2 pr-3" />
                   </tr>
                 </thead>
@@ -412,6 +421,7 @@ export default function RinkSchedulePage() {
                             <td className="py-2 pr-3 mono text-text-muted" colSpan={4}>{t('rinkSchedule.noOccurrences')}</td>
                             <td className="py-2 pr-3 text-white">{entry.teamName}</td>
                             <td className="py-2 pr-3 text-text-secondary">{entry.room ?? '—'}</td>
+                            <td className="py-2 pr-3 text-text-secondary">{entry.awayRoom ?? '—'}</td>
                             <td className="py-2 pr-3">
                               <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                                 {t('common.delete')}
@@ -421,6 +431,7 @@ export default function RinkSchedulePage() {
                         )}
                         {occurrences.map((occurrence) => {
                           const room = entry.occurrenceRooms?.[occurrence.id] ?? entry.room
+                          const awayRoomValue = entry.occurrenceAwayRooms?.[occurrence.id] ?? entry.awayRoom
                           return (
                             <tr key={occurrence.id} className="border-b border-border">
                               <td className="py-2 pr-3 mono">{occurrence.date}{isSeries ? ` (${t('rinkSchedule.recurring')})` : ''}</td>
@@ -429,6 +440,7 @@ export default function RinkSchedulePage() {
                               <td className="py-2 pr-3">{zoneNameById.get(occurrence.zoneId) ?? occurrence.zoneId}</td>
                               <td className="py-2 pr-3 text-white">{occurrence.name}</td>
                               <td className="py-2 pr-3 text-text-secondary">{room ?? '—'}</td>
+                              <td className="py-2 pr-3 text-text-secondary">{awayRoomValue ?? '—'}</td>
                               <td className="py-2 pr-3">
                                 <div className="flex gap-2">
                                   <Button
@@ -460,7 +472,7 @@ export default function RinkSchedulePage() {
                         })}
                         {isSeries && occurrences.length > 0 && (
                           <tr key={`${entry.id}-delete-series`} className="border-b border-border">
-                            <td className="py-2 pr-3" colSpan={7}>
+                            <td className="py-2 pr-3" colSpan={8}>
                               <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                                 {t('rinkSchedule.deleteSeries')}
                               </Button>
@@ -486,6 +498,7 @@ export default function RinkSchedulePage() {
           entry={editing.entry}
           occurrence={editing.occurrence}
           currentRoom={editing.entry.occurrenceRooms?.[editing.occurrence.id] ?? editing.entry.room}
+          currentAwayRoom={editing.entry.occurrenceAwayRooms?.[editing.occurrence.id] ?? editing.entry.awayRoom}
           isOpen={!!editing}
           onClose={() => setEditing(null)}
           onSaved={refresh}

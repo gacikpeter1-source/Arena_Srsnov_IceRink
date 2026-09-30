@@ -18,6 +18,7 @@ export interface CreateRinkScheduleEntryInput {
   zoneId: string
   teamName: string
   room?: string
+  awayRoom?: string
   createdBy: string
   createdByName: string
   // Synthesized onto the underlying Booking's required email/phone
@@ -41,6 +42,7 @@ export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInpu
     zoneId: input.zoneId,
     teamName: input.teamName,
     ...(input.room ? { room: input.room } : {}),
+    ...(input.awayRoom ? { awayRoom: input.awayRoom } : {}),
     createdBy: input.createdBy,
     createdByName: input.createdByName,
     date: input.date,
@@ -91,6 +93,7 @@ export interface RinkScheduleOccurrenceFields {
   durationMinutes: number
   teamName: string
   room?: string
+  awayRoom?: string
   timezone: string
 }
 
@@ -180,7 +183,8 @@ export async function rescheduleRinkScheduleEntry(
     durationMinutes: fields.durationMinutes,
     teamName: fields.teamName,
     bookingId: newBookingId,
-    ...(fields.room ? { room: fields.room } : {})
+    ...(fields.room ? { room: fields.room } : {}),
+    ...(fields.awayRoom ? { awayRoom: fields.awayRoom } : {})
   })
 }
 
@@ -229,11 +233,21 @@ export async function rescheduleRinkScheduleOccurrence(
     newBookingId = created.id
   }
 
+  const entryUpdates: { occurrenceRooms?: Record<string, string>; occurrenceAwayRooms?: Record<string, string> } = {}
   if (fields.room) {
     const occurrenceRooms = { ...entry.occurrenceRooms }
     delete occurrenceRooms[oldBookingId]
     occurrenceRooms[newBookingId] = fields.room
-    await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { occurrenceRooms })
+    entryUpdates.occurrenceRooms = occurrenceRooms
+  }
+  if (fields.awayRoom) {
+    const occurrenceAwayRooms = { ...entry.occurrenceAwayRooms }
+    delete occurrenceAwayRooms[oldBookingId]
+    occurrenceAwayRooms[newBookingId] = fields.awayRoom
+    entryUpdates.occurrenceAwayRooms = occurrenceAwayRooms
+  }
+  if (Object.keys(entryUpdates).length > 0) {
+    await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), entryUpdates)
   }
 }
 

@@ -26,6 +26,7 @@ interface RinkScheduleEditModalProps {
   // zone/team fields are seeded from.
   occurrence: Booking & { id: string }
   currentRoom?: string
+  currentAwayRoom?: string
   isOpen: boolean
   onClose: () => void
   onSaved: () => void
@@ -47,6 +48,7 @@ export default function RinkScheduleEditModal({
   entry,
   occurrence,
   currentRoom,
+  currentAwayRoom,
   isOpen,
   onClose,
   onSaved
@@ -58,6 +60,7 @@ export default function RinkScheduleEditModal({
   const [zoneId, setZoneId] = useState(occurrence.zoneId)
   const [teamName, setTeamName] = useState(occurrence.name)
   const [room, setRoom] = useState(currentRoom ?? '')
+  const [awayRoom, setAwayRoom] = useState(currentAwayRoom ?? '')
   const [date, setDate] = useState(occurrence.date)
   const [startTime, setStartTime] = useState(occurrence.startTime)
   const [durationMinutes, setDurationMinutes] = useState(occurrence.durationMinutes)
@@ -73,6 +76,7 @@ export default function RinkScheduleEditModal({
     setZoneId(occurrence.zoneId)
     setTeamName(occurrence.name)
     setRoom(currentRoom ?? '')
+    setAwayRoom(currentAwayRoom ?? '')
     setDate(occurrence.date)
     setStartTime(occurrence.startTime)
     setDurationMinutes(occurrence.durationMinutes)
@@ -112,6 +116,7 @@ export default function RinkScheduleEditModal({
       durationMinutes,
       teamName: teamName.trim(),
       room: room.trim() || undefined,
+      awayRoom: awayRoom.trim() || undefined,
       timezone
     }
     const apply = () =>
@@ -212,6 +217,10 @@ export default function RinkScheduleEditModal({
             <div>
               <Label className="text-white">{t('rinkSchedule.room')}</Label>
               <Input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={t('rinkSchedule.roomPlaceholder')} className="bg-background-dark border-border text-white" />
+            </div>
+            <div>
+              <Label className="text-white">{t('rinkSchedule.awayRoom')}</Label>
+              <Input value={awayRoom} onChange={(e) => setAwayRoom(e.target.value)} placeholder={t('rinkSchedule.awayRoomPlaceholder')} className="bg-background-dark border-border text-white" />
             </div>
           </div>
           <DialogFooter>

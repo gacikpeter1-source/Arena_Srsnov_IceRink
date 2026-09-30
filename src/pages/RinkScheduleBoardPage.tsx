@@ -31,10 +31,19 @@ interface BoardItem {
   zoneLabel: string
   label: string
   room?: string
+  awayRoom?: string
   startMin: number
   endMin: number
   state: 'upcoming' | 'live' | 'finished'
   liveScore?: string
+}
+
+// Combines a home + away locker room into one display string — e.g. for a
+// match where both teams need their own room. Falls back to whichever one
+// side actually has, or undefined when neither does.
+function formatRoomLine(t: (key: string, opts?: Record<string, unknown>) => string, room?: string, awayRoom?: string): string | undefined {
+  if (room && awayRoom) return t('rinkSchedule.roomBothLine', { home: room, away: awayRoom })
+  return room ?? awayRoom
 }
 
 /**
@@ -117,15 +126,23 @@ export default function RinkScheduleBoardPage() {
 
   const roomByBookingId = new Map<string, string>()
   const roomBySeriesId = new Map<string, string>()
+  const awayRoomByBookingId = new Map<string, string>()
+  const awayRoomBySeriesId = new Map<string, string>()
   entries.forEach((entry) => {
     if (entry.room) {
       if (entry.bookingId) roomByBookingId.set(entry.bookingId, entry.room)
       if (entry.seriesId) roomBySeriesId.set(entry.seriesId, entry.room)
     }
+    if (entry.awayRoom) {
+      if (entry.bookingId) awayRoomByBookingId.set(entry.bookingId, entry.awayRoom)
+      if (entry.seriesId) awayRoomBySeriesId.set(entry.seriesId, entry.awayRoom)
+    }
     // A rescheduled occurrence of a series can carry its own room override
-    // (see RinkScheduleEntry.occurrenceRooms) — checked first below, so it
-    // wins over the series' shared `room` default for that one booking.
+    // (see RinkScheduleEntry.occurrenceRooms/occurrenceAwayRooms) — checked
+    // first below, so it wins over the series' shared room default for
+    // that one booking.
     Object.entries(entry.occurrenceRooms ?? {}).forEach(([bookingId, room]) => roomByBookingId.set(bookingId, room))
+    Object.entries(entry.occurrenceAwayRooms ?? {}).forEach(([bookingId, room]) => awayRoomByBookingId.set(bookingId, room))
   })
 
   const bookingItems: BoardItem[] = bookings
@@ -139,6 +156,7 @@ export default function RinkScheduleBoardPage() {
         zoneLabel: zoneName(b.zoneId),
         label: b.name,
         room: roomByBookingId.get(b.id) ?? (b.seriesId ? roomBySeriesId.get(b.seriesId) : undefined),
+        awayRoom: awayRoomByBookingId.get(b.id) ?? (b.seriesId ? awayRoomBySeriesId.get(b.seriesId) : undefined),
         startMin,
         endMin,
         state: endMin <= nowMin ? 'finished' : startMin <= nowMin ? 'live' : 'upcoming'
@@ -237,7 +255,9 @@ export default function RinkScheduleBoardPage() {
             >
               <span className="font-semibold text-xs sm:text-sm truncate">{it.label}</span>
               {it.liveScore && <span className="text-xs truncate">{it.liveScore}</span>}
-              {it.room && <span className="text-[0.6rem] sm:text-xs opacity-80 truncate">{it.room}</span>}
+              {formatRoomLine(t, it.room, it.awayRoom) && (
+                <span className="text-[0.6rem] sm:text-xs opacity-80 truncate">{formatRoomLine(t, it.room, it.awayRoom)}</span>
+              )}
             </div>
           )
         })}
@@ -256,7 +276,7 @@ export default function RinkScheduleBoardPage() {
             <span className="text-text-muted text-xs sm:text-sm whitespace-nowrap">
               {minutesToTime(it.startMin)}–{minutesToTime(it.endMin)}
               {it.zoneLabel ? ` · ${it.zoneLabel}` : ''}
-              {it.room ? ` · ${it.room}` : ''}
+              {formatRoomLine(t, it.room, it.awayRoom) ? ` · ${formatRoomLine(t, it.room, it.awayRoom)}` : ''}
             </span>
           </div>
         ))}
@@ -342,7 +362,7 @@ export default function RinkScheduleBoardPage() {
                           </p>
                           <p className="text-text-muted text-xs">
                             {it.zoneLabel}
-                            {it.room ? ` · ${it.room}` : ''}
+                            {formatRoomLine(t, it.room, it.awayRoom) ? ` · ${formatRoomLine(t, it.room, it.awayRoom)}` : ''}
                           </p>
                         </div>
                         <span className="text-text-secondary whitespace-nowrap">
