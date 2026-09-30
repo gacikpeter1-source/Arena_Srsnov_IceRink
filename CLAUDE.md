@@ -1984,6 +1984,40 @@ other) before shipping. Fixed with a small greedy lane-assignment pass
 occupant already ended, else open a new lane) so overlapping blocks stack
 into visually separate rows within the timeline instead.
 
+**The sliding timeline was replaced with a plain stacked event list**
+after staff found the interactive timeline hard to read at a glance on
+a real screen during a live demo. `RinkScheduleBoardPage.tsx`'s TV mode
+no longer renders a proportional time-axis at all — instead each rink
+column is one `ScaleToFit`-wrapped vertical list of "slot" cells, one
+cell per distinct start time (`groupIntoSlots`), rendered with three
+visual tiers: any slot already underway (`startMin <= now`) is a compact
+green cell labelled "Práve sa hrá" (reusing `tournaments.liveNow`); the
+single soonest not-yet-started slot is a large red cell labelled
+"Nasleduje" (`rinkSchedule.upNext`, repurposed from the old section
+header into a per-cell badge); every slot after that renders smaller and
+grey, however many fit — `ScaleToFit` still guarantees no scrolling, same
+as the timeline it replaced. Two or three sessions sharing one start time
+(the ice split into zones) land in the *same* cell — one shared time
+shown once, each session's own name+room stacked underneath — rather
+than one cell per session, per an explicit "jedna bunka, jeden čas"
+request. Each row is Name/Time/Room only; the zone label (still computed
+for the plain non-TV list further down this page) is deliberately not
+shown here, since the room and/or distinct names already tell concurrent
+sessions apart at a glance.
+
+The corner QR code and the interactive-timeline-era header clock were
+both dropped from TV mode in the same pass — the QR simply took up space
+the club wanted back for the two rink columns (a customer can still get
+to `/rozvrh` other ways), and the old plain `HH:mm` clock became
+redundant once the header's "Späť na štandardné zobrazenie" link (nobody
+taps a wall-mounted screen) was replaced with a full `dd.MM.yyyy HH:mm`
+date+time — `formatBoardClock`, a fixed non-localized format since a
+physical TV display isn't something a viewer picks a language for. That
+element is still technically the same link back to `/rozvrh` under the
+hood (just restyled as a clock, no visible underline) — harmless on a
+real TV and a convenient escape hatch when someone previews TV mode on
+a phone or laptop.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
