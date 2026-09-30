@@ -8,7 +8,7 @@ import {
   fetchRinkScheduleEntries,
   fetchRinkScheduleOccurrences
 } from '@/lib/rinkSchedule'
-import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
+import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking } from '@/lib/bookings'
 import { formatDateISO, addDays, localizedName } from '@/lib/utils'
 import { Link } from 'react-router-dom'
@@ -93,18 +93,20 @@ export default function RinkSchedulePage() {
   }, [zonesForRink])
 
   // Proactive heads-up before submitting: lets staff see, while still
-  // picking rink/zone/date/time, whether a tournament match (or another
-  // schedule entry) already sits there — before they hit the same
-  // SlotUnavailableError the reactive check in handleSubmit resolves.
-  // Debounced since it fires on every keystroke in the time field.
+  // picking rink/zone/date/time/duration, whether a tournament match (or
+  // another schedule entry) already occupies overlapping ice — a real
+  // time-interval check (findOverlapConflict), not just an exact-slot
+  // match, since sessions here don't all start on a clean grid (see
+  // CLAUDE.md's "Tournament ↔ rink schedule conflicts" section). Debounced
+  // since it fires on every keystroke in the time/duration fields.
   useEffect(() => {
-    if (!club || !rinkId || !zoneId || !date || !startTime) {
+    if (!club || !rinkId || !zoneId || !date || !startTime || !durationMinutes) {
       setConflict(null)
       return
     }
     let cancelled = false
     const timer = setTimeout(() => {
-      findSlotConflict(club.id, zoneId, date, startTime).then((result) => {
+      findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes).then((result) => {
         if (!cancelled) setConflict(result)
       })
     }, 300)
@@ -112,7 +114,7 @@ export default function RinkSchedulePage() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [club, rinkId, zoneId, date, startTime])
+  }, [club, rinkId, zoneId, zones, date, startTime, durationMinutes])
 
   const handleFrequencyChange = (next: SeriesFrequency) => {
     setFrequency(next)
@@ -146,6 +148,27 @@ export default function RinkSchedulePage() {
       recurrence
     }
     try {
+      if (!recurrence) {
+        // Real interval-overlap check before ever calling createBooking —
+        // its own transaction only locks the exact zoneId+startTime being
+        // requested, so it would happily create a 'full' booking even
+        // while a half/third zone on the same rink already covers that
+        // time. A rink can have more than one thing blocking a requested
+        // slot (e.g. both halves already taken), so this resolves one
+        // conflict at a time and re-checks until the slot is genuinely
+        // free or the user declines a replace.
+        let overlap = await findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes)
+        while (overlap) {
+          if (overlap.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
+            await resolveSlotConflict(overlap)
+            overlap = await findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes)
+          } else {
+            setError(t('rinkSchedule.slotUnavailable'))
+            setCreating(false)
+            return
+          }
+        }
+      }
       await createRinkScheduleEntry(entryInput)
       setTeamName('')
       setRoom('')
@@ -153,10 +176,9 @@ export default function RinkSchedulePage() {
       refresh()
     } catch (err) {
       if (err instanceof SlotUnavailableError && !recurrence) {
-        // Recurring series aren't retried here — createBookingSeries
-        // already skips per-date conflicts silently rather than throwing,
-        // so a thrown SlotUnavailableError only happens when every single
-        // occurrence collided, which isn't a single "replace this?" case.
+        // Fallback for a race the proactive overlap check above couldn't
+        // catch (someone else booked the exact same slot in between) —
+        // exact-slot lookup, same as before.
         const found = await findSlotConflict(club.id, zoneId, date, startTime)
         if (found?.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
           try {
