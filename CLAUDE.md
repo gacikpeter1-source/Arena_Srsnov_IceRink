@@ -2262,6 +2262,56 @@ Excel bulk importer (`parseRinkScheduleWorkbook`) — that's for recurring
 standing blocks (practices/courses), not one-off matches, which are
 already a manual-form case.
 
+### Automatic cleanup: finished rink-schedule bookings are hard-deleted
+
+An explicit, scoped exception to this app's usual "never hard-delete,
+keep history" stance (see the training domain's own rejection of
+`deleteDoc`-based cancellation, and the general "no scheduled cleanup
+job, data hygiene not a correctness requirement" pattern used for pending
+bookings elsewhere): a club operator asked for rink-schedule occurrences
+specifically to be permanently removed once they're old, saying they have
+no need to keep that history. Deliberately scoped to **only** bookings
+created through the rink-schedule tool (`RinkScheduleEntry`) — a direct
+customer booking via `/book`, a training session, and a tournament match
+(even one that `blocksIce`) are all untouched, since deleting a
+tournament match would corrupt `computeGroupStandings`' live table (it
+reads every match a group ever had) and deleting a training session would
+break the attendance report's historical data — neither of those
+exceptions was asked for, so neither was extended.
+
+`cleanupFinishedRinkScheduleEntries` (`functions/src/index.ts`) is a
+scheduled Cloud Function (`onSchedule`, every 30 minutes — frequent
+enough that a finished occurrence disappears reasonably close to, not
+long after, its grace window) rather than a client-triggered job, since
+"delete once 2 hours old" has no natural event to hang off of. For each
+`RinkScheduleEntry`: a single-occurrence entry (`bookingId` set) is
+deleted together with its one `Booking` once `startAtUtc + durationMinutes
++ 2h` has passed (or immediately if the booking's already gone some other
+way — nothing left for the entry to point at either way); a recurring
+entry (`seriesId` set) has each of its own occurrences — every real
+`Booking` sharing that `seriesId`, all created up front by
+`createBookingSeries` with no "generate more later" job — aged out
+individually, and the entry doc itself is only deleted once *every*
+occurrence it ever had is gone. `startAtUtc` (stamped on every booking
+since the cancellation-cutoff feature made it required) is what lets this
+job compute a real end instant without needing the club's `timezone` —
+same reason `firestore.rules`' own cutoff check doesn't need it either. A
+booking somehow missing `startAtUtc` is left alone rather than guessed
+at, the same documented gap the cancellation cutoff itself already
+accepts. Writes are batched (capped under Firestore's 500-per-batch
+limit) to stay correct even against a large first-run backlog. Requires
+the Firebase project to be on the Blaze (pay-as-you-go) plan — Cloud
+Scheduler—backed scheduled functions aren't available on the free Spark
+plan regardless of actual usage, unlike the existing `onDocumentCreated`/
+`onCall` functions.
+
+Stale keys left behind in a surviving series entry's `occurrenceRooms`/
+`occurrenceAwayRooms` maps (pointing at a since-deleted occurrence's
+booking id) are left as orphaned, harmless data rather than pruned —
+never read again once that booking id no longer resolves to anything,
+same "orphaned docs left in place, harmless" precedent this codebase
+already accepts elsewhere (e.g. old `divisionRules` docs).
+
 ### Tournament ↔ rink schedule conflicts
 
 Both domains reserve real ice through the exact same `createBooking`/
