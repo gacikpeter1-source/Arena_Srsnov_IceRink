@@ -2051,6 +2051,16 @@ out). The 45-minute threshold matters because without it the very next
 game of the day would sit red for hours before it's actually relevant —
 red is reserved for "starting soon," not just "soonest."
 
+**Text/cell sizes dialed back down.** The `clamp()` ranges from the
+full-width fix above (e.g. the "next" cell's time at up to `3.5rem`)
+read as oversized once seen live — comfortably legible from across a
+room doesn't need to mean "fills half the cell." Every `clamp()` in
+`renderSlotCell` was cut roughly in half (the "next" time down to a
+`1.15rem–1.75rem` range, cell padding/border/gap all trimmed to match:
+`rounded-lg border px-3 py-1.5`, `gap-2` between stacked cells) — still
+scales continuously with screen size, just anchored to a smaller,
+"reasonable" baseline.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
