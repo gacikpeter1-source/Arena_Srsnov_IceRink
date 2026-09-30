@@ -6,7 +6,6 @@ import { useClubData } from '@/hooks/useClubData'
 import { fetchBookingsInRange } from '@/lib/bookings'
 import { fetchRinkScheduleEntries } from '@/lib/rinkSchedule'
 import { fetchTournaments, fetchTournamentMatches, deriveMatchState } from '@/lib/tournaments'
-import { generateQrDataUrl } from '@/lib/qrcode'
 import { formatDateISO, timeToMinutes, minutesToTime, localizedName } from '@/lib/utils'
 import { Booking, RinkScheduleEntry, TournamentMatch } from '@/types'
 import ScaleToFit from '@/components/ScaleToFit'
@@ -14,13 +13,6 @@ import BackButton from '@/components/BackButton'
 
 const POLL_MS = 30000
 const CLOCK_TICK_MS = 30000
-// A fixed 3-hour window centered near "now" (per the club's own design
-// concept — see CLAUDE.md's "Rink team schedule" section), recomputed
-// every POLL_MS rather than animated frame-by-frame (an explicit "simpler
-// is fine" answer) — CSS `transition` on each block's left/width is what
-// makes that periodic recompute read as a smooth slide instead of a jump-cut.
-const WINDOW_BEFORE_MIN = 30
-const WINDOW_AFTER_MIN = 150
 
 interface BoardItem {
   id: string
@@ -70,7 +62,6 @@ export default function RinkScheduleBoardPage() {
   const [matches, setMatches] = useState<(TournamentMatch & { id: string })[]>([])
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(new Date())
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   const today = formatDateISO(new Date())
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -99,23 +90,16 @@ export default function RinkScheduleBoardPage() {
     return () => clearInterval(clock)
   }, [])
 
-  // TV mode's QR always points at the plain (non-`display=tv`) page — same
-  // reasoning as the tournament TV dashboard's own corner QR.
-  useEffect(() => {
-    if (!isTvMode) {
-      setQrDataUrl(null)
-      return
-    }
-    let cancelled = false
-    generateQrDataUrl(`${window.location.origin}/rozvrh`).then((url) => {
-      if (!cancelled) setQrDataUrl(url)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [isTvMode])
-
   const nowMin = now.getHours() * 60 + now.getMinutes()
+
+  // "30.09.2026 09:45" — a fixed, language-independent format for the TV
+  // header clock (this is a physical display, not something a viewer picks
+  // a language for), replacing the old "back to standard view" link there
+  // — nobody at a wall-mounted screen needs that escape hatch.
+  function formatBoardClock(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
   const zoneName = (zoneId: string) => {
     const zone = zones.find((z) => z.id === zoneId)
     return zone ? localizedName(zone, i18n.language) : ''
@@ -188,95 +172,77 @@ export default function RinkScheduleBoardPage() {
   })
   itemsByRink.forEach((items) => items.sort((a, b) => a.startMin - b.startMin))
 
-  const windowStart = nowMin - WINDOW_BEFORE_MIN
-  const windowEnd = nowMin + WINDOW_AFTER_MIN
-  const windowSpan = windowEnd - windowStart
+  // Replaces the old interactive sliding timeline — staff found it hard to
+  // read at a glance. Instead: a plain stacked list of "slots" (one per
+  // distinct start time), each its own cell. Two or three events can
+  // legitimately share one start time (the ice split into zones) — those
+  // land in the same cell, one shared time at the top and each event's own
+  // name+room stacked underneath, rather than one cell per event.
+  interface BoardSlot {
+    startMin: number
+    items: BoardItem[]
+  }
 
-  function renderTimeline(items: BoardItem[]) {
-    const visible = items.filter((it) => it.endMin > windowStart && it.startMin < windowEnd)
-    const firstHour = Math.floor(windowStart / 60)
-    const lastHour = Math.ceil(windowEnd / 60)
-    const hourMarks: { h: number; pct: number }[] = []
-    for (let h = firstHour; h <= lastHour; h++) {
-      const pct = ((h * 60 - windowStart) / windowSpan) * 100
-      if (pct >= 0 && pct <= 100) hourMarks.push({ h: ((h % 24) + 24) % 24, pct })
-    }
-    // Two items can legitimately overlap in time (different zones of the
-    // same rink, e.g. a "half" split) — greedily assign each to the first
-    // lane whose previous occupant has already ended, so overlapping
-    // blocks stack into separate rows instead of rendering on top of each
-    // other illegibly.
-    const sorted = [...visible].sort((a, b) => a.startMin - b.startMin)
-    const laneEnds: number[] = []
-    const withLanes = sorted.map((it) => {
-      let lane = laneEnds.findIndex((end) => end <= it.startMin)
-      if (lane === -1) {
-        lane = laneEnds.length
-        laneEnds.push(it.endMin)
-      } else {
-        laneEnds[lane] = it.endMin
-      }
-      return { ...it, lane }
+  function groupIntoSlots(items: BoardItem[]): BoardSlot[] {
+    const active = items.filter((it) => it.state !== 'finished')
+    const byStart = new Map<number, BoardItem[]>()
+    active.forEach((it) => {
+      if (!byStart.has(it.startMin)) byStart.set(it.startMin, [])
+      byStart.get(it.startMin)!.push(it)
     })
-    const laneCount = laneEnds.length || 1
-    const laneHeightPct = 78 / laneCount
+    return Array.from(byStart.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([startMin, slotItems]) => ({ startMin, items: slotItems }))
+  }
+
+  function renderSlotCell(slot: BoardSlot, variant: 'live' | 'next' | 'later') {
+    const cellClasses =
+      variant === 'live'
+        ? 'border-status-success bg-status-success/15'
+        : variant === 'next'
+          ? 'border-status-danger bg-status-danger/15'
+          : 'border-border bg-background-dark'
+    const timeClasses =
+      variant === 'live'
+        ? 'text-status-success text-lg sm:text-xl'
+        : variant === 'next'
+          ? 'text-status-danger text-3xl sm:text-4xl'
+          : 'text-text-secondary text-base sm:text-lg'
+    const nameClasses =
+      variant === 'next' ? 'text-xl sm:text-2xl text-white' : variant === 'live' ? 'text-base sm:text-lg text-white' : 'text-sm sm:text-base text-text-secondary'
+    const roomClasses = variant === 'next' ? 'text-sm sm:text-base text-text-muted' : 'text-xs sm:text-sm text-text-muted'
 
     return (
-      <div className="relative flex-1 min-h-0 rounded-xl border border-border bg-background-dark overflow-hidden">
-        {hourMarks.map(({ h, pct }) => (
-          <div key={`${h}-${pct}`} className="absolute top-0 bottom-0 border-l border-border/40 text-text-muted text-[0.6rem] sm:text-xs pl-1" style={{ left: `${pct}%` }}>
-            {String(h).padStart(2, '0')}:00
-          </div>
-        ))}
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-status-danger z-10"
-          style={{ left: `${((nowMin - windowStart) / windowSpan) * 100}%`, transition: 'left 1s linear' }}
-        />
-        {withLanes.map((it) => {
-          const left = Math.max(0, ((it.startMin - windowStart) / windowSpan) * 100)
-          const right = Math.min(100, ((it.endMin - windowStart) / windowSpan) * 100)
-          const width = Math.max(3, right - left)
-          return (
-            <div
-              key={it.id}
-              className={`absolute rounded-lg px-2 py-1 flex flex-col justify-center overflow-hidden ${
-                it.state === 'live' ? 'bg-status-danger/80 text-white' : 'bg-primary/70 text-primary-foreground'
-              }`}
-              style={{
-                left: `${left}%`,
-                width: `${width}%`,
-                top: `${18 + it.lane * laneHeightPct}%`,
-                height: `${laneHeightPct - 4}%`,
-                transition: 'left 1s linear, width 1s linear, top 1s linear'
-              }}
-            >
-              <span className="font-semibold text-xs sm:text-sm truncate">{it.label}</span>
-              {it.liveScore && <span className="text-xs truncate">{it.liveScore}</span>}
-              {formatRoomLine(t, it.room, it.awayRoom) && (
-                <span className="text-[0.6rem] sm:text-xs opacity-80 truncate">{formatRoomLine(t, it.room, it.awayRoom)}</span>
-              )}
+      <div key={slot.startMin} className={`rounded-xl border-2 px-4 py-2 ${cellClasses}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`font-bold mono ${timeClasses}`}>{minutesToTime(slot.startMin)}</span>
+          {variant === 'live' && <span className="text-status-success text-xs uppercase tracking-wide font-semibold">{t('tournaments.liveNow')}</span>}
+          {variant === 'next' && <span className="text-status-danger text-xs uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {slot.items.map((it) => (
+            <div key={it.id} className="flex items-center justify-between gap-3">
+              <span className={`font-semibold truncate ${nameClasses}`}>
+                {it.label}
+                {it.liveScore ? ` (${it.liveScore})` : ''}
+              </span>
+              {formatRoomLine(t, it.room, it.awayRoom) && <span className={`whitespace-nowrap ${roomClasses}`}>{formatRoomLine(t, it.room, it.awayRoom)}</span>}
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
     )
   }
 
-  function renderUpNext(items: BoardItem[]) {
-    const upcoming = items.filter((it) => it.state !== 'finished').slice(0, 5)
-    if (upcoming.length === 0) return <p className="text-text-muted text-sm">{t('rinkSchedule.boardNoUpcoming')}</p>
+  function renderEventList(items: BoardItem[]) {
+    const slots = groupIntoSlots(items)
+    if (slots.length === 0) return <p className="text-text-muted text-base">{t('rinkSchedule.boardNoUpcoming')}</p>
+    const liveSlots = slots.filter((s) => s.startMin <= nowMin)
+    const upcomingSlots = slots.filter((s) => s.startMin > nowMin)
     return (
-      <div className="flex flex-col gap-2">
-        {upcoming.map((it) => (
-          <div key={it.id} className="flex items-center justify-between gap-3">
-            <span className="text-white font-medium truncate">{it.label}</span>
-            <span className="text-text-muted text-xs sm:text-sm whitespace-nowrap">
-              {minutesToTime(it.startMin)}–{minutesToTime(it.endMin)}
-              {it.zoneLabel ? ` · ${it.zoneLabel}` : ''}
-              {formatRoomLine(t, it.room, it.awayRoom) ? ` · ${formatRoomLine(t, it.room, it.awayRoom)}` : ''}
-            </span>
-          </div>
-        ))}
+      <div className="flex flex-col gap-3 w-full">
+        {liveSlots.map((slot) => renderSlotCell(slot, 'live'))}
+        {upcomingSlots.map((slot, i) => renderSlotCell(slot, i === 0 ? 'next' : 'later'))}
       </div>
     )
   }
@@ -288,37 +254,24 @@ export default function RinkScheduleBoardPage() {
           <Link
             to="/rozvrh"
             replace
-            className="shrink-0 text-text-muted hover:text-primary text-xs sm:text-sm underline whitespace-nowrap"
+            className="shrink-0 mono text-text-secondary text-sm sm:text-lg whitespace-nowrap hover:text-primary"
           >
-            {t('tournaments.backToStandardView')}
+            {formatBoardClock(now)}
           </Link>
           <h1 className="flex-1 min-w-0 text-[clamp(1.1rem,3.2vw,3rem)] font-bold text-primary text-center truncate">
             {club?.name ?? t('rinkSchedule.title')}
           </h1>
-          <span className="shrink-0 mono text-text-secondary text-sm sm:text-lg">{minutesToTime(nowMin)}</span>
         </div>
 
         <div className="flex-1 min-h-0 flex gap-3">
           {activeRinks.map((rink) => (
             <div key={rink.id} className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border bg-background-card p-3 gap-2">
               <h2 className="shrink-0 text-white text-lg font-bold text-center truncate">{localizedName(rink, i18n.language)}</h2>
-              {renderTimeline(itemsByRink.get(rink.id) ?? [])}
-              <div className="shrink-0" style={{ height: '24vh' }}>
-                <h3 className="text-text-muted text-xs uppercase tracking-wide mb-1">{t('rinkSchedule.upNext')}</h3>
-                <ScaleToFit className="h-[calc(100%-1.25rem)] w-full">
-                  {renderUpNext(itemsByRink.get(rink.id) ?? [])}
-                </ScaleToFit>
+              <div className="flex-1 min-h-0">
+                <ScaleToFit className="h-full w-full">{renderEventList(itemsByRink.get(rink.id) ?? [])}</ScaleToFit>
               </div>
             </div>
           ))}
-          <div className="shrink-0 rounded-2xl border border-border bg-background-card px-4 py-3 flex flex-col items-center justify-center gap-2" style={{ width: 'clamp(120px, 16vh, 220px)' }}>
-            {qrDataUrl ? (
-              <img src={qrDataUrl} alt="" className="w-full aspect-square bg-white p-1 rounded object-contain" style={{ maxHeight: 'clamp(100px, 14vh, 190px)' }} />
-            ) : (
-              <div className="w-full aspect-square bg-background-dark rounded" style={{ maxHeight: 'clamp(100px, 14vh, 190px)' }} />
-            )}
-            <p className="text-text-muted text-xs text-center">{t('rinkSchedule.boardScanHint')}</p>
-          </div>
         </div>
       </div>
     )
