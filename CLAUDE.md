@@ -2037,11 +2037,19 @@ than jumping between a couple of breakpoints. Losing `ScaleToFit` also
 means losing its "always fits, no matter how many events" guarantee, so
 `MAX_UPCOMING_SLOTS` (5) caps how many upcoming slots render — matches
 the cap the very first pre-timeline version of this list already used,
-before more precision was needed. Separately, the "next" cell's color changed from red to **amber/yellow**
-(`status-warning` — the same token the conflict-detection notices
-elsewhere already use for "heads up, not an error") after seeing red
-read as an alarm rather than "starting soon" on an actual screen — green
-(`status-success`) for "live now" was correct from the start and stayed.
+before more precision was needed.
+
+**Three-tier color scheme, with a timing threshold on the middle tier.**
+After seeing an early red-for-"next"/grey-for-"later" cut live, the final
+scheme is: green (`status-success`) for a slot already underway, unchanged
+from the start; red (`status-danger`) for the single soonest upcoming
+slot, but **only once it's within `NEXT_HIGHLIGHT_MINUTES` (45) of
+starting** — before that it renders identically to every other upcoming
+slot; and amber/yellow (`status-warning`) for everything else upcoming
+(including that same soonest slot while it's still more than 45 minutes
+out). The 45-minute threshold matters because without it the very next
+game of the day would sit red for hours before it's actually relevant —
+red is reserved for "starting soon," not just "soonest."
 
 ### Editing and cancelling individual occurrences
 

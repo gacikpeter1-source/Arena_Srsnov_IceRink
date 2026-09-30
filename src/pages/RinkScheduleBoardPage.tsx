@@ -198,26 +198,31 @@ export default function RinkScheduleBoardPage() {
   // auto-shrink step (see below), an unbounded list could overflow the
   // column, so this caps at what a typical day comfortably fits.
   const MAX_UPCOMING_SLOTS = 5
+  // The single soonest upcoming slot only turns red once it's this close to
+  // starting — before that it renders in the same yellow tier as every
+  // other later slot, per an explicit "vysvietená najskôr 45min pred
+  // začiatkom" (lit up no earlier than 45 minutes before start) request.
+  const NEXT_HIGHLIGHT_MINUTES = 45
 
   function renderSlotCell(slot: BoardSlot, variant: 'live' | 'next' | 'later') {
     const cellClasses =
       variant === 'live'
         ? 'border-status-success bg-status-success/15'
         : variant === 'next'
-          ? 'border-status-warning bg-status-warning/15'
-          : 'border-border bg-background-dark'
+          ? 'border-status-danger bg-status-danger/15'
+          : 'border-status-warning bg-status-warning/15'
     const timeClasses =
       variant === 'live'
         ? 'text-status-success text-[clamp(1.1rem,2.2vw,1.75rem)]'
         : variant === 'next'
-          ? 'text-status-warning text-[clamp(2rem,4.2vw,3.5rem)]'
-          : 'text-text-secondary text-[clamp(0.95rem,1.8vw,1.4rem)]'
+          ? 'text-status-danger text-[clamp(2rem,4.2vw,3.5rem)]'
+          : 'text-status-warning text-[clamp(0.95rem,1.8vw,1.4rem)]'
     const nameClasses =
       variant === 'next'
         ? 'text-[clamp(1.4rem,3.2vw,2.5rem)] text-white'
         : variant === 'live'
           ? 'text-[clamp(1rem,2vw,1.5rem)] text-white'
-          : 'text-[clamp(0.9rem,1.6vw,1.2rem)] text-text-secondary'
+          : 'text-[clamp(0.9rem,1.6vw,1.2rem)] text-white'
     const roomClasses = variant === 'next' ? 'text-[clamp(0.9rem,1.8vw,1.3rem)] text-text-muted' : 'text-[clamp(0.75rem,1.3vw,1rem)] text-text-muted'
 
     return (
@@ -225,7 +230,7 @@ export default function RinkScheduleBoardPage() {
         <div className="flex items-center gap-2 mb-1">
           <span className={`font-bold mono ${timeClasses}`}>{minutesToTime(slot.startMin)}</span>
           {variant === 'live' && <span className="text-status-success text-xs uppercase tracking-wide font-semibold">{t('tournaments.liveNow')}</span>}
-          {variant === 'next' && <span className="text-status-warning text-xs uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
+          {variant === 'next' && <span className="text-status-danger text-xs uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
         </div>
         <div className="flex flex-col gap-0.5 w-full">
           {slot.items.map((it) => (
@@ -250,7 +255,9 @@ export default function RinkScheduleBoardPage() {
     return (
       <div className="flex flex-col gap-3 w-full h-full overflow-hidden">
         {liveSlots.map((slot) => renderSlotCell(slot, 'live'))}
-        {upcomingSlots.map((slot, i) => renderSlotCell(slot, i === 0 ? 'next' : 'later'))}
+        {upcomingSlots.map((slot, i) =>
+          renderSlotCell(slot, i === 0 && slot.startMin - nowMin <= NEXT_HIGHLIGHT_MINUTES ? 'next' : 'later')
+        )}
       </div>
     )
   }
