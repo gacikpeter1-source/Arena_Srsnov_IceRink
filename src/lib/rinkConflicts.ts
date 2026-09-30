@@ -2,7 +2,9 @@ import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'fireb
 import { db } from './firebase'
 import { deleteTournamentMatch } from './tournaments'
 import { deleteRinkScheduleEntry } from './rinkSchedule'
-import { RinkScheduleEntry } from '@/types'
+import { fetchBookingsInRange } from './bookings'
+import { timeToMinutes } from './utils'
+import { RinkScheduleEntry, Zone } from '@/types'
 
 // Cross-domain conflict lookup between tournament matches and the rink
 // team schedule — see CLAUDE.md's "Tournament ↔ rink schedule conflicts"
@@ -24,6 +26,37 @@ export interface SlotConflict {
   ownerId?: string
 }
 
+/** Shared by findSlotConflict/findOverlapConflict: traces a real booking id
+ * back to whichever planning tool (if any) created it. */
+async function describeBookingOwner(bookingId: string, name: string, seriesId?: string): Promise<SlotConflict> {
+  const matchSnap = await getDocs(
+    query(collection(db, 'tournamentMatches'), where('bookingId', '==', bookingId))
+  )
+  if (!matchSnap.empty) {
+    const m = matchSnap.docs[0].data() as { teamA: string; teamB: string }
+    return { kind: 'tournament', label: `${m.teamA} – ${m.teamB}`, ownerId: matchSnap.docs[0].id }
+  }
+
+  const entryByBooking = await getDocs(
+    query(collection(db, 'rinkScheduleEntries'), where('bookingId', '==', bookingId))
+  )
+  if (!entryByBooking.empty) {
+    const e = entryByBooking.docs[0].data() as RinkScheduleEntry
+    return { kind: 'schedule', label: e.teamName, ownerId: entryByBooking.docs[0].id }
+  }
+  if (seriesId) {
+    const entryBySeries = await getDocs(
+      query(collection(db, 'rinkScheduleEntries'), where('seriesId', '==', seriesId))
+    )
+    if (!entryBySeries.empty) {
+      const e = entryBySeries.docs[0].data() as RinkScheduleEntry
+      return { kind: 'schedule', label: e.teamName, ownerId: entryBySeries.docs[0].id }
+    }
+  }
+
+  return { kind: 'booking', label: name }
+}
+
 /**
  * Looks up whether a rink zone/date/time is already held by a real, active
  * booking, and if so, which planning tool (if any) put it there. Returns
@@ -31,6 +64,11 @@ export interface SlotConflict {
  * expired/reclaimable pending booking (see PENDING_CONFIRMATION_MINUTES),
  * which isn't a real conflict. Safe to call speculatively (e.g. on every
  * form-field change) since it only reads.
+ *
+ * This only ever matches an *exact* zoneId+date+startTime key — the same
+ * thing createBooking's transaction itself locks against. See
+ * findOverlapConflict below for the real time-interval check needed once
+ * sessions don't all start on a clean grid.
  */
 export async function findSlotConflict(
   clubId: string,
@@ -56,32 +94,60 @@ export async function findSlotConflict(
   const booking = bookingSnap.data() as { status: string; name: string; seriesId?: string }
   if (booking.status === 'cancelled' || booking.status === 'expired') return null
 
-  const matchSnap = await getDocs(
-    query(collection(db, 'tournamentMatches'), where('bookingId', '==', lock.bookingId))
-  )
-  if (!matchSnap.empty) {
-    const m = matchSnap.docs[0].data() as { teamA: string; teamB: string }
-    return { kind: 'tournament', label: `${m.teamA} – ${m.teamB}`, ownerId: matchSnap.docs[0].id }
-  }
+  return describeBookingOwner(lock.bookingId, booking.name, booking.seriesId)
+}
 
-  const entryByBooking = await getDocs(
-    query(collection(db, 'rinkScheduleEntries'), where('bookingId', '==', lock.bookingId))
-  )
-  if (!entryByBooking.empty) {
-    const e = entryByBooking.docs[0].data() as RinkScheduleEntry
-    return { kind: 'schedule', label: e.teamName, ownerId: entryByBooking.docs[0].id }
-  }
-  if (booking.seriesId) {
-    const entryBySeries = await getDocs(
-      query(collection(db, 'rinkScheduleEntries'), where('seriesId', '==', booking.seriesId))
-    )
-    if (!entryBySeries.empty) {
-      const e = entryBySeries.docs[0].data() as RinkScheduleEntry
-      return { kind: 'schedule', label: e.teamName, ownerId: entryBySeries.docs[0].id }
+/**
+ * Real time-interval overlap check across a whole rink — unlike
+ * findSlotConflict above (which only matches an *exact* zoneId+date+
+ * startTime key), this catches two bookings that start at different times
+ * but still occupy the same physical ice at an overlapping moment. That
+ * matters here specifically because sessions are NOT all on a clean hourly
+ * grid — a configurable cleaning/prep break between sessions (see
+ * TimeSlotConfig.breakMinutes) and free-form staff-entered times (rink
+ * schedule entries, tournament matches) mean a real start time can be
+ * anything (11:30, 14:35, ...), so "different exact start time" does not
+ * mean "no conflict".
+ *
+ * Sessions on the exact same zone are compared directly. A 'full' booking
+ * is additionally checked against every other zone on that rink and
+ * vice-versa, since 'full' occupies the whole rink. Two zones of the same
+ * split mode (e.g. two different thirds) never overlap each other by
+ * construction, so they're not cross-checked — nor are two *different*
+ * split modes (half vs third): this app has no stored mapping of which
+ * half corresponds to which thirds, so that particular cross-check is a
+ * known, documented gap rather than a guess.
+ */
+export async function findOverlapConflict(
+  clubId: string,
+  rinkId: string,
+  zoneId: string,
+  zones: Zone[],
+  date: string,
+  startTime: string,
+  durationMinutes: number,
+  excludeBookingId?: string
+): Promise<SlotConflict | null> {
+  const targetZone = zones.find((z) => z.id === zoneId)
+  const fullZoneIds = zones.filter((z) => z.rinkId === rinkId && z.mode === 'full').map((z) => z.id)
+  const candidateZoneIds =
+    targetZone?.mode === 'full' ? zones.filter((z) => z.rinkId === rinkId).map((z) => z.id) : [zoneId, ...fullZoneIds]
+
+  const newStart = timeToMinutes(startTime)
+  const newEnd = newStart + durationMinutes
+
+  const bookings = await fetchBookingsInRange(clubId, date, date)
+  for (const b of bookings) {
+    if (b.id === excludeBookingId) continue
+    if (b.rinkId !== rinkId || !candidateZoneIds.includes(b.zoneId)) continue
+    if (b.status !== 'confirmed' && b.status !== 'pending') continue
+    const existStart = timeToMinutes(b.startTime)
+    const existEnd = existStart + b.durationMinutes
+    if (newStart < existEnd && existStart < newEnd) {
+      return describeBookingOwner(b.id, b.name, b.seriesId)
     }
   }
-
-  return { kind: 'booking', label: booking.name }
+  return null
 }
 
 /**

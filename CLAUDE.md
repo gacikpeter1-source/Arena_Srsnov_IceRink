@@ -2141,6 +2141,51 @@ occurrence rather than throwing, so a thrown `SlotUnavailableError` there
 only means *every* occurrence collided, which isn't a single "replace
 this one thing" case the existing confirm-dialog UX fits.
 
+### Real time-interval overlap detection (not just exact-slot matching)
+
+`findSlotConflict` above only ever matches an *exact* zoneId+date+
+startTime key — the same thing `createBooking`'s own transaction locks
+against. That's fine for the customer-facing `/book` flow (times are
+always picked from `computeDaySchedule`'s generated grid, which never
+overlaps itself), but staff-entered times on `RinkSchedulePage.tsx` and
+`TournamentDetailPage.tsx`'s manual form are free text — and sessions
+here are explicitly **not** all on a clean hourly grid to begin with (a
+configurable cleaning/prep break between sessions, `TimeSlotConfig.
+breakMinutes`, means a real start time can be anything, e.g. 11:30 or
+14:35). Two bookings with *different* exact start times can still
+genuinely overlap the same physical ice — this surfaced as a real bug
+seeding demo data: a 'full'-ice booking at 11:30 was accepted even
+though both halves of that same rink were already booked 11:00–12:00,
+since `createBooking`'s lock only ever checks the one exact zoneId it
+was given, never any other zone on the same rink.
+
+`findOverlapConflict` (`lib/rinkConflicts.ts`) closes this with a real
+interval check: given a rink/zone/date/start/duration, it fetches every
+`confirmed`/`pending` booking on that rink+date and flags one whose
+[start, end) genuinely overlaps — on the *same* zone directly, or against
+*every* zone on the rink when either side is `'full'` (since `'full'`
+occupies the whole rink either way). Two zones of the *same* split mode
+(e.g. two different thirds) never overlap each other by construction, so
+they're not cross-checked; two *different* split modes (half vs third)
+also aren't — this app has no stored mapping of which half corresponds to
+which thirds, so that specific cross-check stays a documented gap rather
+than a guess, consistent with how much precision the rest of the
+conflict-detection code already aims for.
+
+`RinkSchedulePage.tsx`'s create form and `RinkScheduleEditModal.tsx` both
+now run `findOverlapConflict` proactively (debounced, on every
+rink/zone/date/time/duration change) and — this being the one that
+actually matters, since `createBooking`'s transaction itself never throws
+for a same-zone-different-time or cross-zone overlap — reactively before
+ever calling `createRinkScheduleEntry`/`rescheduleRinkScheduleEntry`.
+Since more than one existing booking can block a single `'full'` request
+(e.g. both halves already taken), the reactive check loops: resolve one
+conflict, re-check, repeat, until the slot is genuinely free or staff
+declines a replace. `findSlotConflict`'s exact-match lookup is kept as a
+fallback inside the existing `catch (SlotUnavailableError)` branch, for
+the narrow race where someone else books the exact same slot in the gap
+between the proactive check and the actual write.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
