@@ -264,8 +264,8 @@ export default function RinkScheduleBoardPage() {
 
   if (isTvMode) {
     return (
-      <div className="h-full w-full bg-background-dark flex flex-col p-4 gap-3 text-white">
-        <div className="shrink-0 flex items-center gap-3 rounded-2xl border border-border bg-background-card px-4" style={{ height: '9vh' }}>
+      <div className="h-full w-full bg-background-dark flex flex-col p-3 gap-2 text-white">
+        <div className="shrink-0 flex items-center gap-3 rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
           <Link
             to="/rozvrh"
             replace

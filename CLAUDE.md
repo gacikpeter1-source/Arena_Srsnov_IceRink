@@ -2061,6 +2061,15 @@ room doesn't need to mean "fills half the cell." Every `clamp()` in
 scales continuously with screen size, just anchored to a smaller,
 "reasonable" baseline.
 
+**Header bar shrunk, club-name text left alone.** The header row itself
+(the bordered box holding the clock-link and club name) was a fixed
+`9vh` — most of that height was empty padding around a single line of
+text, space that mattered more going to the two rink columns below.
+Shrunk the box to `6vh` (plus the outer page padding/gap from `p-4 gap-3`
+to `p-3 gap-2`) without touching the club name's own `clamp()` font
+size — per an explicit "not the Arena Sršňov font, the cell" distinction:
+the box got more compact, the text inside it didn't shrink.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
