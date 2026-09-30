@@ -27,6 +27,10 @@ interface RinkScheduleEditModalProps {
   occurrence: Booking & { id: string }
   currentRoom?: string
   currentAwayRoom?: string
+  // Overwriting someone else's real reservation is restricted to
+  // assistant/owner/superadmin — see RinkSchedulePage.tsx's own
+  // canReplaceReservations for the role check this mirrors.
+  canReplaceReservations: boolean
   isOpen: boolean
   onClose: () => void
   onSaved: () => void
@@ -49,6 +53,7 @@ export default function RinkScheduleEditModal({
   occurrence,
   currentRoom,
   currentAwayRoom,
+  canReplaceReservations,
   isOpen,
   onClose,
   onSaved
@@ -129,7 +134,7 @@ export default function RinkScheduleEditModal({
       // re-checks, since more than one zone can block a 'full' move.
       let overlap = await findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id)
       while (overlap) {
-        if (overlap.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
+        if (overlap.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
           await resolveSlotConflict(overlap)
           overlap = await findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id)
         } else {
@@ -146,7 +151,7 @@ export default function RinkScheduleEditModal({
         // Fallback for a race the proactive overlap check above couldn't
         // catch — exact-slot lookup, same as before.
         const found = await findSlotConflict(clubId, zoneId, date, startTime)
-        if (found?.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
+        if (found?.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
           try {
             await resolveSlotConflict(found)
             await apply()

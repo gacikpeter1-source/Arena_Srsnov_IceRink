@@ -36,6 +36,12 @@ export default function RinkSchedulePage() {
   const { user, staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
+  // Overwriting someone else's real reservation is a bigger action than
+  // just planning a schedule entry — restricted to ice-rink staff
+  // (assistant/owner/superadmin), not a plain trainer account, even
+  // though a trainer can otherwise fully use this page. Mirrors the same
+  // gate on TournamentDetailPage.tsx's own conflict-replace flow.
+  const canReplaceReservations = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const [entries, setEntries] = useState<(RinkScheduleEntry & { id: string })[]>([])
   const [occurrencesByEntry, setOccurrencesByEntry] = useState<Map<string, (Booking & { id: string })[]>>(new Map())
@@ -159,7 +165,7 @@ export default function RinkSchedulePage() {
         // free or the user declines a replace.
         let overlap = await findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes)
         while (overlap) {
-          if (overlap.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
+          if (overlap.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
             await resolveSlotConflict(overlap)
             overlap = await findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes)
           } else {
@@ -180,7 +186,7 @@ export default function RinkSchedulePage() {
         // catch (someone else booked the exact same slot in between) —
         // exact-slot lookup, same as before.
         const found = await findSlotConflict(club.id, zoneId, date, startTime)
-        if (found?.ownerId && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
+        if (found?.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
           try {
             await resolveSlotConflict(found)
             await createRinkScheduleEntry(entryInput)
@@ -521,6 +527,7 @@ export default function RinkSchedulePage() {
           occurrence={editing.occurrence}
           currentRoom={editing.entry.occurrenceRooms?.[editing.occurrence.id] ?? editing.entry.room}
           currentAwayRoom={editing.entry.occurrenceAwayRooms?.[editing.occurrence.id] ?? editing.entry.awayRoom}
+          canReplaceReservations={canReplaceReservations}
           isOpen={!!editing}
           onClose={() => setEditing(null)}
           onSaved={refresh}
