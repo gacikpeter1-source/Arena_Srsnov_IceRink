@@ -2093,7 +2093,10 @@ no way to tell which session was on which half/third — worst exactly
 where the ambiguity matters most, since those are the rows sharing one
 cell. Each zone's own `slotIndex` (0/1/2 within its `mode`, see `Zone` in
 `src/types/index.ts`) is mapped to a letter (`String.fromCharCode(65 +
-slotIndex)` → A/B/C) and shown as a small badge in front of the name on
+slotIndex)` → A/B/C) and shown as a small badge at the end of the line
+(after the "Name - Time - Room" text, not before it — an earlier cut put
+it in front of the name, which read as labeling the whole row rather than
+being one more trailing detail alongside room) on
 `RinkScheduleBoardPage.tsx`'s TV board — deliberately free text for now
 (per an explicit "voľný text, ale zatiaľ ako príklad A, B, C" request)
 rather than a real per-zone label field, so a club can later rename it to

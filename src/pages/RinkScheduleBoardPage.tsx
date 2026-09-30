@@ -245,16 +245,16 @@ export default function RinkScheduleBoardPage() {
             const room = formatRoomLine(t, it.room, it.awayRoom)
             return (
               <div key={it.id} className={`flex items-center gap-1.5 min-w-0 font-semibold ${lineClasses}`}>
-                {it.zonePart && (
-                  <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1 leading-tight text-[0.7em] font-bold">
-                    {it.zonePart}
-                  </span>
-                )}
                 <span className="truncate">
                   {it.label} - {minutesToTime(slot.startMin)}
                   {room ? ` - ${room}` : ''}
                   {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>
+                {it.zonePart && (
+                  <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1 leading-tight text-[0.7em] font-bold">
+                    {it.zonePart}
+                  </span>
+                )}
               </div>
             )
           })}
