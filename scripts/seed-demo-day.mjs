@@ -57,68 +57,68 @@ const RINK_PLANS = {
   'main-hall': [
     { start: '08:00', mode: 'full', bookings: [] },
     { start: '09:00', mode: 'third', bookings: [
-      { zoneId: 'main-hall-third-1', team: 'HK Zvolen U10 – tréning' },
-      { zoneId: 'main-hall-third-2', team: 'HK Zvolen U12 – tréning' }
+      { zoneId: 'main-hall-third-1', team: 'HK Zvolen U10 – tréning', room: 'Šatňa 1' },
+      { zoneId: 'main-hall-third-2', team: 'HK Zvolen U12 – tréning', room: 'Šatňa 2' }
     ] },
     { start: '10:00', mode: 'full', bookings: [
-      { zoneId: 'main-hall-full', team: 'Firemná akcia – XY s.r.o.' }
+      { zoneId: 'main-hall-full', team: 'Firemná akcia – XY s.r.o.', room: 'Šatňa VIP' }
     ] },
     { start: '11:00', mode: 'half', bookings: [
-      { zoneId: 'main-hall-half-a', team: 'Krasokorčuľovanie – mladší dorast' },
-      { zoneId: 'main-hall-half-b', team: 'Škôlka Osloboditeľov – korčuľovací kurz' }
+      { zoneId: 'main-hall-half-a', team: 'Krasokorčuľovanie – mladší dorast', room: 'Šatňa 3' },
+      { zoneId: 'main-hall-half-b', team: 'Škôlka Osloboditeľov – korčuľovací kurz', room: 'Šatňa 4' }
     ] },
     { start: '12:00', mode: 'full', bookings: [] },
     { start: '13:00', mode: 'full', bookings: [] },
     { start: '14:00', mode: 'full', bookings: [] },
     { start: '15:00', mode: 'full', bookings: [] },
     { start: '16:00', mode: 'third', bookings: [
-      { zoneId: 'main-hall-third-1', team: 'HK Zvolen U10 – tréning' },
-      { zoneId: 'main-hall-third-2', team: 'HK Zvolen U12 – tréning' },
-      { zoneId: 'main-hall-third-3', team: 'HK Zvolen dorast – tréning' }
+      { zoneId: 'main-hall-third-1', team: 'HK Zvolen U10 – tréning', room: 'Šatňa 1' },
+      { zoneId: 'main-hall-third-2', team: 'HK Zvolen U12 – tréning', room: 'Šatňa 2' },
+      { zoneId: 'main-hall-third-3', team: 'HK Zvolen dorast – tréning', room: 'Šatňa 3' }
     ] },
     { start: '17:00', mode: 'third', bookings: [
-      { zoneId: 'main-hall-third-1', team: 'HK Zvolen prípravka – tréning' }
+      { zoneId: 'main-hall-third-1', team: 'HK Zvolen prípravka – tréning', room: 'Šatňa 1' }
     ] },
     { start: '18:00', mode: 'full', bookings: [
-      { zoneId: 'main-hall-full', team: 'Liga: HK Zvolen – HK Poprad' }
+      { zoneId: 'main-hall-full', team: 'Liga: HK Zvolen – HK Poprad', room: 'Šatňa domácich' }
     ] },
     { start: '19:00', mode: 'half', bookings: [
-      { zoneId: 'main-hall-half-a', team: 'Verejné korčuľovanie' },
-      { zoneId: 'main-hall-half-b', team: 'HK Zvolen dorast – tréning' }
+      { zoneId: 'main-hall-half-a', team: 'Verejné korčuľovanie', room: 'Šatňa 3' },
+      { zoneId: 'main-hall-half-b', team: 'HK Zvolen dorast – tréning', room: 'Šatňa 2' }
     ] },
     { start: '20:00', mode: 'full', bookings: [] },
     { start: '21:00', mode: 'full', bookings: [] }
   ],
   'small-hall': [
     { start: '08:00', mode: 'third', bookings: [
-      { zoneId: 'small-hall-third-1', team: 'HK Zvolen mladšie žiactvo – tréning' },
-      { zoneId: 'small-hall-third-2', team: 'HK Zvolen staršie žiactvo – tréning' }
+      { zoneId: 'small-hall-third-1', team: 'HK Zvolen mladšie žiactvo – tréning', room: 'Šatňa 1' },
+      { zoneId: 'small-hall-third-2', team: 'HK Zvolen staršie žiactvo – tréning', room: 'Šatňa 2' }
     ] },
     { start: '09:00', mode: 'full', bookings: [
-      { zoneId: 'small-hall-full', team: 'Krasokorčuľovanie – veľká skupina' }
+      { zoneId: 'small-hall-full', team: 'Krasokorčuľovanie – veľká skupina', room: 'Šatňa 3' }
     ] },
     { start: '10:00', mode: 'half', bookings: [
-      { zoneId: 'small-hall-half-a', team: 'Škôlka Osloboditeľov – kurz (2. skupina)' }
+      { zoneId: 'small-hall-half-a', team: 'Škôlka Osloboditeľov – kurz (2. skupina)', room: 'Šatňa 4' }
     ] },
     { start: '11:00', mode: 'full', bookings: [] },
     { start: '12:00', mode: 'full', bookings: [] },
     { start: '13:00', mode: 'full', bookings: [] },
     { start: '14:00', mode: 'full', bookings: [] },
     { start: '15:00', mode: 'third', bookings: [
-      { zoneId: 'small-hall-third-1', team: 'HK Zvolen dorast B – tréning' },
-      { zoneId: 'small-hall-third-2', team: 'HK Zvolen dorast A – tréning' },
-      { zoneId: 'small-hall-third-3', team: 'HK Zvolen juniori – tréning' }
+      { zoneId: 'small-hall-third-1', team: 'HK Zvolen dorast B – tréning', room: 'Šatňa 1' },
+      { zoneId: 'small-hall-third-2', team: 'HK Zvolen dorast A – tréning', room: 'Šatňa 2' },
+      { zoneId: 'small-hall-third-3', team: 'HK Zvolen juniori – tréning', room: 'Šatňa 3' }
     ] },
     { start: '16:00', mode: 'full', bookings: [
-      { zoneId: 'small-hall-full', team: 'Firemná akcia – firemný večierok' }
+      { zoneId: 'small-hall-full', team: 'Firemná akcia – firemný večierok', room: 'Šatňa VIP' }
     ] },
     { start: '17:00', mode: 'full', bookings: [] },
     { start: '18:00', mode: 'half', bookings: [
-      { zoneId: 'small-hall-half-a', team: 'Verejné korčuľovanie' },
-      { zoneId: 'small-hall-half-b', team: 'Krasokorčuľovanie – dorast' }
+      { zoneId: 'small-hall-half-a', team: 'Verejné korčuľovanie', room: 'Šatňa 3' },
+      { zoneId: 'small-hall-half-b', team: 'Krasokorčuľovanie – dorast', room: 'Šatňa 4' }
     ] },
     { start: '19:00', mode: 'full', bookings: [
-      { zoneId: 'small-hall-full', team: 'Liga: HK Zvolen B – HK Detva' }
+      { zoneId: 'small-hall-full', team: 'Liga: HK Zvolen B – HK Detva', room: 'Šatňa domácich' }
     ] },
     { start: '20:00', mode: 'full', bookings: [] },
     { start: '21:00', mode: 'full', bookings: [] }
@@ -127,7 +127,7 @@ const RINK_PLANS = {
 
 const DURATION_MINUTES = 60
 
-async function createBookingDoc(rinkId, zoneId, start, team) {
+async function createBookingDoc(rinkId, zoneId, start, team, room) {
   const lockId = `${CLUB_ID}__${zoneId}__${DATE}__${start}`
   const lockRef = db.doc(`slotLocks/${lockId}`)
   const existing = await lockRef.get()
@@ -180,7 +180,8 @@ async function createBookingDoc(rinkId, zoneId, start, team) {
     durationMinutes: DURATION_MINUTES,
     bookingId: bookingRef.id,
     demoSeed: true,
-    createdAt: Timestamp.now()
+    createdAt: Timestamp.now(),
+    ...(room ? { room } : {})
   })
 
   console.log(`  ${rinkId}/${zoneId} ${start} — ${team}`)
@@ -208,7 +209,7 @@ async function run() {
   for (const [rinkId, slots] of Object.entries(RINK_PLANS)) {
     for (const slot of slots) {
       for (const b of slot.bookings) {
-        const ok = await createBookingDoc(rinkId, b.zoneId, slot.start, b.team)
+        const ok = await createBookingDoc(rinkId, b.zoneId, slot.start, b.team, b.room)
         if (ok) created++
         else skipped++
       }

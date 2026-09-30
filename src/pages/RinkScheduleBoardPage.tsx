@@ -237,6 +237,7 @@ export default function RinkScheduleBoardPage() {
             >
               <span className="font-semibold text-xs sm:text-sm truncate">{it.label}</span>
               {it.liveScore && <span className="text-xs truncate">{it.liveScore}</span>}
+              {it.room && <span className="text-[0.6rem] sm:text-xs opacity-80 truncate">{it.room}</span>}
             </div>
           )
         })}
