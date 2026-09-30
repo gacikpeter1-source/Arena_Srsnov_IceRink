@@ -17,6 +17,10 @@ interface BoardItem {
   id: string
   rinkId: string
   zoneLabel: string
+  // A short "which physical part of the ice" marker (A/B/C, derived from the
+  // zone's own slotIndex) — only set for a genuinely split zone (half/third),
+  // never for a whole-rink booking, which has no "which part" ambiguity.
+  zonePart?: string
   label: string
   room?: string
   awayRoom?: string
@@ -103,6 +107,14 @@ export default function RinkScheduleBoardPage() {
     const zone = zones.find((z) => z.id === zoneId)
     return zone ? localizedName(zone, i18n.language) : ''
   }
+  // "Which part of the ice" letter (A/B/C) for a split zone — see BoardItem's
+  // own doc comment. Free text for now, matching an explicit "volný text, ale
+  // zatiaľ ako príklad A, B, C" request.
+  const zonePart = (zoneId: string): string | undefined => {
+    const zone = zones.find((z) => z.id === zoneId)
+    if (!zone || zone.mode === 'full') return undefined
+    return String.fromCharCode(65 + zone.slotIndex)
+  }
 
   const roomByBookingId = new Map<string, string>()
   const roomBySeriesId = new Map<string, string>()
@@ -134,6 +146,7 @@ export default function RinkScheduleBoardPage() {
         id: b.id,
         rinkId: b.rinkId,
         zoneLabel: zoneName(b.zoneId),
+        zonePart: zonePart(b.zoneId),
         label: b.name,
         room: roomByBookingId.get(b.id) ?? (b.seriesId ? roomBySeriesId.get(b.seriesId) : undefined),
         awayRoom: awayRoomByBookingId.get(b.id) ?? (b.seriesId ? awayRoomBySeriesId.get(b.seriesId) : undefined),
@@ -155,6 +168,7 @@ export default function RinkScheduleBoardPage() {
         id: m.id,
         rinkId: m.rinkId,
         zoneLabel: zoneName(m.zoneId),
+        zonePart: zonePart(m.zoneId),
         label: `${m.teamA} – ${m.teamB}`,
         startMin,
         endMin,
@@ -230,10 +244,17 @@ export default function RinkScheduleBoardPage() {
           {slot.items.map((it) => {
             const room = formatRoomLine(t, it.room, it.awayRoom)
             return (
-              <div key={it.id} className={`font-semibold truncate ${lineClasses}`}>
-                {it.label} - {minutesToTime(slot.startMin)}
-                {room ? ` - ${room}` : ''}
-                {it.liveScore ? ` (${it.liveScore})` : ''}
+              <div key={it.id} className={`flex items-center gap-1.5 min-w-0 font-semibold ${lineClasses}`}>
+                {it.zonePart && (
+                  <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1 leading-tight text-[0.7em] font-bold">
+                    {it.zonePart}
+                  </span>
+                )}
+                <span className="truncate">
+                  {it.label} - {minutesToTime(slot.startMin)}
+                  {room ? ` - ${room}` : ''}
+                  {it.liveScore ? ` (${it.liveScore})` : ''}
+                </span>
               </div>
             )
           })}
