@@ -14,6 +14,7 @@ import {
   type CreatedSeries
 } from '@/lib/bookings'
 import { queuePendingConfirmationEmail, queueSeriesConfirmationEmail } from '@/lib/email'
+import { findOverlapConflict } from '@/lib/rinkConflicts'
 import { isSupportedLanguage } from '@/i18n'
 import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { IcsEventInput } from '@/lib/ics'
@@ -24,6 +25,10 @@ interface BookingModalProps {
   club: Club
   rinkId: string
   zone: Zone
+  // Every zone on this rink, not just the one being booked — needed to
+  // resolve which zones are 'full' when checking for a real time-interval
+  // overlap (see findOverlapConflict) before submitting.
+  zones: Zone[]
   date: string
   startTime: string
   durationMinutes: number
@@ -38,6 +43,7 @@ export default function BookingModal({
   club,
   rinkId,
   zone,
+  zones,
   date,
   startTime,
   durationMinutes,
@@ -75,6 +81,20 @@ export default function BookingModal({
     setSubmitting(true)
     try {
       const lang = isSupportedLanguage(i18n.language) ? i18n.language : 'en'
+
+      if (!repeat) {
+        // Real time-interval overlap check — catches a zone that's still
+        // shown as free by exact-slot matching alone but genuinely
+        // overlaps an ad-hoc-timed booking (e.g. a rink-schedule entry at
+        // 11:30). Never offers a replace here — a customer can never
+        // cancel someone else's reservation, unlike the staff-side forms.
+        const overlap = await findOverlapConflict(club.id, rinkId, zone.id, zones, date, startTime, durationMinutes)
+        if (overlap) {
+          setError(t('booking.slotUnavailable'))
+          setSubmitting(false)
+          return
+        }
+      }
 
       if (repeat) {
         const recurrence: SeriesRecurrence =
