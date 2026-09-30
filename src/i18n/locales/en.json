@@ -432,7 +432,7 @@
     "conflictNotice": "Heads up: this slot is already held by {{label}}. Submitting will let you replace it.",
     "conflictNoticeBooking": "Heads up: this slot is already held by a customer booking and can't be replaced from here.",
     "importTitle": "Bulk import",
-    "importHint": "Upload a spreadsheet (or a plain .csv/.txt file with the same columns) to add many entries at once — one row per date, for a recurring entry use the form above instead. Required columns: Hala (rink number, e.g. 1 or 2), Nazov (name), Datum (date, dd.mm.yyyy), Cas (start time, 24h). Optional: Satna (room), Ihrisko (which part of the ice — leave blank for the whole rink). Every row books 60 minutes.",
+    "importHint": "Upload a spreadsheet (or a plain .csv/.txt file with the same columns) to add many entries at once — one row per date, for a recurring entry use the form above instead. Required columns: Hala (rink number, e.g. 1 or 2), Nazov (name), Datum (date, dd.mm.yyyy), Cas (start time, 24h). Optional: Trvanie (duration in minutes — leave blank for 60), Satna (room), Ihrisko (which part of the ice — leave blank for the whole rink).",
     "downloadTemplate": "Download import template",
     "importSuccess": "Added {{count}} schedule entries.",
     "importRow": "Row {{row}}",

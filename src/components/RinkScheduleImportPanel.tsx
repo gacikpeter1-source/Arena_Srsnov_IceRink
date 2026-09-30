@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createRinkScheduleEntry } from '@/lib/rinkSchedule'
-import { downloadRinkScheduleImportTemplate, parseRinkScheduleWorkbook, RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES } from '@/lib/excel'
+import { downloadRinkScheduleImportTemplate, parseRinkScheduleWorkbook } from '@/lib/excel'
 import { Rink, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -27,9 +27,12 @@ interface RinkScheduleImportPanelProps {
  * (sorted by sortOrder), and "Ihrisko" — free text, optional — is matched
  * against a zone's name, its Slovak translation, or (for a split zone)
  * the same A/B/C letter the TV board shows; left blank, it resolves to
- * that rink's whole-rink zone. Also accepts a plain .csv/.txt file typed
- * by hand in the same column order as the .xlsx template, not just a
- * generated spreadsheet — see parseRinkScheduleWorkbook's own doc comment.
+ * that rink's whole-rink zone. "Trvanie" (duration) is likewise optional —
+ * parseRinkScheduleWorkbook already defaults a blank one to 60 minutes,
+ * so row.durationMinutes is always a real number by the time it gets here.
+ * Also accepts a plain .csv/.txt file typed by hand in the same column
+ * order as the .xlsx template, not just a generated spreadsheet — see
+ * parseRinkScheduleWorkbook's own doc comment.
  */
 export default function RinkScheduleImportPanel({
   clubId,
@@ -94,7 +97,7 @@ export default function RinkScheduleImportPanel({
             createdByEmail,
             date: row.date,
             startTime: row.startTime,
-            durationMinutes: RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES,
+            durationMinutes: row.durationMinutes,
             timezone
           })
           created++
