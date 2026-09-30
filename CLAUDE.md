@@ -2085,6 +2085,23 @@ per line, at the cost of the small duplication. The live/next badge
 ("Práve sa hrá"/"Nasleduje") stays as its own line above the sessions,
 unchanged.
 
+**A split-zone event also carries a note of which physical part of the
+ice it's on.** The row format above reads fine for a whole-rink booking,
+but a cell shared by several same-time sessions (the exact "ice split
+into zones" case this board already groups into one cell) previously gave
+no way to tell which session was on which half/third — worst exactly
+where the ambiguity matters most, since those are the rows sharing one
+cell. Each zone's own `slotIndex` (0/1/2 within its `mode`, see `Zone` in
+`src/types/index.ts`) is mapped to a letter (`String.fromCharCode(65 +
+slotIndex)` → A/B/C) and shown as a small badge in front of the name on
+`RinkScheduleBoardPage.tsx`'s TV board — deliberately free text for now
+(per an explicit "voľný text, ale zatiaľ ako príklad A, B, C" request)
+rather than a real per-zone label field, so a club can later rename it to
+match however staff actually refer to each half/third without a schema
+change. Only shown for a genuinely split zone (`zone.mode !== 'full'`) —
+a whole-rink booking has no "which part" ambiguity, so it gets no badge
+at all.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
