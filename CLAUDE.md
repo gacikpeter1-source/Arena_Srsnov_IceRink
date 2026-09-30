@@ -1936,6 +1936,52 @@ columns — Rink+Zone resolved by name in the caller
 resolves rink+zone names itself (zone names aren't unique club-wide).
 Recurring entries stay a manual-form-only concept.
 
+**Import columns redesigned for hand-typing, including a plain .csv/.txt
+file, not just a generated .xlsx.** The Rink/Zone/Team/Room/Date/Start
+Time/Duration columns above were superseded by a smaller, Slovak-worded
+set the club actually asked for: **Hala** (a small integer — 1, 2, ... —
+naming a rink by its position among `rinks` sorted by `sortOrder`, not
+its name; far less error-prone to hand-type than "Main Hall"), **Nazov**
+(team/event name), **Datum** (`dd.mm.rrrr`), and **Cas** (24h start
+time) are required — `parseRinkScheduleWorkbook` reports exactly which
+row is missing which one, same "collect every row error, don't abort on
+the first" behavior every other importer here already has. **Satna**
+(room) and **Ihrisko** (which part of the ice) are optional: `Ihrisko` is
+free text matched by the caller against a zone's `name`, its Slovak
+`translations.sk`, or — for a split zone — the same A/B/C letter
+`RinkScheduleBoardPage.tsx`'s TV board now shows (see the "split-zone
+event" note below), and left blank it resolves to that rink's whole-rink
+zone rather than erroring. There's no Duration column at all any more —
+every imported row books a fixed 60 minutes
+(`RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES`), matching the manual
+create form's own 60-minute default, since a hand-typed row shouldn't
+need to restate the same number on every line. Column headers themselves
+are plain ASCII Slovak words (no diacritics, so a plain-text file with no
+guaranteed encoding still round-trips) and matched case-insensitively
+(`getFieldCI`) — a deliberate departure from the other importers on this
+page, which keep fixed-case English headers for cross-language
+re-import; this importer is explicitly Slovak-first and meant to be typed
+by hand, so those two constraints don't apply here. `downloadRinkScheduleImportTemplate`
+now writes one example data row under the header row (`1,Gaca,
+01.10.2026,21:45,Satna 5,`) as a concrete model to copy from.
+
+`parseRinkScheduleWorkbook` accepts either an `.xlsx` `ArrayBuffer` or
+the raw text of a `.csv`/`.txt` file typed in the same column order —
+`RinkScheduleImportPanel.tsx`'s file input now accepts all three
+extensions and reads the file as text vs. an array buffer accordingly.
+The text path deliberately does **not** go through
+`XLSX.read(text, { type: 'string' })` — testing that path surfaced a real
+bug: SheetJS's own CSV cell-type guessing silently misread `01.10.2026`
+as 10 January (an MM.DD.YYYY-leaning heuristic) instead of 1 October,
+even though the exact same string parses correctly via
+`excelValueToDateString`'s own `d.m.yyyy` text branch when it isn't
+pre-mangled into a `Date`. Fixed with a small hand-rolled `parseSimpleCsv`
+(split on newlines, then on commas — no quoted-field support, out of
+scope for a hand-typed row this simple) that keeps every cell exactly the
+text that was typed, so the existing date/time string parsing behaves
+identically whether the row came from a `.csv`/`.txt` file or was read
+back out of the generated `.xlsx` template.
+
 ### Fáza 2: public "who has the ice when" TV dashboard
 
 `RinkScheduleBoardPage.tsx` (`/rozvrh`, public, no login — linked from

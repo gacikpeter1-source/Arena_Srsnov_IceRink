@@ -510,46 +510,75 @@ export function parseTournamentMatchesWorkbook(buffer: ArrayBuffer): ParsedTourn
 // Rink team schedule bulk import (see CLAUDE.md's "Rink team schedule"
 // section) — each row is one non-recurring occurrence, same "bulk = many
 // individual rows, recurrence stays a manual-form-only concept" stance
-// the tournament match import above already takes. Rink name is required
-// for the same reason it is on the booking import: zone names aren't
-// unique club-wide, only within a rink.
+// the tournament match import above already takes.
+//
+// Unlike the booking/tournament-match importers, this one is explicitly
+// meant to be hand-typed (including as a plain .csv/.txt file, not just
+// a generated .xlsx — see parseRinkScheduleWorkbook), so its columns are
+// plain Slovak words (no diacritics, to survive a plain-text file with no
+// guaranteed encoding) rather than the fixed English headers those other
+// importers deliberately keep for language-independent re-import. "Hala"
+// is a small integer (1, 2, ...) naming a rink by its position — not the
+// rink's own name — since staff already think of the club's two rinks as
+// "Hala 1"/"Hala 2" (see the rink-rename note in the "Multiple rinks"
+// section) and typing a bare number is far less error-prone by hand than
+// typing a rink's full name. "Ihrisko" (which part of the ice) is free
+// text and optional — left blank, the row books the whole rink; filled
+// in, it's matched against the zone's name, its Slovak translation, or
+// (for a split zone) the same A/B/C letter RinkScheduleBoardPage.tsx's TV
+// board now shows for exactly this purpose. There's deliberately no
+// Duration column — a hand-typed row shouldn't need to restate the same
+// number on every line, so every imported row uses one fixed default
+// (see RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES below), matching the
+// manual create form's own 60-minute default.
 // ---------------------------------------------------------------------
 
 const RINK_SCHEDULE_HEADERS = {
-  rink: 'Rink',
-  zone: 'Zone',
-  team: 'Team',
-  room: 'Room',
-  date: 'Date',
-  startTime: 'Start Time',
-  duration: 'Duration (min)'
+  rink: 'Hala',
+  team: 'Nazov',
+  date: 'Datum',
+  startTime: 'Cas',
+  room: 'Satna',
+  zonePart: 'Ihrisko'
 } as const
 
 const RINK_SCHEDULE_IMPORT_HEADERS = [
   RINK_SCHEDULE_HEADERS.rink,
-  RINK_SCHEDULE_HEADERS.zone,
   RINK_SCHEDULE_HEADERS.team,
-  RINK_SCHEDULE_HEADERS.room,
   RINK_SCHEDULE_HEADERS.date,
   RINK_SCHEDULE_HEADERS.startTime,
-  RINK_SCHEDULE_HEADERS.duration
+  RINK_SCHEDULE_HEADERS.room,
+  RINK_SCHEDULE_HEADERS.zonePart
 ]
 
+// One concrete example row shown right under the header row in the
+// downloaded template, so staff hand-typing further rows have a working
+// sample to copy the format from.
+const RINK_SCHEDULE_EXAMPLE_ROW = [1, 'Gaca', '01.10.2026', '21:45', 'Satna 5', '']
+
+// Every imported row books this long when no Duration column exists to
+// say otherwise — same default the manual create form itself starts at.
+export const RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES = 60
+
 export function downloadRinkScheduleImportTemplate(filename = 'rink-schedule-template.xlsx'): void {
-  const ws = XLSX.utils.aoa_to_sheet([RINK_SCHEDULE_IMPORT_HEADERS])
+  const ws = XLSX.utils.aoa_to_sheet([RINK_SCHEDULE_IMPORT_HEADERS, RINK_SCHEDULE_EXAMPLE_ROW])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
   XLSX.writeFile(wb, filename)
 }
 
 export interface RinkScheduleImportRow {
-  rinkName: string
-  zoneName: string
+  // 1-based position among the club's rinks (sorted by Rink.sortOrder) —
+  // resolved to a real rinkId by the caller, which has the live Rink list;
+  // this pure parser never touches Firestore.
+  rinkNumber: number
   teamName: string
-  room?: string
   date: string
   startTime: string
-  durationMinutes: number
+  room?: string
+  // Free text naming which part of the ice — blank means the whole rink.
+  // Resolved by the caller against a zone's name/translation/A-B-C letter.
+  zonePart?: string
 }
 
 export interface ParsedRinkScheduleImport {
@@ -557,10 +586,52 @@ export interface ParsedRinkScheduleImport {
   errors: ImportRowError[]
 }
 
-export function parseRinkScheduleWorkbook(buffer: ArrayBuffer): ParsedRinkScheduleImport {
-  const wb = XLSX.read(buffer)
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+// Case-insensitive header lookup. The other importers on this page match
+// their (fixed, generated-only) header text exactly, but this one is
+// explicitly meant to also support a hand-typed plain-text file — nobody
+// hand-typing "cas" or "CAS" should get a spurious "missing column" error
+// over casing alone.
+function getFieldCI(row: Record<string, unknown>, header: string): unknown {
+  const key = Object.keys(row).find((k) => k.trim().toLowerCase() === header.toLowerCase())
+  return key !== undefined ? row[key] : undefined
+}
+
+// A hand-typed .csv/.txt row is parsed by hand too, deliberately not via
+// XLSX.read(text, {type: 'string'}) — SheetJS's CSV reader guesses cell
+// types from the raw text (numbers, and dates via its own MM.DD.YYYY-
+// leaning heuristic), which silently mis-parsed "01.10.2026" as 10
+// January instead of 1 October during testing. A plain string split
+// keeps every cell exactly the text that was typed, which is also what
+// excelValueToDateString/excelValueToTimeString's own "d.m.yyyy"/"HH:mm"
+// string branches already expect. No quoted-field support (a comma
+// inside a name would break it) — out of scope for a hand-typed row in
+// this simple a format.
+function parseSimpleCsv(text: string): Record<string, string>[] {
+  const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim().length > 0)
+  if (lines.length === 0) return []
+  const headers = lines[0].split(',').map((h) => h.trim())
+  return lines.slice(1).map((line) => {
+    const cells = line.split(',')
+    const row: Record<string, string> = {}
+    headers.forEach((header, i) => {
+      row[header] = (cells[i] ?? '').trim()
+    })
+    return row
+  })
+}
+
+// Accepts either a parsed .xlsx (ArrayBuffer) or the raw text of a
+// comma-separated .csv/.txt file typed by hand in exactly the same
+// column order as the template.
+export function parseRinkScheduleWorkbook(input: ArrayBuffer | string): ParsedRinkScheduleImport {
+  let raw: Record<string, unknown>[]
+  if (typeof input === 'string') {
+    raw = parseSimpleCsv(input)
+  } else {
+    const wb = XLSX.read(input)
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+  }
 
   const rows: RinkScheduleImportRow[] = []
   const errors: ImportRowError[] = []
@@ -568,20 +639,15 @@ export function parseRinkScheduleWorkbook(buffer: ArrayBuffer): ParsedRinkSchedu
   raw.forEach((r, i) => {
     const rowNumber = i + 2
 
-    const rinkName = String(r[RINK_SCHEDULE_HEADERS.rink] ?? '').trim()
-    const zoneName = String(r[RINK_SCHEDULE_HEADERS.zone] ?? '').trim()
-    const teamName = String(r[RINK_SCHEDULE_HEADERS.team] ?? '').trim()
-    const room = String(r[RINK_SCHEDULE_HEADERS.room] ?? '').trim()
-    const date = excelValueToDateString(r[RINK_SCHEDULE_HEADERS.date])
-    const startTime = excelValueToTimeString(r[RINK_SCHEDULE_HEADERS.startTime])
-    const durationMinutes = Number(r[RINK_SCHEDULE_HEADERS.duration])
+    const rinkNumber = Number(String(getFieldCI(r, RINK_SCHEDULE_HEADERS.rink) ?? '').trim())
+    const teamName = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.team) ?? '').trim()
+    const date = excelValueToDateString(getFieldCI(r, RINK_SCHEDULE_HEADERS.date))
+    const startTime = excelValueToTimeString(getFieldCI(r, RINK_SCHEDULE_HEADERS.startTime))
+    const room = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.room) ?? '').trim()
+    const zonePart = String(getFieldCI(r, RINK_SCHEDULE_HEADERS.zonePart) ?? '').trim()
 
-    if (!rinkName) {
-      errors.push({ rowNumber, message: `Missing "${RINK_SCHEDULE_HEADERS.rink}"` })
-      return
-    }
-    if (!zoneName) {
-      errors.push({ rowNumber, message: `Missing "${RINK_SCHEDULE_HEADERS.zone}"` })
+    if (!Number.isInteger(rinkNumber) || rinkNumber < 1) {
+      errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.rink}"` })
       return
     }
     if (!teamName) {
@@ -596,12 +662,8 @@ export function parseRinkScheduleWorkbook(buffer: ArrayBuffer): ParsedRinkSchedu
       errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.startTime}"` })
       return
     }
-    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-      errors.push({ rowNumber, message: `Invalid or missing "${RINK_SCHEDULE_HEADERS.duration}"` })
-      return
-    }
 
-    rows.push({ rinkName, zoneName, teamName, room: room || undefined, date, startTime, durationMinutes })
+    rows.push({ rinkNumber, teamName, date, startTime, room: room || undefined, zonePart: zonePart || undefined })
   })
 
   return { rows, errors }
