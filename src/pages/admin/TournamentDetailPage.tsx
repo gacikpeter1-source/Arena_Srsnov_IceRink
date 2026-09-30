@@ -12,7 +12,7 @@ import {
   ensureTournamentTvCode,
   SlotUnavailableError
 } from '@/lib/tournaments'
-import { findSlotConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
+import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { formatDateISO, localizedName } from '@/lib/utils'
 import { DivisionMode, Tournament, TournamentMatch } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,6 +45,12 @@ export default function TournamentDetailPage() {
   const { user, staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
+  // Overwriting someone else's real reservation is a bigger action than
+  // just planning a match — restricted to ice-rink staff (assistant/owner/
+  // superadmin), not a plain trainer account, even though a trainer can
+  // otherwise fully use this page. See CLAUDE.md's tournament/rink-schedule
+  // conflict section for the same "replace" gating elsewhere in the app.
+  const canReplaceReservations = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
 
   const [tournament, setTournament] = useState<(Tournament & { id: string }) | null>(null)
@@ -116,10 +122,15 @@ export default function TournamentDetailPage() {
   }, [rinkId, format, locationType])
 
   // Proactive heads-up per zone row: lets a trainer see, while still
-  // filling in team names, whether the rink team schedule (or another
-  // tournament match) already holds that zone/date/time — before hitting
-  // the same SlotUnavailableError the reactive check in handleAddMatch
-  // resolves. Debounced since date/time fields fire on every keystroke.
+  // filling in team names, whether the rink is already genuinely occupied
+  // at that date/time — before hitting the same SlotUnavailableError (or,
+  // for a real interval overlap a plain exact-slot lock wouldn't catch at
+  // all, the same double-booking) the reactive check in handleAddMatch
+  // resolves. Real interval overlap, not just an exact-slot match — see
+  // findOverlapConflict's own doc comment for why a different-but-
+  // overlapping start time (or a 'full' row against an already-booked
+  // half/third) still needs to be caught. Debounced since date/time fields
+  // fire on every keystroke.
   const zoneIdsKey = zonesForSelection.map((z) => z.id).join(',')
   useEffect(() => {
     if (!club || locationType !== 'rink' || !zoneIdsKey) {
@@ -129,7 +140,9 @@ export default function TournamentDetailPage() {
     let cancelled = false
     const timer = setTimeout(() => {
       Promise.all(
-        zonesForSelection.map(async (zone) => [zone.id, await findSlotConflict(club.id, zone.id, date, startTime)] as const)
+        zonesForSelection.map(
+          async (zone) => [zone.id, await findOverlapConflict(club.id, rinkId, zone.id, zones, date, startTime, duration)] as const
+        )
       ).then((results) => {
         if (!cancelled) setZoneConflicts(Object.fromEntries(results))
       })
@@ -139,7 +152,7 @@ export default function TournamentDetailPage() {
       clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club, locationType, zoneIdsKey, date, startTime])
+  }, [club, locationType, zoneIdsKey, rinkId, zones, date, startTime, duration])
 
   const handleDeleteTournament = async () => {
     if (!tournament || !confirm(t('tournaments.confirmDeleteTournament'))) return
@@ -205,12 +218,50 @@ export default function TournamentDetailPage() {
               ? { bookingContact: { name: `${t('tournaments.bookingLabel')}: ${tournament.name}`, email: staff.email, phone: '', timezone: club.timezone } }
               : {})
           }
+
+          // Real interval-overlap check before ever calling
+          // createTournamentMatch — only matters when this match will
+          // actually reserve ice (blocksIce); createBooking's own
+          // transaction only guards the exact zoneId+time key, so a
+          // different-but-overlapping time (or a 'full' match against an
+          // already-booked half/third) would otherwise create a real
+          // double-booking without ever throwing. See
+          // findOverlapConflict's own doc comment. Only assistant/owner/
+          // superadmin may confirm cancelling someone else's reservation —
+          // a plain trainer account just gets skipped, same as an unowned
+          // (plain customer) conflict.
+          let overlap = blocksIce ? await findOverlapConflict(club.id, rinkId, zone.id, zones, date, startTime, duration) : null
+          let blocked = false
+          while (overlap) {
+            if (
+              overlap.ownerId &&
+              canReplaceReservations &&
+              confirm(t('tournaments.confirmReplaceSlot', { zone: localizedName(zone, i18n.language), label: overlap.label }))
+            ) {
+              await resolveSlotConflict(overlap)
+              overlap = await findOverlapConflict(club.id, rinkId, zone.id, zones, date, startTime, duration)
+            } else {
+              blocked = true
+              break
+            }
+          }
+          if (blocked) {
+            skippedZones.push(localizedName(zone, i18n.language))
+            continue
+          }
+
           try {
             await createTournamentMatch(matchInput)
           } catch (err) {
             if (!(err instanceof SlotUnavailableError)) throw err
+            // Fallback for a race the overlap check above couldn't catch —
+            // exact-slot lookup, same as before.
             const found = await findSlotConflict(club.id, zone.id, date, startTime)
-            if (found?.ownerId && confirm(t('tournaments.confirmReplaceSlot', { zone: localizedName(zone, i18n.language), label: found.label }))) {
+            if (
+              found?.ownerId &&
+              canReplaceReservations &&
+              confirm(t('tournaments.confirmReplaceSlot', { zone: localizedName(zone, i18n.language), label: found.label }))
+            ) {
               await resolveSlotConflict(found)
               try {
                 await createTournamentMatch(matchInput)
