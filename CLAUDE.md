@@ -2070,6 +2070,21 @@ to `p-3 gap-2`) without touching the club name's own `clamp()` font
 size — per an explicit "not the Arena Sršňov font, the cell" distinction:
 the box got more compact, the text inside it didn't shrink.
 
+**Row format corrected to "Name - Time - Room" per line, no separate
+shared time header.** The original cell design (see the "sliding timeline
+was replaced" note above) put one time at the top of the cell and each
+session's name+room stacked below it — after a round of feedback that
+turned out to be a miscommunication of the actual ask. The final,
+explicitly specified format drops that shared header entirely: each
+session gets its own single line reading `{name} - {startTime} - {room}`
+(e.g. "HC Michalovce - 16:45 - Šatňa 3"), room omitted from the line
+entirely when unset. A cell shared by several same-time sessions (the ice
+split into zones) still holds one row per session, each repeating its own
+start time rather than relying on a header — simpler and self-contained
+per line, at the cost of the small duplication. The live/next badge
+("Práve sa hrá"/"Nasleduje") stays as its own line above the sessions,
+unchanged.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
