@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createRinkScheduleEntry } from '@/lib/rinkSchedule'
-import { downloadRinkScheduleImportTemplate, parseRinkScheduleWorkbook } from '@/lib/excel'
+import { downloadRinkScheduleImportTemplate, parseRinkScheduleWorkbook, RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES } from '@/lib/excel'
 import { Rink, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -22,9 +22,14 @@ interface RinkScheduleImportPanelProps {
  * schedule" section) — mirrors TournamentMatchImportPanel.tsx's pattern,
  * scoped to non-recurring rows (recurring entries stay a manual-form-only
  * concept, same split the booking/tournament-match importers already
- * use). Rink+Zone are resolved by name here (not in the pure parser) —
- * same reason the booking import already does this in its own caller:
- * zone names are only unique within a rink.
+ * use). Rink+zone are resolved here (not in the pure parser), same as the
+ * other importers: "Hala" is a 1-based position among the club's rinks
+ * (sorted by sortOrder), and "Ihrisko" — free text, optional — is matched
+ * against a zone's name, its Slovak translation, or (for a split zone)
+ * the same A/B/C letter the TV board shows; left blank, it resolves to
+ * that rink's whole-rink zone. Also accepts a plain .csv/.txt file typed
+ * by hand in the same column order as the .xlsx template, not just a
+ * generated spreadsheet — see parseRinkScheduleWorkbook's own doc comment.
  */
 export default function RinkScheduleImportPanel({
   clubId,
@@ -49,20 +54,32 @@ export default function RinkScheduleImportPanel({
     setImportErrors([])
     setImportedCount(null)
     try {
-      const buffer = await file.arrayBuffer()
-      const { rows, errors } = parseRinkScheduleWorkbook(buffer)
+      const isPlainText = /\.(csv|txt)$/i.test(file.name)
+      const input = isPlainText ? await file.text() : await file.arrayBuffer()
+      const { rows, errors } = parseRinkScheduleWorkbook(input)
       const messages = errors.map((err) => `${t('rinkSchedule.importRow', { row: err.rowNumber })}: ${err.message}`)
+
+      const sortedRinks = [...rinks].sort((a, b) => a.sortOrder - b.sortOrder)
 
       let created = 0
       for (const row of rows) {
-        const rink = rinks.find((r) => r.name.toLowerCase() === row.rinkName.toLowerCase())
+        const rink = sortedRinks[row.rinkNumber - 1]
         if (!rink) {
-          messages.push(`${row.teamName} (${row.date} ${row.startTime}): ${t('rinkSchedule.unknownRink', { rink: row.rinkName })}`)
+          messages.push(`${row.teamName} (${row.date} ${row.startTime}): ${t('rinkSchedule.unknownRinkNumber', { number: row.rinkNumber })}`)
           continue
         }
-        const zone = zones.find((z) => z.rinkId === rink.id && z.name.toLowerCase() === row.zoneName.toLowerCase())
+        const rinkZones = zones.filter((z) => z.rinkId === rink.id)
+        const part = row.zonePart?.toLowerCase()
+        const zone = part
+          ? rinkZones.find(
+              (z) =>
+                z.name.toLowerCase() === part ||
+                z.translations?.sk?.toLowerCase() === part ||
+                (z.mode !== 'full' && String.fromCharCode(65 + z.slotIndex).toLowerCase() === part)
+            )
+          : rinkZones.find((z) => z.mode === 'full')
         if (!zone) {
-          messages.push(`${row.teamName} (${row.date} ${row.startTime}): ${t('rinkSchedule.unknownZone', { zone: row.zoneName })}`)
+          messages.push(`${row.teamName} (${row.date} ${row.startTime}): ${t('rinkSchedule.unknownZone', { zone: row.zonePart ?? '' })}`)
           continue
         }
         try {
@@ -77,7 +94,7 @@ export default function RinkScheduleImportPanel({
             createdByEmail,
             date: row.date,
             startTime: row.startTime,
-            durationMinutes: row.durationMinutes,
+            durationMinutes: RINK_SCHEDULE_IMPORT_DEFAULT_DURATION_MINUTES,
             timezone
           })
           created++
@@ -105,7 +122,7 @@ export default function RinkScheduleImportPanel({
           <Button type="button" variant="outline" size="sm" onClick={() => downloadRinkScheduleImportTemplate()}>
             {t('rinkSchedule.downloadTemplate')}
           </Button>
-          <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handleImport} disabled={importing} className="text-text-secondary text-sm" />
+          <input ref={fileInputRef} type="file" accept=".xlsx,.csv,.txt" onChange={handleImport} disabled={importing} className="text-text-secondary text-sm" />
         </div>
         {importedCount != null && <p className="text-status-success text-sm">{t('rinkSchedule.importSuccess', { count: importedCount })}</p>}
         {importErrors.length > 0 && (
