@@ -8,7 +8,6 @@ import { fetchRinkScheduleEntries } from '@/lib/rinkSchedule'
 import { fetchTournaments, fetchTournamentMatches, deriveMatchState } from '@/lib/tournaments'
 import { formatDateISO, timeToMinutes, minutesToTime, localizedName } from '@/lib/utils'
 import { Booking, RinkScheduleEntry, TournamentMatch } from '@/types'
-import ScaleToFit from '@/components/ScaleToFit'
 import BackButton from '@/components/BackButton'
 
 const POLL_MS = 30000
@@ -195,38 +194,47 @@ export default function RinkScheduleBoardPage() {
       .map(([startMin, slotItems]) => ({ startMin, items: slotItems }))
   }
 
+  // Upcoming slots beyond this are simply not shown — without a JS
+  // auto-shrink step (see below), an unbounded list could overflow the
+  // column, so this caps at what a typical day comfortably fits.
+  const MAX_UPCOMING_SLOTS = 5
+
   function renderSlotCell(slot: BoardSlot, variant: 'live' | 'next' | 'later') {
     const cellClasses =
       variant === 'live'
         ? 'border-status-success bg-status-success/15'
         : variant === 'next'
-          ? 'border-status-danger bg-status-danger/15'
+          ? 'border-status-warning bg-status-warning/15'
           : 'border-border bg-background-dark'
     const timeClasses =
       variant === 'live'
-        ? 'text-status-success text-lg sm:text-xl'
+        ? 'text-status-success text-[clamp(1.1rem,2.2vw,1.75rem)]'
         : variant === 'next'
-          ? 'text-status-danger text-3xl sm:text-4xl'
-          : 'text-text-secondary text-base sm:text-lg'
+          ? 'text-status-warning text-[clamp(2rem,4.2vw,3.5rem)]'
+          : 'text-text-secondary text-[clamp(0.95rem,1.8vw,1.4rem)]'
     const nameClasses =
-      variant === 'next' ? 'text-xl sm:text-2xl text-white' : variant === 'live' ? 'text-base sm:text-lg text-white' : 'text-sm sm:text-base text-text-secondary'
-    const roomClasses = variant === 'next' ? 'text-sm sm:text-base text-text-muted' : 'text-xs sm:text-sm text-text-muted'
+      variant === 'next'
+        ? 'text-[clamp(1.4rem,3.2vw,2.5rem)] text-white'
+        : variant === 'live'
+          ? 'text-[clamp(1rem,2vw,1.5rem)] text-white'
+          : 'text-[clamp(0.9rem,1.6vw,1.2rem)] text-text-secondary'
+    const roomClasses = variant === 'next' ? 'text-[clamp(0.9rem,1.8vw,1.3rem)] text-text-muted' : 'text-[clamp(0.75rem,1.3vw,1rem)] text-text-muted'
 
     return (
-      <div key={slot.startMin} className={`rounded-xl border-2 px-4 py-2 ${cellClasses}`}>
+      <div key={slot.startMin} className={`w-full rounded-xl border-2 px-4 py-2 ${cellClasses}`}>
         <div className="flex items-center gap-2 mb-1">
           <span className={`font-bold mono ${timeClasses}`}>{minutesToTime(slot.startMin)}</span>
           {variant === 'live' && <span className="text-status-success text-xs uppercase tracking-wide font-semibold">{t('tournaments.liveNow')}</span>}
-          {variant === 'next' && <span className="text-status-danger text-xs uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
+          {variant === 'next' && <span className="text-status-warning text-xs uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
         </div>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5 w-full">
           {slot.items.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-3">
+            <div key={it.id} className="flex items-center justify-between gap-3 w-full">
               <span className={`font-semibold truncate ${nameClasses}`}>
                 {it.label}
                 {it.liveScore ? ` (${it.liveScore})` : ''}
               </span>
-              {formatRoomLine(t, it.room, it.awayRoom) && <span className={`whitespace-nowrap ${roomClasses}`}>{formatRoomLine(t, it.room, it.awayRoom)}</span>}
+              {formatRoomLine(t, it.room, it.awayRoom) && <span className={`whitespace-nowrap shrink-0 ${roomClasses}`}>{formatRoomLine(t, it.room, it.awayRoom)}</span>}
             </div>
           ))}
         </div>
@@ -238,9 +246,9 @@ export default function RinkScheduleBoardPage() {
     const slots = groupIntoSlots(items)
     if (slots.length === 0) return <p className="text-text-muted text-base">{t('rinkSchedule.boardNoUpcoming')}</p>
     const liveSlots = slots.filter((s) => s.startMin <= nowMin)
-    const upcomingSlots = slots.filter((s) => s.startMin > nowMin)
+    const upcomingSlots = slots.filter((s) => s.startMin > nowMin).slice(0, MAX_UPCOMING_SLOTS)
     return (
-      <div className="flex flex-col gap-3 w-full">
+      <div className="flex flex-col gap-3 w-full h-full overflow-hidden">
         {liveSlots.map((slot) => renderSlotCell(slot, 'live'))}
         {upcomingSlots.map((slot, i) => renderSlotCell(slot, i === 0 ? 'next' : 'later'))}
       </div>
@@ -267,9 +275,7 @@ export default function RinkScheduleBoardPage() {
           {activeRinks.map((rink) => (
             <div key={rink.id} className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border bg-background-card p-3 gap-2">
               <h2 className="shrink-0 text-white text-lg font-bold text-center truncate">{localizedName(rink, i18n.language)}</h2>
-              <div className="flex-1 min-h-0">
-                <ScaleToFit className="h-full w-full">{renderEventList(itemsByRink.get(rink.id) ?? [])}</ScaleToFit>
-              </div>
+              <div className="flex-1 min-h-0 w-full">{renderEventList(itemsByRink.get(rink.id) ?? [])}</div>
             </div>
           ))}
         </div>
