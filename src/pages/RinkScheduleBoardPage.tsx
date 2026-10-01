@@ -12,6 +12,11 @@ import BackButton from '@/components/BackButton'
 
 const POLL_MS = 30000
 const CLOCK_TICK_MS = 30000
+// The conventional team-name staff type for a generic open-ice rental (no
+// specific team/trainer) — free text, not a stored value anywhere in the
+// data model (see CLAUDE.md's "no club-wide team registry" note), matched
+// by exact string purely for this board's own color-coding.
+const ICE_RENTAL_LABEL = 'Ľad na prenájom'
 
 interface BoardItem {
   id: string
@@ -273,12 +278,8 @@ export default function RinkScheduleBoardPage() {
         : variant === 'next'
           ? 'border-status-danger bg-status-danger/15'
           : 'border-status-warning bg-status-warning/15'
-    const lineClasses =
-      variant === 'next'
-        ? 'text-[clamp(0.95rem,1.6vw,1.3rem)] text-white'
-        : variant === 'live'
-          ? 'text-[clamp(0.8rem,1.15vw,1rem)] text-white'
-          : 'text-white'
+    const sizeOnlyClasses =
+      variant === 'next' ? 'text-[clamp(0.95rem,1.6vw,1.3rem)]' : variant === 'live' ? 'text-[clamp(0.8rem,1.15vw,1rem)]' : ''
     // Every cell sizes to its own content (shrink-0) — a "later" cell never
     // flex-grows to fill leftover height, so one lone event never balloons
     // into a screen-filling box; its font/padding just scale within the
@@ -297,10 +298,16 @@ export default function RinkScheduleBoardPage() {
         <div className="flex flex-col gap-0.5 w-full">
           {slot.items.map((it) => {
             const room = formatRoomLine(t, it.room, it.awayRoom)
+            // A plain ice rental ("Ľad na prenájom" — no team/trainer, just
+            // open ice staff put up for anyone to rent) gets a subtly
+            // different, cooler text color so it's easy to pick out from
+            // real team/trainer bookings at a glance, without touching the
+            // cell's own green/red/amber live-status background.
+            const colorClasses = it.label === ICE_RENTAL_LABEL ? 'text-sky-300' : 'text-white'
             return (
               <div
                 key={it.id}
-                className={`flex items-center gap-1.5 min-w-0 font-semibold ${lineClasses}`}
+                className={`flex items-center gap-1.5 min-w-0 font-semibold ${sizeOnlyClasses} ${colorClasses}`}
                 style={variant === 'later' && laterMetrics ? { fontSize: `${laterMetrics.fontRem}rem` } : undefined}
               >
                 <span className="truncate">
