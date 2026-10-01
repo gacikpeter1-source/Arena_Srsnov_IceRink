@@ -66,12 +66,20 @@ export default function RinkScheduleBoardPage() {
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(new Date())
 
-  const today = formatDateISO(new Date())
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
 
+  // `refresh` deliberately recomputes "today" from a fresh `new Date()` on
+  // every call, rather than closing over a `today` computed once at the
+  // effect's own setup — a long-running kiosk tab's setInterval callbacks
+  // all share the same closure, so a `today` value only captured when the
+  // effect last ran would stay stuck on the old date forever once midnight
+  // passes, unless something else happened to force the whole effect to
+  // re-run again exactly then. This was a real bug: a TV left on overnight
+  // kept showing the previous day's schedule well past midnight.
   useEffect(() => {
     if (!club) return
     const refresh = async () => {
+      const today = formatDateISO(new Date())
       const [b, e, tournaments] = await Promise.all([
         fetchBookingsInRange(club.id, today, today),
         fetchRinkScheduleEntries(club.id),
@@ -84,9 +92,19 @@ export default function RinkScheduleBoardPage() {
     }
     refresh().finally(() => setLoading(false))
     const interval = setInterval(refresh, POLL_MS)
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club, today])
+    // A screen that was asleep/backgrounded (TV standby, a laptop lid, a
+    // throttled background tab) can have its timers paused for a while —
+    // refresh immediately the moment it's looked at again, rather than
+    // waiting up to POLL_MS for the next tick to notice anything changed.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [club])
 
   useEffect(() => {
     const clock = setInterval(() => setNow(new Date()), CLOCK_TICK_MS)

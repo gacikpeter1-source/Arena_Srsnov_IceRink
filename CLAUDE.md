@@ -2261,6 +2261,27 @@ of how few others there are; `LATER_PAD_Y_MAX_REM` was reduced to match
 (it no longer needs to help a cell visually "fill" space, just give it
 breathing room).
 
+**Fixed: the TV board kept showing yesterday's schedule well past
+midnight.** `RinkScheduleBoardPage.tsx`'s data-fetch effect computed
+`today` once (`formatDateISO(new Date())`, at the top of the component
+body) and closed over that single value inside `refresh`, which the
+`POLL_MS` (30s) `setInterval` then called repeatedly — every poll reused
+the exact same `today` string the effect happened to capture when it
+last ran. The effect only re-ran (picking up a fresh `today`) when React
+chose to re-render AND the newly-computed `today` differed from before;
+on an always-on kiosk TV, if that happened to stall for any reason around
+midnight (backgrounded/throttled timers, a brief standby), `refresh` kept
+querying `fetchBookingsInRange` for the previous day indefinitely — a
+real report of a TV still showing Thursday's schedule two minutes into
+Friday. Fixed by moving the `formatDateISO(new Date())` call inside
+`refresh` itself, so every single poll (not just the first one after a
+dependency change) independently asks "what day is it right now" —
+the effect's dependency array dropped `today` entirely, now just `[club]`.
+Also added a `visibilitychange` listener that calls `refresh()`
+immediately once the tab/screen is visible again, so a TV waking from
+standby doesn't wait up to 30s for its next scheduled poll to notice
+anything.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
