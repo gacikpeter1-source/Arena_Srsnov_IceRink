@@ -51,8 +51,23 @@ export function isSameDay(a: Date, b: Date): boolean {
   )
 }
 
+// Deliberately NOT `date.toISOString().split('T')[0]` — toISOString() always
+// converts to UTC first, so for a club west of UTC (or, as here, in a
+// UTC+1/+2 zone where local midnight is still the previous UTC day for the
+// first 1-2 hours of every day) this would compute "today" as yesterday
+// right when the club day actually turns over. Real bug: the rink-schedule
+// TV board kept showing the previous day's schedule for up to two hours
+// past local midnight, because every "today" default across the app
+// (this function is called from dozens of components) was silently off by
+// a day during that window. Uses the local calendar date of whatever
+// device is running this — correct for every real caller here (a
+// customer's phone, staff's browser, or the TV's own browser), all in the
+// club's own local timezone.
 export function formatDateISO(date: Date): string {
-  return date.toISOString().split('T')[0]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function formatDate(date: Date, locale = 'en-US'): string {

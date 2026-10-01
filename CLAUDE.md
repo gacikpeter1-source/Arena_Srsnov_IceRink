@@ -2304,6 +2304,29 @@ reload from. Affects every page, not just this TV board, but matters
 most here specifically because nothing else ever forces a reload on a
 kiosk screen nobody manually refreshes.
 
+**Found the actual root cause: `formatDateISO` computed "today" in UTC,
+not local time.** The two fixes above were both real bugs worth fixing,
+but neither explained why the board kept showing the previous day's
+schedule for a sustained stretch after local midnight rather than just
+an occasional missed tick. `formatDateISO` (`lib/utils.ts`) used
+`date.toISOString().split('T')[0]` — `toISOString()` always converts to
+UTC first, so for this club's Europe/Bratislava timezone (UTC+1 in
+winter, UTC+2 in summer) the computed "date" stayed on *yesterday* for
+the first 1-2 hours of every single local day, not just around a timer
+hiccup. This function is called from dozens of places across the app
+(every admin date-picker's default, the booking calendar, the QR panel,
+tournament generators, and this board's own `today`) — all equally
+affected during that window, though the TV board was the one actually
+watched closely enough to notice. Fixed by building the ISO string from
+`getFullYear()`/`getMonth()`/`getDate()` instead, which read the
+*local* calendar date of whatever device is running the code — correct
+for every real caller here (a customer's phone, staff's browser, the
+TV's own browser), since they're all physically in the club's own
+timezone. The earlier timer-closure and service-worker-reload fixes
+above are still genuinely correct and worth keeping (a long-running
+kiosk tab needs both), but this was the fix that actually mattered for
+the reported symptom.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
