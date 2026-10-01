@@ -16,7 +16,7 @@ import {
   queueBundleConfirmationEmail
 } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
-import { Club, TrainingBundle, TrainingSession } from '@/types'
+import { Club, TrainingBundle, TrainingSeries, TrainingSession } from '@/types'
 
 interface TrainingRegistrationModalProps {
   isOpen: boolean
@@ -27,13 +27,17 @@ interface TrainingRegistrationModalProps {
   // the bundle (one signup covers every session it contains), not this
   // one occurrence (see TrainingBundle vs TrainingSeries in types).
   bundle?: (TrainingBundle & { id: string }) | null
+  // Set when the session belongs to a recurring series — gives the
+  // registration dialog a real event name to show instead of the generic
+  // fallback title, same as `bundle` already does for a bundle session.
+  series?: (TrainingSeries & { id: string }) | null
   // Signed-in ice-rink staff registering a customer manually (e.g. a
   // phone booking) skip the pending email-confirm window and go straight
   // to 'confirmed' — mirrors AdminCreateBookingModal for ice bookings.
   asStaff?: boolean
 }
 
-export default function TrainingRegistrationModal({ isOpen, onClose, club, session, bundle, asStaff }: TrainingRegistrationModalProps) {
+export default function TrainingRegistrationModal({ isOpen, onClose, club, session, bundle, series, asStaff }: TrainingRegistrationModalProps) {
   const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
   const [attendeeCount, setAttendeeCount] = useState(1)
@@ -182,9 +186,11 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="bg-background-card max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">{bundle ? bundle.title : t('trainingRegistration.title')}</DialogTitle>
+          <DialogTitle className="text-white text-lg">
+            {bundle ? bundle.title : series ? series.title : t('trainingRegistration.title')}
+          </DialogTitle>
         </DialogHeader>
-        <div className="text-text-secondary text-sm space-y-1 mb-2">
+        <div className="text-text-muted text-xs space-y-1 mb-2">
           <p>{bundle ? bundle.trainerName : session.trainerName}</p>
           {!bundle && <p>{t('common.dateAtTime', { date: session.date, startTime: session.startTime })}</p>}
           {asStaff && <p className="text-primary">{t('trainingRegistration.staffModeNotice')}</p>}

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatDateISO, getMonthEnd, getMonthStart } from '@/lib/utils'
-import { TrainingBundle, TrainingSession } from '@/types'
+import { TrainingBundle, TrainingSeries, TrainingSession } from '@/types'
 import TrainingSessionCard from './TrainingSessionCard'
 
 interface TrainingMonthCalendarProps {
@@ -9,6 +9,7 @@ interface TrainingMonthCalendarProps {
   onChangeMonth: (next: Date) => void
   byDate: Map<string, (TrainingSession & { id: string })[]>
   bundles: Map<string, TrainingBundle & { id: string }>
+  series: Map<string, TrainingSeries & { id: string }>
   colorByTrainer: Map<string, string>
   selectedDate: string
   onSelectDate: (dateISO: string) => void
@@ -31,6 +32,7 @@ export default function TrainingMonthCalendar({
   onChangeMonth,
   byDate,
   bundles,
+  series,
   colorByTrainer,
   selectedDate,
   onSelectDate,
@@ -126,6 +128,7 @@ export default function TrainingMonthCalendar({
                 key={s.id}
                 session={s}
                 bundle={s.bundleId ? (bundles.get(s.bundleId) ?? null) : null}
+                series={s.seriesId ? (series.get(s.seriesId) ?? null) : null}
                 color={colorByTrainer.get(s.trainerId ?? '') ?? '#FDB913'}
                 onClick={() => onSelectSession(s)}
               />
