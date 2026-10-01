@@ -223,7 +223,31 @@ export default function RinkScheduleBoardPage() {
   // začiatkom" (lit up no earlier than 45 minutes before start) request.
   const NEXT_HIGHLIGHT_MINUTES = 45
 
-  function renderSlotCell(slot: BoardSlot, variant: 'live' | 'next' | 'later') {
+  // "Later" (yellow) cells deliberately flex to fill whatever vertical space
+  // live/next don't use, rather than sitting at one fixed small size — a
+  // quiet day with only 2-3 upcoming slots should use the whole screen, not
+  // leave most of it empty, while a packed ~14-15 slot day still needs to
+  // fit without scrolling. Font/padding scale between these two bounds
+  // based on how many later slots are actually showing. The bounds
+  // themselves are a readability floor/ceiling for a TV viewed from across
+  // a room — MIN is the smallest still legible at a glance, MAX is the
+  // largest that doesn't look oversized once a day is quiet.
+  const LATER_DENSE_COUNT = 15 // a real full-day schedule (see CLAUDE.md)
+  const LATER_SPARSE_COUNT = 3
+  const LATER_FONT_MIN_REM = 1.05
+  const LATER_FONT_MAX_REM = 1.75
+  const LATER_PAD_Y_MIN_REM = 0.3
+  const LATER_PAD_Y_MAX_REM = 1.1
+
+  function laterCellStyle(laterCount: number) {
+    const clamped = Math.min(Math.max(laterCount, LATER_SPARSE_COUNT), LATER_DENSE_COUNT)
+    const t = (clamped - LATER_SPARSE_COUNT) / (LATER_DENSE_COUNT - LATER_SPARSE_COUNT)
+    const fontRem = LATER_FONT_MAX_REM - t * (LATER_FONT_MAX_REM - LATER_FONT_MIN_REM)
+    const padYRem = LATER_PAD_Y_MAX_REM - t * (LATER_PAD_Y_MAX_REM - LATER_PAD_Y_MIN_REM)
+    return { fontRem, padYRem }
+  }
+
+  function renderSlotCell(slot: BoardSlot, variant: 'live' | 'next' | 'later', laterMetrics?: { fontRem: number; padYRem: number }) {
     const cellClasses =
       variant === 'live'
         ? 'border-status-success bg-status-success/15'
@@ -235,15 +259,15 @@ export default function RinkScheduleBoardPage() {
         ? 'text-[clamp(0.95rem,1.6vw,1.3rem)] text-white'
         : variant === 'live'
           ? 'text-[clamp(0.8rem,1.15vw,1rem)] text-white'
-          : 'text-[clamp(0.55rem,0.75vw,0.7rem)] text-white'
-    // "later" cells are deliberately the most compact variant — live/next
-    // stay at their original size per an explicit "keep those as they are"
-    // request, but a full day's worth of later slots (~14) needs to fit one
-    // screen, so only this tier's padding/gap shrinks.
-    const paddingClasses = variant === 'later' ? 'px-2 py-0.5' : 'px-3 py-1.5'
+          : 'text-white'
+    // "later" cells are the one tier that flexes to fill remaining height —
+    // live/next stay at their original fixed size per an explicit "keep
+    // those as they are" request.
+    const sizeClasses = variant === 'later' ? 'flex-1 min-h-0 flex flex-col justify-center px-3' : 'shrink-0 px-3 py-1.5'
+    const laterStyle = variant === 'later' && laterMetrics ? { paddingTop: `${laterMetrics.padYRem}rem`, paddingBottom: `${laterMetrics.padYRem}rem` } : undefined
 
     return (
-      <div key={slot.startMin} className={`w-full rounded-lg border ${paddingClasses} ${cellClasses}`}>
+      <div key={slot.startMin} className={`w-full rounded-lg border ${sizeClasses} ${cellClasses}`} style={laterStyle}>
         {(variant === 'live' || variant === 'next') && (
           <div className="mb-0.5">
             {variant === 'live' && <span className="text-status-success text-[0.65rem] uppercase tracking-wide font-semibold">{t('rinkSchedule.liveNow')}</span>}
@@ -254,15 +278,19 @@ export default function RinkScheduleBoardPage() {
           {slot.items.map((it) => {
             const room = formatRoomLine(t, it.room, it.awayRoom)
             return (
-              <div key={it.id} className={`flex items-center gap-1.5 min-w-0 font-semibold ${lineClasses}`}>
+              <div
+                key={it.id}
+                className={`flex items-center gap-1.5 min-w-0 font-semibold ${lineClasses}`}
+                style={variant === 'later' && laterMetrics ? { fontSize: `${laterMetrics.fontRem}rem` } : undefined}
+              >
                 <span className="truncate">
                   {it.label} - {minutesToTime(slot.startMin)}
                   {room ? ` - ${room}` : ''}
                   {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>
                 {it.zonePart && (
-                  <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1 leading-tight text-[0.7em] font-bold">
-                    {it.zonePart}
+                  <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1.5 leading-tight text-[0.75em] font-bold whitespace-nowrap">
+                    {it.zoneLabel}
                   </span>
                 )}
               </div>
@@ -278,11 +306,14 @@ export default function RinkScheduleBoardPage() {
     if (slots.length === 0) return <p className="text-text-muted text-base">{t('rinkSchedule.boardNoUpcoming')}</p>
     const liveSlots = slots.filter((s) => s.startMin <= nowMin)
     const upcomingSlots = slots.filter((s) => s.startMin > nowMin).slice(0, MAX_UPCOMING_SLOTS)
+    const hasNext = upcomingSlots.length > 0 && upcomingSlots[0].startMin - nowMin <= NEXT_HIGHLIGHT_MINUTES
+    const laterCount = upcomingSlots.length - (hasNext ? 1 : 0)
+    const laterMetrics = laterCellStyle(laterCount)
     return (
-      <div className="flex flex-col gap-1 w-full h-full overflow-hidden">
+      <div className="flex flex-col gap-2 w-full h-full overflow-hidden">
         {liveSlots.map((slot) => renderSlotCell(slot, 'live'))}
         {upcomingSlots.map((slot, i) =>
-          renderSlotCell(slot, i === 0 && slot.startMin - nowMin <= NEXT_HIGHLIGHT_MINUTES ? 'next' : 'later')
+          renderSlotCell(slot, i === 0 && hasNext ? 'next' : 'later', laterMetrics)
         )}
       </div>
     )
