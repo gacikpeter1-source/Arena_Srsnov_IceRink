@@ -223,21 +223,22 @@ export default function RinkScheduleBoardPage() {
   // začiatkom" (lit up no earlier than 45 minutes before start) request.
   const NEXT_HIGHLIGHT_MINUTES = 45
 
-  // "Later" (yellow) cells deliberately flex to fill whatever vertical space
-  // live/next don't use, rather than sitting at one fixed small size — a
-  // quiet day with only 2-3 upcoming slots should use the whole screen, not
-  // leave most of it empty, while a packed ~14-15 slot day still needs to
-  // fit without scrolling. Font/padding scale between these two bounds
-  // based on how many later slots are actually showing. The bounds
-  // themselves are a readability floor/ceiling for a TV viewed from across
-  // a room — MIN is the smallest still legible at a glance, MAX is the
-  // largest that doesn't look oversized once a day is quiet.
+  // "Later" (yellow) cells scale their font/padding based on how many are
+  // showing — bigger on a quiet day, smaller on a packed ~14-15 slot one —
+  // but deliberately do NOT flex-grow to fill leftover space: a single
+  // event stretched across the whole screen height looked wrong on a real
+  // TV, so a quiet day now just leaves blank space below instead of
+  // inflating one cell to fill it. LATER_FONT_MAX_REM (30px at the default
+  // 16px root) is a hard ceiling — the largest size a single headline
+  // event is allowed to render at, deliberately never scaled past this no
+  // matter how few other events there are. LATER_FONT_MIN_REM is the
+  // readability floor for the busiest realistic day.
   const LATER_DENSE_COUNT = 15 // a real full-day schedule (see CLAUDE.md)
   const LATER_SPARSE_COUNT = 3
   const LATER_FONT_MIN_REM = 1.05
-  const LATER_FONT_MAX_REM = 1.75
+  const LATER_FONT_MAX_REM = 1.875 // 30px
   const LATER_PAD_Y_MIN_REM = 0.3
-  const LATER_PAD_Y_MAX_REM = 1.1
+  const LATER_PAD_Y_MAX_REM = 0.6
 
   function laterCellStyle(laterCount: number) {
     const clamped = Math.min(Math.max(laterCount, LATER_SPARSE_COUNT), LATER_DENSE_COUNT)
@@ -260,10 +261,11 @@ export default function RinkScheduleBoardPage() {
         : variant === 'live'
           ? 'text-[clamp(0.8rem,1.15vw,1rem)] text-white'
           : 'text-white'
-    // "later" cells are the one tier that flexes to fill remaining height —
-    // live/next stay at their original fixed size per an explicit "keep
-    // those as they are" request.
-    const sizeClasses = variant === 'later' ? 'flex-1 min-h-0 flex flex-col justify-center px-3' : 'shrink-0 px-3 py-1.5'
+    // Every cell sizes to its own content (shrink-0) — a "later" cell never
+    // flex-grows to fill leftover height, so one lone event never balloons
+    // into a screen-filling box; its font/padding just scale within the
+    // bounded range computed above.
+    const sizeClasses = variant === 'later' ? 'shrink-0 px-3' : 'shrink-0 px-3 py-1.5'
     const laterStyle = variant === 'later' && laterMetrics ? { paddingTop: `${laterMetrics.padYRem}rem`, paddingBottom: `${laterMetrics.padYRem}rem` } : undefined
 
     return (
