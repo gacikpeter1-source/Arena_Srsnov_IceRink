@@ -320,6 +320,22 @@ export async function fetchTrainingBundlesByIds(
   return map
 }
 
+// Same pattern as fetchTrainingBundlesByIds above — a TrainingSession only
+// carries a seriesId, not the series' own title, so any UI that wants to
+// show a recurring session's actual name (not just its trainer) needs this
+// lookup too.
+export async function fetchTrainingSeriesByIds(
+  seriesIds: string[]
+): Promise<Map<string, TrainingSeries & { id: string }>> {
+  const uniqueIds = Array.from(new Set(seriesIds))
+  const snaps = await Promise.all(uniqueIds.map((id) => getDoc(doc(db, 'trainingSeries', id))))
+  const map = new Map<string, TrainingSeries & { id: string }>()
+  snaps.forEach((snap) => {
+    if (snap.exists()) map.set(snap.id, { id: snap.id, ...snap.data() } as TrainingSeries & { id: string })
+  })
+  return map
+}
+
 // ---------------------------------------------------------------------
 // Customer (no-login) registration — session-based. Same shape/lifecycle
 // as ice bookings by design: capacity check + optional waitlist at

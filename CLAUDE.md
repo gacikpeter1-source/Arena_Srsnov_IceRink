@@ -929,6 +929,31 @@ switching views triggers a fresh fetch scoped to whatever's actually on
 screen rather than pre-loading everything. `getMonthStart`/`getMonthEnd`
 (`lib/utils.ts`) join the existing `getWeekStart` for this.
 
+**Fixed: a series-linked session showed no event name at all, anywhere
+customer-facing.** `TrainingSessionCard.tsx` and `TrainingRegistrationModal.tsx`
+both only ever special-cased `bundle` for a name — a session belonging to
+a `TrainingSeries` instead fell all the way back to showing the trainer's
+own name as the headline (card) or a generic "Register for training"
+string (the modal's dialog title), since `TrainingSession` itself carries
+no title of its own, only a `seriesId` pointing at the series that
+actually has one. A customer browsing `/treningy` had no way to tell two
+different recurring trainings by the same trainer apart, or to know what
+either one actually *was*, before clicking in. `fetchTrainingSeriesByIds`
+(`lib/training.ts`) mirrors the existing `fetchTrainingBundlesByIds`
+exactly — `TrainingCalendarPage.tsx` now resolves both maps off the same
+fetched sessions and threads `series` through
+`TrainingMonthCalendar`/`TrainingWeekCalendar`/the list view's card and
+into the registration modal, same plumbing `bundles` already had.
+`TrainingSessionCard` and the modal both now show, in order of visual
+weight: the event's own name (`bundle.title` / `series.title`, the
+largest text) first, then the trainer's name and the date/time — both
+shrunk to `text-xs text-text-muted`/`text-text-secondary` — as secondary
+detail underneath, per an explicit "názov väčší, tréner aj kedy/kde
+menšie" request. A session with neither a bundle nor a series (a genuine
+one-off with no event name anywhere) still falls back to showing the
+trainer's name as the headline, same as before this fix — there's
+nothing else to show for that case.
+
 ### Fáza 5: group tickets (attendeeCount) + payment scaffold
 
 Built ahead of a planned entrance QR-scanning check-in flow (a staff

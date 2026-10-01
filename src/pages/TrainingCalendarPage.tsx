@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
-import { fetchTrainingSessionsInRange, fetchTrainingBundlesByIds } from '@/lib/training'
+import { fetchTrainingSessionsInRange, fetchTrainingBundlesByIds, fetchTrainingSeriesByIds } from '@/lib/training'
 import { fetchTrainers } from '@/lib/staff'
 import { addDays, formatDateISO, getMonthEnd, getMonthStart, getWeekStart } from '@/lib/utils'
-import { StaffUser, TrainingBundle, TrainingSession } from '@/types'
+import { StaffUser, TrainingBundle, TrainingSeries, TrainingSession } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import TrainingRegistrationModal from '@/components/TrainingRegistrationModal'
@@ -28,6 +28,7 @@ export default function TrainingCalendarPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [sessions, setSessions] = useState<(TrainingSession & { id: string })[]>([])
   const [bundles, setBundles] = useState<Map<string, TrainingBundle & { id: string }>>(new Map())
+  const [series, setSeries] = useState<Map<string, TrainingSeries & { id: string }>>(new Map())
   const [trainers, setTrainers] = useState<StaffUser[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSession, setSelectedSession] = useState<(TrainingSession & { id: string }) | null>(null)
@@ -62,7 +63,9 @@ export default function TrainingCalendarPage() {
       .then(async (sessionResults) => {
         setSessions(sessionResults)
         const bundleIds = sessionResults.filter((s) => s.bundleId).map((s) => s.bundleId as string)
+        const seriesIds = sessionResults.filter((s) => s.seriesId).map((s) => s.seriesId as string)
         setBundles(await fetchTrainingBundlesByIds(bundleIds))
+        setSeries(await fetchTrainingSeriesByIds(seriesIds))
       })
       .finally(() => setLoading(false))
   }, [club, viewMode, monthCursor, weekCursor])
@@ -146,6 +149,7 @@ export default function TrainingCalendarPage() {
           }}
           byDate={byDate}
           bundles={bundles}
+          series={series}
           colorByTrainer={colorByTrainer}
           selectedDate={selectedMonthDate}
           onSelectDate={setSelectedMonthDate}
@@ -157,6 +161,7 @@ export default function TrainingCalendarPage() {
           onChangeWeek={setWeekCursor}
           byDate={byDate}
           bundles={bundles}
+          series={series}
           colorByTrainer={colorByTrainer}
           onSelectSession={setSelectedSession}
         />
@@ -177,6 +182,7 @@ export default function TrainingCalendarPage() {
                         key={s.id}
                         session={s}
                         bundle={s.bundleId ? (bundles.get(s.bundleId) ?? null) : null}
+                        series={s.seriesId ? (series.get(s.seriesId) ?? null) : null}
                         color={colorByTrainer.get(s.trainerId ?? '') ?? PALETTE[0]}
                         onClick={() => setSelectedSession(s)}
                       />
@@ -199,6 +205,7 @@ export default function TrainingCalendarPage() {
           club={club}
           session={selectedSession}
           bundle={selectedSession.bundleId ? bundles.get(selectedSession.bundleId) : null}
+          series={selectedSession.seriesId ? series.get(selectedSession.seriesId) : null}
           asStaff={isIceRinkStaff}
         />
       )}
