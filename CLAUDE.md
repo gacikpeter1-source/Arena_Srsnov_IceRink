@@ -2346,6 +2346,18 @@ that list already colors a row's label by live/finished state (red for
 live, muted for finished), and layering a second, unrelated color rule
 on the same text risked muddying a meaning that already exists there.
 
+**Later cells packed tighter still, per an explicit "keep the text the
+same size, just squeeze the padding" request.** `LATER_PAD_Y_MIN_REM`/
+`LATER_PAD_Y_MAX_REM` dropped further (0.3/0.6 → 0.12/0.3 rem) and the
+event list's own `gap-2` (between cells) dropped to `gap-1` — only
+padding/spacing shrank, `LATER_FONT_MIN_REM`/`LATER_FONT_MAX_REM` are
+untouched. The rink column's own "Hala 1"/"Hala 2" heading chrome also
+shrank (`text-lg` → `text-sm`, card `p-3 gap-2` → `p-2 gap-1`) to free a
+little more vertical room for the event list below it. Target was "at
+least 14 events on screen" — verified via the same Playwright-screenshot
+technique against the real ~15-slot Friday schedule, which now fits with
+comfortable room to spare below the last cell (not just barely).
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
