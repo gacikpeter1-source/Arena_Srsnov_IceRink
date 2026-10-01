@@ -12,11 +12,22 @@ import BackButton from '@/components/BackButton'
 
 const POLL_MS = 30000
 const CLOCK_TICK_MS = 30000
-// The conventional team-name staff type for a generic open-ice rental (no
-// specific team/trainer) — free text, not a stored value anywhere in the
-// data model (see CLAUDE.md's "no club-wide team registry" note), matched
-// by exact string purely for this board's own color-coding.
-const ICE_RENTAL_LABEL = 'Ľad na prenájom'
+
+// Any team name containing "prenájom" (rental) — "Ľad na prenájom" (whole
+// rink), "Tretina na prenájom" (one third), or any future wording staff
+// type the same way — is a generic paid-rental slot, not a specific team/
+// trainer. Team names are plain free text (no stored value anywhere in the
+// data model, see CLAUDE.md's "no club-wide team registry" note), so this
+// is a substring match rather than a fixed list of exact labels; accents
+// are folded first so "prenájom"/"prenajom" (typed without the diacritic)
+// both match, purely for this board's own color-coding.
+function isRentalLabel(label: string): boolean {
+  return label
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .includes('prenajom')
+}
 
 interface BoardItem {
   id: string
@@ -303,7 +314,7 @@ export default function RinkScheduleBoardPage() {
             // different, cooler text color so it's easy to pick out from
             // real team/trainer bookings at a glance, without touching the
             // cell's own green/red/amber live-status background.
-            const colorClasses = it.label === ICE_RENTAL_LABEL ? 'text-sky-300' : 'text-white'
+            const colorClasses = isRentalLabel(it.label) ? 'text-sky-300' : 'text-white'
             return (
               <div
                 key={it.id}

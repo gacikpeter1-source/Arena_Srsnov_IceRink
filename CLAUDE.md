@@ -2328,20 +2328,23 @@ kiosk tab needs both), but this was the fix that actually mattered for
 the reported symptom.
 
 **Plain ice rentals get a subtly different text color on the TV board.**
-"Ľad na prenájom" (a generic open-ice rental with no specific team/
-trainer) is just a conventionally-typed team name, same free-text
-`<datalist>`-autocompleted field every other entry uses — there's no
-reserved value for it anywhere in the data model. `ICE_RENTAL_LABEL`
-(`RinkScheduleBoardPage.tsx`) matches that exact string and colors just
-that line's text `text-sky-300` instead of white, so a rental slot is
-easy to pick out from a real team/training booking at a glance — the
-cell's own green/red/amber live-status background is untouched, this is
-purely a text-color accent layered on top. Deliberately scoped to the TV
-board's own cells only, not the plain (non-TV) list further down this
-page — that list already colors a row's label by live/finished state
-(red for live, muted for finished), and layering a second, unrelated
-color rule on the same text risked muddying a meaning that already
-exists there.
+"Ľad na prenájom" (whole rink) and "Tretina na prenájom" (one third) —
+generic rentals with no specific team/trainer — are just conventionally-
+typed team names, same free-text `<datalist>`-autocompleted field every
+other entry uses; there's no reserved value for either anywhere in the
+data model. Rather than list every exact wording staff might type,
+`isRentalLabel` (`RinkScheduleBoardPage.tsx`) matches any label
+*containing* "prenájom" (accent-folded first, so "prenajom" typed
+without the diacritic still matches) and colors just that line's text
+`text-sky-300` instead of white — covers "Ľad na prenájom", "Tretina na
+prenájom", "Polovica na prenájom", or any other future rental wording
+staff phrase the same way, with no code change needed. The cell's own
+green/red/amber live-status background is untouched, this is purely a
+text-color accent layered on top. Deliberately scoped to the TV board's
+own cells only, not the plain (non-TV) list further down this page —
+that list already colors a row's label by live/finished state (red for
+live, muted for finished), and layering a second, unrelated color rule
+on the same text risked muddying a meaning that already exists there.
 
 ### Editing and cancelling individual occurrences
 
