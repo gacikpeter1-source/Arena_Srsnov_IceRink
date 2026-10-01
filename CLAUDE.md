@@ -2225,31 +2225,41 @@ prebieha", a more generic "currently in progress" fitting a rental/
 training/public-skating row just as well) — scoped to this board only,
 the tournament pages keep using `tournaments.liveNow` as before.
 
-**Later cells flex to fill the full screen height; zone badge shows the
+**Later cells scale font/padding with slot count; zone badge shows the
 real zone name.** Seeing the fixed-small "later" cells on an actual TV
 (not just a 1920×1080 screenshot) showed two more problems: the owner
 found the shrunk text too small to read comfortably, and a quiet moment
 with only 2-3 upcoming slots left most of the screen empty below them —
 the opposite problem from the "needs to fit 14+" one this size was
 originally tuned for. `laterCellStyle` (`RinkScheduleBoardPage.tsx`)
-replaces the fixed clamp with a count-based interpolation: each "later"
-cell is `flex-1` (so the whole stack of them always fills exactly the
-remaining height after the fixed-size live/next cells, never leaving a
-gap below the last one) and its font-size/padding scale between
+replaces the fixed clamp with a count-based interpolation between
 `LATER_FONT_MAX_REM`/`LATER_PAD_Y_MAX_REM` (a quiet day, ≤3 later slots)
 and `LATER_FONT_MIN_REM`/`LATER_PAD_Y_MIN_REM` (a packed day, ≥15 later
-slots — the real-world max this board has actually seen). Those two
-bounds are the readability floor/ceiling for a TV viewed from across a
-room — the min is the smallest size still legible at a glance even on
-the busiest realistic day, the max is the largest that doesn't look
-oversized once a day is quiet; live/next cells are untouched (still
-`shrink-0`, original fixed size) per the earlier explicit "keep those as
-they are" request. The zone-part badge (A/B/C) also changed to show the
-zone's own real localized name (`it.zoneLabel`, e.g. "Tretina 1",
-"Polovica A") instead of a bare letter — per an explicit "zapíš to podľa
-rozpisu" (write it the way the schedule itself does) request, since the
-source schedules this board is transcribed from never used A/B/C, only
-the zone names themselves.
+slots — the real-world max this board has actually seen); live/next
+cells are untouched (still `shrink-0`, original fixed size) per the
+earlier explicit "keep those as they are" request. The zone-part badge
+(A/B/C) also changed to show the zone's own real localized name
+(`it.zoneLabel`, e.g. "Tretina 1", "Polovica A") instead of a bare
+letter — per an explicit "zapíš to podľa rozpisu" (write it the way the
+schedule itself does) request, since the source schedules this board is
+transcribed from never used A/B/C, only the zone names themselves.
+
+**Correction: "later" cells don't flex-grow to fill leftover height — a
+hard font-size ceiling instead.** The first cut above made each "later"
+cell `flex-1`, so the whole stack filled the column's remaining height
+exactly — but with only one such cell (nothing else upcoming beyond the
+one already-highlighted "next" slot), that single event stretched into
+a box spanning most of the screen, which looked wrong on a real TV per
+an explicit "jedna udalosť nemôže byť na celú obrazovku" (one event
+can't take up the whole screen) correction. Cells are `shrink-0` again
+(natural height from their own font+padding, not flex-grown) — a quiet
+day now just leaves blank space below the last cell instead of
+inflating one of them to fill it. `LATER_FONT_MAX_REM` is now a genuine
+hard ceiling at 30px (`1.875rem` at the default 16px root, the explicit
+number asked for) that no single event is ever scaled past, regardless
+of how few others there are; `LATER_PAD_Y_MAX_REM` was reduced to match
+(it no longer needs to help a cell visually "fill" space, just give it
+breathing room).
 
 ### Editing and cancelling individual occurrences
 
