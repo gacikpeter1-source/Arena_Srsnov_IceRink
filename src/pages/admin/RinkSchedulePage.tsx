@@ -49,6 +49,15 @@ export default function RinkSchedulePage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ entry: RinkScheduleEntry & { id: string }; occurrence: Booking & { id: string } } | null>(null)
 
+  // Quick filters over the entries table below — independent of the
+  // create-form's own rinkId/date/startTime state above, so picking a
+  // filter never affects what the "add new entry" form is about to submit.
+  const [filterRinkId, setFilterRinkId] = useState('')
+  const [filterDate, setFilterDate] = useState('')
+  const [filterTime, setFilterTime] = useState('')
+  const [filterName, setFilterName] = useState('')
+  const hasActiveFilter = !!(filterRinkId || filterDate || filterTime || filterName)
+
   const [rinkId, setRinkId] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [teamName, setTeamName] = useState('')
@@ -71,6 +80,19 @@ export default function RinkSchedulePage() {
   const teamNames = useMemo(() => Array.from(new Set(entries.map((e) => e.teamName))).sort(), [entries])
   const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
   const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
+
+  // Matches a single occurrence (or, for an entry with no real occurrences
+  // left, the entry's own original date/time/rink/name) against whichever
+  // filters are currently set — rink is an exact id match, date an exact
+  // match, time/name a case-insensitive substring match (so "17" finds
+  // every 17:xx start, and typing part of a team name is enough).
+  const matchesFilters = (row: { date: string; startTime: string; rinkId: string; name: string }) => {
+    if (filterRinkId && row.rinkId !== filterRinkId) return false
+    if (filterDate && row.date !== filterDate) return false
+    if (filterTime && !row.startTime.includes(filterTime.trim())) return false
+    if (filterName && !row.name.toLowerCase().includes(filterName.trim().toLowerCase())) return false
+    return true
+  }
 
   const refresh = () => {
     if (!club) return
@@ -233,6 +255,26 @@ export default function RinkSchedulePage() {
       setBusyId(null)
     }
   }
+
+  // Pre-filters each entry's occurrences once per render — an entry with
+  // zero real occurrences left is matched against its own original date/
+  // time/rink/name instead (nothing else to check it against), and an
+  // entry is only shown at all once at least one of its rows survives the
+  // filter, so a series with every occurrence filtered out doesn't leave a
+  // stray "delete series" row with nothing above it.
+  const visibleEntries = entries
+    .map((entry) => {
+      const occurrences = occurrencesByEntry.get(entry.id) ?? []
+      if (occurrences.length === 0) {
+        const matches = matchesFilters({ date: entry.date, startTime: entry.startTime, rinkId: entry.rinkId, name: entry.teamName })
+        return matches ? { entry, occurrences } : null
+      }
+      const filteredOccurrences = occurrences.filter((occ) =>
+        matchesFilters({ date: occ.date, startTime: occ.startTime, rinkId: occ.rinkId, name: occ.name })
+      )
+      return filteredOccurrences.length > 0 ? { entry, occurrences: filteredOccurrences } : null
+    })
+    .filter((v): v is { entry: RinkScheduleEntry & { id: string }; occurrences: (Booking & { id: string })[] } => v !== null)
 
   if (staff && !canManage) {
     return (
@@ -419,10 +461,66 @@ export default function RinkSchedulePage() {
           <CardTitle className="text-white text-lg">{t('rinkSchedule.entries')}</CardTitle>
         </CardHeader>
         <CardContent>
+          {!loading && entries.length > 0 && (
+            <div className="flex flex-wrap items-end gap-3 mb-4 pb-4 border-b border-border">
+              <div>
+                <Label className="text-white">{t('admin.rink')}</Label>
+                <select
+                  value={filterRinkId}
+                  onChange={(e) => setFilterRinkId(e.target.value)}
+                  className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+                >
+                  <option value="">{t('booking.allRinks')}</option>
+                  {activeRinks.map((r) => (
+                    <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-white">{t('common.date')}</Label>
+                <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="bg-background-dark border-border text-white" />
+              </div>
+              <div>
+                <Label className="text-white">{t('rinkSchedule.filterTime')}</Label>
+                <Input
+                  value={filterTime}
+                  onChange={(e) => setFilterTime(e.target.value)}
+                  placeholder={t('rinkSchedule.filterTimePlaceholder')}
+                  className="bg-background-dark border-border text-white max-w-[100px]"
+                />
+              </div>
+              <div className="flex-1 min-w-[160px]">
+                <Label className="text-white">{t('rinkSchedule.filterName')}</Label>
+                <Input
+                  value={filterName}
+                  onChange={(e) => setFilterName(e.target.value)}
+                  placeholder={t('rinkSchedule.filterNamePlaceholder')}
+                  className="bg-background-dark border-border text-white"
+                />
+              </div>
+              {hasActiveFilter && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilterRinkId('')
+                    setFilterDate('')
+                    setFilterTime('')
+                    setFilterName('')
+                  }}
+                >
+                  {t('rinkSchedule.clearFilters')}
+                </Button>
+              )}
+            </div>
+          )}
           {loading ? (
             <p className="text-text-muted">{t('common.loading')}</p>
           ) : entries.length === 0 ? (
             <p className="text-text-muted text-sm">{t('rinkSchedule.none')}</p>
+          ) : visibleEntries.length === 0 ? (
+            <p className="text-text-muted text-sm">{t('rinkSchedule.noneFiltered')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -439,8 +537,7 @@ export default function RinkSchedulePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map((entry) => {
-                    const occurrences = occurrencesByEntry.get(entry.id) ?? []
+                  {visibleEntries.map(({ entry, occurrences }) => {
                     const isSeries = !!entry.seriesId
                     return (
                       <Fragment key={entry.id}>

@@ -2358,6 +2358,8 @@ least 14 events on screen" — verified via the same Playwright-screenshot
 technique against the real ~15-slot Friday schedule, which now fits with
 comfortable room to spare below the last cell (not just barely).
 
+**Quick filters on the entries table.** `RinkSchedulePage.tsx` (`/admin/rozvrh`) could only be scrolled, not filtered — unworkable once a club has a real season's worth of entries. A filter row above the table (rink `<select>`, date picker, a free-text time field, a free-text name field) narrows what's shown; rink/date are exact matches, time/name are case-insensitive substring matches (so typing "17" catches every 17:xx start, and a partial team name is enough). Deliberately independent state from the create-form's own rinkId/date/startTime fields above it — picking a filter never changes what the "add new entry" form is about to submit. Matching happens per real occurrence (not per entry): an entry with no occurrences left falls back to matching its own original date/time/rink/name (nothing else to check it against), and a whole entry (including a recurring series' "Zmazať celú sériu" row) is only rendered once at least one of its rows survives the filter — a series with every occurrence filtered out doesn't leave a stray delete button with nothing above it. A "Zrušiť filtre" button appears only once a filter is actually set, and a distinct `rinkSchedule.noneFiltered` message ("no entries match the filter") is shown separately from the pre-existing `rinkSchedule.none` ("no entries at all") empty state, so the two situations aren't confused.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
