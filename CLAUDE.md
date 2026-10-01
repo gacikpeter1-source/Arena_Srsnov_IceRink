@@ -2225,6 +2225,32 @@ prebieha", a more generic "currently in progress" fitting a rental/
 training/public-skating row just as well) — scoped to this board only,
 the tournament pages keep using `tournaments.liveNow` as before.
 
+**Later cells flex to fill the full screen height; zone badge shows the
+real zone name.** Seeing the fixed-small "later" cells on an actual TV
+(not just a 1920×1080 screenshot) showed two more problems: the owner
+found the shrunk text too small to read comfortably, and a quiet moment
+with only 2-3 upcoming slots left most of the screen empty below them —
+the opposite problem from the "needs to fit 14+" one this size was
+originally tuned for. `laterCellStyle` (`RinkScheduleBoardPage.tsx`)
+replaces the fixed clamp with a count-based interpolation: each "later"
+cell is `flex-1` (so the whole stack of them always fills exactly the
+remaining height after the fixed-size live/next cells, never leaving a
+gap below the last one) and its font-size/padding scale between
+`LATER_FONT_MAX_REM`/`LATER_PAD_Y_MAX_REM` (a quiet day, ≤3 later slots)
+and `LATER_FONT_MIN_REM`/`LATER_PAD_Y_MIN_REM` (a packed day, ≥15 later
+slots — the real-world max this board has actually seen). Those two
+bounds are the readability floor/ceiling for a TV viewed from across a
+room — the min is the smallest size still legible at a glance even on
+the busiest realistic day, the max is the largest that doesn't look
+oversized once a day is quiet; live/next cells are untouched (still
+`shrink-0`, original fixed size) per the earlier explicit "keep those as
+they are" request. The zone-part badge (A/B/C) also changed to show the
+zone's own real localized name (`it.zoneLabel`, e.g. "Tretina 1",
+"Polovica A") instead of a bare letter — per an explicit "zapíš to podľa
+rozpisu" (write it the way the schedule itself does) request, since the
+source schedules this board is transcribed from never used A/B/C, only
+the zone names themselves.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
