@@ -2282,6 +2282,28 @@ immediately once the tab/screen is visible again, so a TV waking from
 standby doesn't wait up to 30s for its next scheduled poll to notice
 anything.
 
+**Fixed: the app never actually reloaded itself onto a new deploy.**
+Diagnosing the bug above surfaced a second, compounding issue: even
+after this fix shipped, the owner still saw the old behavior live on the
+TV, because `src/main.tsx`'s PWA update machinery (see the "Add to
+calendar" section's PWA bug writeup) only ever *checked for and
+installed* a new service worker (`registration.update()` every 60s, plus
+`skipWaiting`/`clientsClaim` in `vite.config.ts`) — it never made the
+already-running page actually pick up the new JS. `skipWaiting`/
+`clientsClaim` let a new worker take over as *controller* for future
+network requests, but the page's own already-executing bundle, React
+state, and closures keep running regardless until something reloads it.
+An always-on kiosk tab (exactly this TV board, left open for days) could
+sit on a stale build indefinitely even though a newer one had already
+"taken over" in the background. Added a
+`navigator.serviceWorker.addEventListener('controllerchange', ...)`
+handler in `main.tsx` that calls `window.location.reload()` the one time
+that event fires per page life (guarded by a `refreshed` flag) — this is
+the actual moment the handoff happens, and the only reliable point to
+reload from. Affects every page, not just this TV board, but matters
+most here specifically because nothing else ever forces a reload on a
+kiosk screen nobody manually refreshes.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-
