@@ -439,6 +439,7 @@
     "unknownRinkNumber": "Unknown rink number \"{{number}}\"",
     "unknownZone": "Unknown ice part \"{{zone}}\"",
     "upNext": "Up next",
+    "liveNow": "In progress",
     "boardNoUpcoming": "Nothing else scheduled.",
     "boardScanHint": "Scan for the schedule on your phone",
     "boardNone": "Nothing scheduled today.",

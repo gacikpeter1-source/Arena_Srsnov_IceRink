@@ -2188,6 +2188,43 @@ change. Only shown for a genuinely split zone (`zone.mode !== 'full'`) —
 a whole-rink booking has no "which part" ambiguity, so it gets no badge
 at all.
 
+**Header re-centered, day name added; "later" cells shrunk to fit a full
+day.** Two more requests surfaced once a real Friday's worth of data
+(18 bookings on one rink) was actually loaded onto the board: the club
+name previously sat in a `flex-1 text-center` cell next to the clock
+link, which only centers within the space left over after that link's
+own width — close to centered but not exactly, and visibly off once the
+clock text (now longer, see below) grew. Switched the header to a CSS
+grid (`grid-cols-[1fr_auto_1fr]`, clock in the first column, title in the
+second, an empty third column for symmetry) so the title sits at the
+true horizontal center of the screen regardless of what either side
+holds. `formatBoardClock` also gained a leading Slovak day name
+(`BOARD_DAY_NAMES`, indexed by `Date.getDay()`) —
+"Piatok 02.10.2026 14:33" instead of just the date — same fixed,
+non-localized-to-viewer reasoning the rest of this format already
+follows.
+
+Separately, a live club day can have 14+ distinct time slots once every
+booking/rental/training on a rink is counted — `MAX_UPCOMING_SLOTS` (was
+5) is now a generous 20, and the `'later'`-tier cell (the plain yellow
+rows; the green "live" and red "next" cells are deliberately left at
+their original size, unchanged) got smaller padding (`px-2 py-0.5` vs.
+`px-3 py-1.5`) and a smaller font clamp
+(`clamp(0.55rem,0.75vw,0.7rem)`), plus the list's own `gap-2` dropped to
+`gap-1` — verified against a real 18-event Friday via the same local-
+harness-plus-Playwright-screenshot technique already used elsewhere in
+this file, comfortably fitting every slot with room to spare on a
+1920×1080 screen (this board still has no `ScaleToFit`, per the earlier
+"cells stretch to the column's real width" decision, so this is a fixed
+size tuned to the real data rather than a dynamic one).
+
+The green "live" label text also changed from the shared
+`tournaments.liveNow` key ("Práve sa hrá", i.e. "currently being played"
+— fits a sports match) to a new `rinkSchedule.liveNow` key ("Práve
+prebieha", a more generic "currently in progress" fitting a rental/
+training/public-skating row just as well) — scoped to this board only,
+the tournament pages keep using `tournaments.liveNow` as before.
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-

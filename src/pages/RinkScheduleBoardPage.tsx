@@ -95,13 +95,15 @@ export default function RinkScheduleBoardPage() {
 
   const nowMin = now.getHours() * 60 + now.getMinutes()
 
-  // "30.09.2026 09:45" — a fixed, language-independent format for the TV
-  // header clock (this is a physical display, not something a viewer picks
-  // a language for), replacing the old "back to standard view" link there
-  // — nobody at a wall-mounted screen needs that escape hatch.
+  // "Piatok 30.09.2026 09:45" — a fixed, language-independent format for the
+  // TV header clock (this is a physical display, not something a viewer
+  // picks a language for), replacing the old "back to standard view" link
+  // there — nobody at a wall-mounted screen needs that escape hatch. The day
+  // name is always Slovak, same reasoning as the rest of this fixed format.
+  const BOARD_DAY_NAMES = ['Nedeľa', 'Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok', 'Sobota']
   function formatBoardClock(d: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0')
-    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    return `${BOARD_DAY_NAMES[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
   const zoneName = (zoneId: string) => {
     const zone = zones.find((z) => z.id === zoneId)
@@ -210,8 +212,11 @@ export default function RinkScheduleBoardPage() {
 
   // Upcoming slots beyond this are simply not shown — without a JS
   // auto-shrink step (see below), an unbounded list could overflow the
-  // column, so this caps at what a typical day comfortably fits.
-  const MAX_UPCOMING_SLOTS = 5
+  // column, so this caps at what a typical day comfortably fits. Raised
+  // from 5 once the "later" cells were shrunk specifically so a full day
+  // (~14 slots, e.g. a real Friday schedule) fits on one 1920x1080 screen
+  // without scrolling.
+  const MAX_UPCOMING_SLOTS = 20
   // The single soonest upcoming slot only turns red once it's this close to
   // starting — before that it renders in the same yellow tier as every
   // other later slot, per an explicit "vysvietená najskôr 45min pred
@@ -230,13 +235,18 @@ export default function RinkScheduleBoardPage() {
         ? 'text-[clamp(0.95rem,1.6vw,1.3rem)] text-white'
         : variant === 'live'
           ? 'text-[clamp(0.8rem,1.15vw,1rem)] text-white'
-          : 'text-[clamp(0.75rem,1vw,0.9rem)] text-white'
+          : 'text-[clamp(0.55rem,0.75vw,0.7rem)] text-white'
+    // "later" cells are deliberately the most compact variant — live/next
+    // stay at their original size per an explicit "keep those as they are"
+    // request, but a full day's worth of later slots (~14) needs to fit one
+    // screen, so only this tier's padding/gap shrinks.
+    const paddingClasses = variant === 'later' ? 'px-2 py-0.5' : 'px-3 py-1.5'
 
     return (
-      <div key={slot.startMin} className={`w-full rounded-lg border px-3 py-1.5 ${cellClasses}`}>
+      <div key={slot.startMin} className={`w-full rounded-lg border ${paddingClasses} ${cellClasses}`}>
         {(variant === 'live' || variant === 'next') && (
           <div className="mb-0.5">
-            {variant === 'live' && <span className="text-status-success text-[0.65rem] uppercase tracking-wide font-semibold">{t('tournaments.liveNow')}</span>}
+            {variant === 'live' && <span className="text-status-success text-[0.65rem] uppercase tracking-wide font-semibold">{t('rinkSchedule.liveNow')}</span>}
             {variant === 'next' && <span className="text-status-danger text-[0.65rem] uppercase tracking-wide font-semibold">{t('rinkSchedule.upNext')}</span>}
           </div>
         )}
@@ -269,7 +279,7 @@ export default function RinkScheduleBoardPage() {
     const liveSlots = slots.filter((s) => s.startMin <= nowMin)
     const upcomingSlots = slots.filter((s) => s.startMin > nowMin).slice(0, MAX_UPCOMING_SLOTS)
     return (
-      <div className="flex flex-col gap-2 w-full h-full overflow-hidden">
+      <div className="flex flex-col gap-1 w-full h-full overflow-hidden">
         {liveSlots.map((slot) => renderSlotCell(slot, 'live'))}
         {upcomingSlots.map((slot, i) =>
           renderSlotCell(slot, i === 0 && slot.startMin - nowMin <= NEXT_HIGHLIGHT_MINUTES ? 'next' : 'later')
@@ -281,17 +291,18 @@ export default function RinkScheduleBoardPage() {
   if (isTvMode) {
     return (
       <div className="h-full w-full bg-background-dark flex flex-col p-3 gap-2 text-white">
-        <div className="shrink-0 flex items-center gap-3 rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
+        <div className="shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
           <Link
             to="/rozvrh"
             replace
-            className="shrink-0 mono text-text-secondary text-sm sm:text-lg whitespace-nowrap hover:text-primary"
+            className="justify-self-start mono text-text-secondary text-sm sm:text-lg whitespace-nowrap hover:text-primary"
           >
             {formatBoardClock(now)}
           </Link>
-          <h1 className="flex-1 min-w-0 text-[clamp(1.1rem,3.2vw,3rem)] font-bold text-primary text-center truncate">
+          <h1 className="justify-self-center min-w-0 text-[clamp(1.1rem,3.2vw,3rem)] font-bold text-primary text-center truncate">
             {club?.name ?? t('rinkSchedule.title')}
           </h1>
+          <div aria-hidden="true" />
         </div>
 
         <div className="flex-1 min-h-0 flex gap-3">
@@ -336,7 +347,7 @@ export default function RinkScheduleBoardPage() {
                         <div>
                           <p className={`font-medium ${it.state === 'live' ? 'text-status-danger' : it.state === 'finished' ? 'text-text-muted' : 'text-white'}`}>
                             {it.label}
-                            {it.state === 'live' && ` · ${t('tournaments.liveNow')}`}
+                            {it.state === 'live' && ` · ${t('rinkSchedule.liveNow')}`}
                             {it.liveScore ? ` (${it.liveScore})` : ''}
                           </p>
                           <p className="text-text-muted text-xs">
