@@ -15,6 +15,18 @@ import './index.css'
 // fired; onRegisteredSW polls for a new worker every 60s so an already-open
 // tab (or a backgrounded-then-resumed iOS PWA, which doesn't reliably do a
 // true network reload) picks up a new deploy on its own.
+//
+// That polling alone was never enough, though — `registration.update()`
+// only checks for and installs a new worker; skipWaiting/clientsClaim then
+// let it take over as *controller* for future requests, but the page's own
+// already-executing JS (React state, closures, the running bundle) keeps
+// running regardless until something actually reloads it. An always-on
+// kiosk tab (the rink-schedule TV board, left open for days) could sit on
+// a stale build indefinitely even though a newer one had long since
+// deployed and "taken over" in the background. `controllerchange` fires
+// exactly once, right when that handoff happens, so reloading there is the
+// one reliable point to pick up the new code — guarded by `refreshed` since
+// the event can in principle fire more than once per page life.
 registerSW({
   immediate: true,
   onRegisteredSW(_url, registration) {
@@ -22,6 +34,15 @@ registerSW({
     setInterval(() => registration.update(), 60_000)
   }
 })
+
+if ('serviceWorker' in navigator) {
+  let refreshed = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshed) return
+    refreshed = true
+    window.location.reload()
+  })
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
