@@ -271,8 +271,11 @@ export default function RinkScheduleBoardPage() {
   const LATER_SPARSE_COUNT = 3
   const LATER_FONT_MIN_REM = 1.05
   const LATER_FONT_MAX_REM = 1.875 // 30px
-  const LATER_PAD_Y_MIN_REM = 0.3
-  const LATER_PAD_Y_MAX_REM = 0.6
+  // Padding shrunk (not the font) per an explicit "keep the text the same
+  // size, just pack the cells tighter" request, specifically to fit at
+  // least 14 at once.
+  const LATER_PAD_Y_MIN_REM = 0.12
+  const LATER_PAD_Y_MAX_REM = 0.3
 
   function laterCellStyle(laterCount: number) {
     const clamped = Math.min(Math.max(laterCount, LATER_SPARSE_COUNT), LATER_DENSE_COUNT)
@@ -348,7 +351,7 @@ export default function RinkScheduleBoardPage() {
     const laterCount = upcomingSlots.length - (hasNext ? 1 : 0)
     const laterMetrics = laterCellStyle(laterCount)
     return (
-      <div className="flex flex-col gap-2 w-full h-full overflow-hidden">
+      <div className="flex flex-col gap-1 w-full h-full overflow-hidden">
         {liveSlots.map((slot) => renderSlotCell(slot, 'live'))}
         {upcomingSlots.map((slot, i) =>
           renderSlotCell(slot, i === 0 && hasNext ? 'next' : 'later', laterMetrics)
@@ -376,8 +379,8 @@ export default function RinkScheduleBoardPage() {
 
         <div className="flex-1 min-h-0 flex gap-3">
           {activeRinks.map((rink) => (
-            <div key={rink.id} className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border bg-background-card p-3 gap-2">
-              <h2 className="shrink-0 text-white text-lg font-bold text-center truncate">{localizedName(rink, i18n.language)}</h2>
+            <div key={rink.id} className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border bg-background-card p-2 gap-1">
+              <h2 className="shrink-0 text-white text-sm font-bold text-center truncate">{localizedName(rink, i18n.language)}</h2>
               <div className="flex-1 min-h-0 w-full">{renderEventList(itemsByRink.get(rink.id) ?? [])}</div>
             </div>
           ))}
