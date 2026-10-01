@@ -462,8 +462,8 @@ export default function RinkSchedulePage() {
         </CardHeader>
         <CardContent>
           {!loading && entries.length > 0 && (
-            <div className="flex flex-wrap items-end gap-3 mb-4 pb-4 border-b border-border">
-              <div>
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-3 mb-4 pb-4 border-b border-border">
+              <div className="min-w-[160px]">
                 <Label className="text-white">{t('admin.rink')}</Label>
                 <select
                   value={filterRinkId}
@@ -476,20 +476,20 @@ export default function RinkSchedulePage() {
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="min-w-[170px]">
                 <Label className="text-white">{t('common.date')}</Label>
                 <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="bg-background-dark border-border text-white" />
               </div>
-              <div>
+              <div className="w-[110px] shrink-0">
                 <Label className="text-white">{t('rinkSchedule.filterTime')}</Label>
                 <Input
                   value={filterTime}
                   onChange={(e) => setFilterTime(e.target.value)}
                   placeholder={t('rinkSchedule.filterTimePlaceholder')}
-                  className="bg-background-dark border-border text-white max-w-[100px]"
+                  className="bg-background-dark border-border text-white"
                 />
               </div>
-              <div className="flex-1 min-w-[160px]">
+              <div className="flex-1 min-w-[180px]">
                 <Label className="text-white">{t('rinkSchedule.filterName')}</Label>
                 <Input
                   value={filterName}
