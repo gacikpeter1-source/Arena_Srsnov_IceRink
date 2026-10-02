@@ -2358,6 +2358,49 @@ least 14 events on screen" — verified via the same Playwright-screenshot
 technique against the real ~15-slot Friday schedule, which now fits with
 comfortable room to spare below the last cell (not just barely).
 
+**Replaced the fixed-size "later" cells with real measure-and-shrink-to-fit,
+and aligned name/time/room into columns.** The previous approach
+(`laterCellStyle`, a count-based interpolation between a sparse and a dense
+reference count) was tuned against the real days seen so far (~15 slots) —
+a club asked explicitly for a guarantee that *every* scheduled event for the
+day always shows, with no artificial cap and no fixed minimum font size,
+sized as large as the screen allows. `RinkScheduleBoardPage.tsx` now has a
+`RinkBoardColumn` component (one per rink, each with its own independent
+`scale` state) that actually measures: render the later cells at `scale`
+(starting at 1, i.e. the unchanged `LATER_FONT_MAX_REM`/`LATER_PAD_Y_MAX_REM`
+ceiling), then in a `useLayoutEffect` compare the list's real
+`scrollHeight` against its container's `clientHeight` — if it overflows,
+shrink `scale` by the overflow ratio (with a small safety margin) and let
+React re-render and re-measure, repeating until it fits or hits
+`LATER_FONT_FLOOR_REM` (a last-resort "never literally vanish" floor, not a
+comfortable minimum — there's deliberately no such thing any more).
+`useLayoutEffect` specifically (not `useEffect`) because it runs before the
+browser paints, so this converges within the same frame instead of
+flashing full-size-then-shrink. `scale` resets to 1 whenever the `items`
+prop reference changes (every poll, or an event moving from upcoming to
+live) so a day that gets quieter as events finish grows back toward full
+size rather than staying stuck at whatever a busier earlier moment had
+shrunk it to — the reset and the re-measurement both happen inside the same
+layout-effect pass, so this doesn't flash either. `MAX_UPCOMING_SLOTS` is
+gone entirely — every upcoming slot for the day is now a candidate to
+render; the measurement is what keeps it on-screen, not a slot-count cap.
+Live/next cells are untouched (still fixed-size), matching the established
+"keep those as they are" stance.
+
+Separately, the old "Name - Time - Room" single hyphen-joined string
+(`{it.label} - {minutesToTime(...)} - {room}`) is now three separate
+elements — a flexible truncating name, then a fixed-`ch`-width monospace
+time (`w-[5.5ch]`, right-aligned), then a fixed-`ch`-width room
+(`w-[10ch]`, truncated) — so every row's time lines up under the next
+row's time, and the same for room, per an explicit alignment request;
+`ch` units scale with each cell's own current font-size, so the columns
+stay aligned at whatever size a given day's measurement converged on. The
+zone-part badge (e.g. "Tretina 1") stays a separate trailing pill after
+the room column, unchanged. A live score (tournament matches only) is
+appended directly after the name instead of being a fourth hyphen-joined
+segment, since it's conceptually part of "what this event is," not a
+fixed-width column of its own.
+
 **Quick filters on the entries table.** `RinkSchedulePage.tsx` (`/admin/rozvrh`) could only be scrolled, not filtered — unworkable once a club has a real season's worth of entries. A filter row above the table (rink `<select>`, date picker, a free-text time field, a free-text name field) narrows what's shown; rink/date are exact matches, time/name are case-insensitive substring matches (so typing "17" catches every 17:xx start, and a partial team name is enough). Deliberately independent state from the create-form's own rinkId/date/startTime fields above it — picking a filter never changes what the "add new entry" form is about to submit. Matching happens per real occurrence (not per entry): an entry with no occurrences left falls back to matching its own original date/time/rink/name (nothing else to check it against), and a whole entry (including a recurring series' "Zmazať celú sériu" row) is only rendered once at least one of its rows survives the filter — a series with every occurrence filtered out doesn't leave a stray delete button with nothing above it. A "Zrušiť filtre" button appears only once a filter is actually set, and a distinct `rinkSchedule.noneFiltered` message ("no entries match the filter") is shown separately from the pre-existing `rinkSchedule.none` ("no entries at all") empty state, so the two situations aren't confused.
 
 ### Editing and cancelling individual occurrences
