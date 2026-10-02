@@ -49,6 +49,13 @@ export default function FreeIceSlotsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
+  const alternatingUrl = `${window.location.origin}/rozvrh/strieda`
+  const [alternatingUrlCopied, setAlternatingUrlCopied] = useState(false)
+  const handleCopyAlternatingUrl = async () => {
+    await navigator.clipboard.writeText(alternatingUrl)
+    setAlternatingUrlCopied(true)
+    setTimeout(() => setAlternatingUrlCopied(false), 2000)
+  }
 
   const refresh = () => {
     if (!club) return
@@ -154,6 +161,12 @@ export default function FreeIceSlotsPage() {
             <Link to="/rozvrh/strieda" className="text-primary hover:text-primary-gold text-sm underline w-fit">
               {t('rinkSchedule.openAlternatingScreen')}
             </Link>
+            <div className="mt-2 rounded-md border border-border bg-background-dark px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
+              <p className="mono text-primary text-sm break-all">{alternatingUrl}</p>
+              <Button type="button" size="sm" variant="outline" onClick={handleCopyAlternatingUrl}>
+                {alternatingUrlCopied ? t('admin.linkCopied') : t('admin.copyLink')}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
