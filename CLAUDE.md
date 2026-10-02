@@ -2805,6 +2805,37 @@ banner above the form explaining this list now gates real public booking
 availability, so staff don't mistake it for the purely-informational tool
 it started as.
 
+**`FreeIceBoard.tsx`'s TV display redesigned as a real weekly calendar
+grid**, per an explicit "lavý stĺpec časová os 5:00-24:00, ďalšie dni ako
+stĺpce" request — the original two-column flat list grouped by date
+wasn't readable enough at a glance. Now: a fixed time axis (`HOUR_START`
+5, `HOUR_END` 24, never shrinking/growing with the data so the grid's
+shape stays stable night to night) runs down the left in `PX_PER_HOUR`
+(48px) rows, and one column per day for the **next 7 days starting
+today** (not a Monday-first calendar week — today could be any weekday,
+and a kiosk board should always show what's coming up next, same
+"upcoming N days from today" convention `BookingPage.tsx`'s own 14-day
+window already uses) — each with its own day name + short date. Since
+this club runs two physical rinks that can both have a slot at/near the
+same time, each day column splits into one lane per active rink (a
+small "HALA 1 / HALA 2" mini-header row under the date) rather than a
+generic overlap-avoidance algorithm — simpler and more meaningful than
+arbitrary lanes when the lane count is always exactly the rink count.
+Each slot renders as an absolutely-positioned block within its rink's
+lane, `top`/`height` computed straight from its start/end time against
+the fixed axis (`(minutes - HOUR_START*60) * (PX_PER_HOUR/60)`), showing
+time range, the split-zone name (if any), and the price/note — the same
+`ScaleToFit` wrapping already used elsewhere scales the whole natural-size
+grid (axis + 7 narrow day columns) to fit the kiosk screen, so this
+needed no new no-scroll mechanism of its own. Hour gridlines are a CSS
+`background-image` repeating gradient on each rink lane rather than extra
+DOM nodes, same trick a calendar grid typically uses to avoid rendering
+one element per hour row. The empty-state message (`freeIce.boardNone`)
+now only shows when truly nothing is scheduled across the whole 7-day
+window — a quiet day still renders its full empty grid rather than
+disappearing, since an empty but intact calendar reads as "nothing
+booked" at a glance, not as a broken screen.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
