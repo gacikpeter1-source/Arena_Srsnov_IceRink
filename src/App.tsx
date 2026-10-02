@@ -12,6 +12,7 @@ import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
 import TournamentSchedulePage from './pages/TournamentSchedulePage'
 import TvCodeRedirectPage from './pages/TvCodeRedirectPage'
 import RinkScheduleBoardPage from './pages/RinkScheduleBoardPage'
+import RinkScheduleAlternatingBoardPage from './pages/RinkScheduleAlternatingBoardPage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
@@ -35,6 +36,7 @@ const TournamentDetailPage = lazy(() => import('./pages/admin/TournamentDetailPa
 const AdminSubscriptionPage = lazy(() => import('./pages/admin/AdminSubscriptionPage'))
 const QrScanPage = lazy(() => import('./pages/admin/QrScanPage'))
 const RinkSchedulePage = lazy(() => import('./pages/admin/RinkSchedulePage'))
+const FreeIceSlotsPage = lazy(() => import('./pages/admin/FreeIceSlotsPage'))
 
 function Footer() {
   const { t } = useTranslation()
@@ -60,8 +62,12 @@ export default function App() {
   // no footer admin link, nothing clickable — and needs the full viewport
   // for its own no-scroll layout, so the shared app chrome is skipped
   // entirely rather than just hidden with CSS.
+  // /rozvrh/strieda (the players'-bench alternating board) has no non-kiosk
+  // variant at all — unlike /turnaje and /rozvrh, which only strip chrome
+  // behind ?display=tv, this path is always a kiosk screen.
   const isTvScreen =
-    ['/turnaje', '/rozvrh'].includes(location.pathname) && new URLSearchParams(location.search).get('display') === 'tv'
+    location.pathname === '/rozvrh/strieda' ||
+    (['/turnaje', '/rozvrh'].includes(location.pathname) && new URLSearchParams(location.search).get('display') === 'tv')
 
   return (
     <div className={isTvScreen ? 'h-screen overflow-hidden' : 'min-h-screen'}>
@@ -101,6 +107,7 @@ export default function App() {
           <Route path="/tv" element={<Navigate to="/rozvrh?display=tv" replace />} />
           <Route path="/tv/:code" element={<TvCodeRedirectPage />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
+          <Route path="/rozvrh/strieda" element={<RinkScheduleAlternatingBoardPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
           <Route path="/admin/signup-trainer" element={<TrainerSignupPage />} />
@@ -190,6 +197,16 @@ export default function App() {
               <ProtectedRoute>
                 <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
                   <RinkSchedulePage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/volne-lady"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <FreeIceSlotsPage />
                 </Suspense>
               </ProtectedRoute>
             }

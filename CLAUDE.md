@@ -2677,6 +2677,63 @@ those stay on the faster exact-match `lockedSlotsRange` check, since
 they're approximate at-a-glance indicators rather than what actually gates
 a real booking attempt.
 
+### Alternating "striedačka" TV board + free-ice-for-rent listing
+
+A second physical kiosk screen, distinct from the hallway TV
+(`/rozvrh?display=tv`) — a club asked for a TV at the players' bench
+("striedačka") that cycles between that same live schedule and a new
+"voľné ľady na prenájom" (free ice available to rent) listing, which the
+club previously tracked by hand in an external spreadsheet (date, day
+name, time range, rink, an occasional price/zone-restriction note like
+"len krajná tretina — 80 €"). `FreeIceSlot` (`src/types/index.ts`,
+`src/lib/freeIceSlots.ts`) is a small new collection for that same list,
+now live in the app — deliberately **not** a real reservation (it never
+touches `bookings`/`slotLocks` at all, unlike `RinkScheduleEntry`), since
+it's advertising copy for ice that's still open, not ice already taken.
+`note` is one free-text field covering both price and any zone
+restriction together, since neither has a structured field anywhere in
+this app's data model yet (see the payment-scaffold section above) — this
+mirrors how `RinkScheduleEntry.teamName` is also plain free text rather
+than a structured registry. Managed via a new plain CRUD admin page,
+`FreeIceSlotsPage.tsx` (`/admin/volne-lady`, linked from `HeaderMenu.tsx`
+next to "Spravovať rozvrh"), gated to the same `isTrainer() ||
+isStaffMember()` check as the rest of this planning domain — deliberately
+no conflict-detection/booking integration at all, unlike
+`RinkSchedulePage.tsx`, since there's no real slot being reserved here.
+
+`RinkScheduleBoardPage.tsx`'s fetch/poll/compute logic and its kiosk
+rendering were both extracted out so the new alternating screen could
+reuse them exactly rather than duplicating either: `useRinkScheduleBoardData`
+(`src/hooks/useRinkScheduleBoardData.ts`) owns the bookings/entries/
+matches fetch-and-poll (including the `today`-recomputed-per-poll and
+`visibilitychange` fixes already documented above) and the live/next/
+later item computation; `RinkScheduleTvGrid.tsx` owns the per-rink column
+rendering (the measure-and-shrink `RinkBoardColumn`, the rental-color
+accent, etc.) as a component callers wrap in their own `flex-1 min-h-0
+flex gap-3` container. `RinkScheduleBoardPage.tsx` itself now just calls
+both; `formatRoomLine` moved to `lib/utils.ts` since it's shared by both
+the grid and that page's own plain (non-TV) list view.
+
+`RinkScheduleAlternatingBoardPage.tsx` (`/rozvrh/strieda`) composes
+`useRinkScheduleBoardData` + `RinkScheduleTvGrid` (live board) with a new
+`FreeIceBoard.tsx` component (the free-ice listing, grouped by date in a
+two-column grid mirroring how the club's own spreadsheet already laid
+this out, wrapped in `ScaleToFit` so an arbitrary number of upcoming
+dates/slots never needs scrolling) — a `setInterval`-driven `slide` state
+cross-fades between the two (CSS `opacity`/`pointer-events`, not
+mounting/unmounting, so neither side ever re-fetches mid-cycle). Unlike
+`/rozvrh`/`/turnaje`, this path has no non-kiosk variant at all — it's
+always a kiosk screen, so `App.tsx`'s TV-mode chrome-stripping check now
+also matches this path unconditionally (not gated behind `?display=tv`
+the way `/rozvrh`/`/turnaje` are). The cycle interval is a plain
+`?interval=<seconds>` query param (default 10, minimum 3) rather than a
+stored setting — matching this app's established "one route, query
+params pick the case" pattern and letting staff change it per-screen just
+by editing the saved/bookmarked URL, with no admin UI needed for a single
+number. `firestore.rules` opens `freeIceSlots` to public read (the kiosk
+has no login) with writes restricted to the same trainer/staff roles as
+`rinkScheduleEntries`.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

@@ -16,6 +16,15 @@ export function localizedName(entity: { name: string; translations?: { sk?: stri
   return lang === 'sk' && entity.translations?.sk ? entity.translations.sk : entity.name
 }
 
+// Combines a home + away locker room into one display string — e.g. for a
+// match where both teams need their own room. Falls back to whichever one
+// side actually has, or undefined when neither does. Shared by
+// RinkScheduleTvGrid.tsx and RinkScheduleBoardPage.tsx's plain list view.
+export function formatRoomLine(t: (key: string, opts?: Record<string, unknown>) => string, room?: string, awayRoom?: string): string | undefined {
+  if (room && awayRoom) return t('rinkSchedule.roomBothLine', { home: room, away: awayRoom })
+  return room ?? awayRoom
+}
+
 export function getWeekStart(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()

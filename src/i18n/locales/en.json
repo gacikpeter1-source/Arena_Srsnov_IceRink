@@ -30,6 +30,7 @@
     "scanQr": "Scan QR code",
     "rinkSchedule": "Rink schedule",
     "manageRinkSchedule": "Manage rink schedule",
+    "manageFreeIce": "Manage free ice rentals",
     "manageTournaments": "Manage tournaments",
     "subscription": "Pricing / My plan",
     "website": "Website",
@@ -449,7 +450,28 @@
     "boardNoUpcoming": "Nothing else scheduled.",
     "boardScanHint": "Scan for the schedule on your phone",
     "boardNone": "Nothing scheduled today.",
-    "boardNoneForRink": "Nothing scheduled today."
+    "boardNoneForRink": "Nothing scheduled today.",
+    "alternatingTitle": "Alternating TV screen (bench)",
+    "alternatingHint": "Cycles between the current ice schedule and the free-ice-for-rent listing — meant for a screen at the players' bench (a different spot than the main hallway TV). Change the cycle speed with a URL parameter, e.g. ?interval=15 (seconds, default 10).",
+    "openAlternatingScreen": "Open alternating screen"
+  },
+  "freeIce": {
+    "title": "Free ice for rent",
+    "intro": "A list of open ice slots available to rent — also shown on the alternating TV screen (/rozvrh/strieda).",
+    "notAuthorizedTitle": "Not available",
+    "notAuthorizedNotice": "You don't have access to free ice rentals.",
+    "newSlot": "New slot",
+    "editSlot": "Edit slot",
+    "startTime": "From",
+    "endTime": "To",
+    "note": "Note (price, zone restriction...)",
+    "notePlaceholder": "e.g. Edge third only – 80 €",
+    "addSlot": "Add slot",
+    "listTitle": "Free ice slots",
+    "none": "No free slots yet.",
+    "confirmDelete": "Remove this slot from the free-ice list?",
+    "boardTitle": "Free ice for rent",
+    "boardNone": "No free slots currently scheduled."
   },
   "trainerIceLog": {
     "title": "Trainer ice log",
