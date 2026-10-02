@@ -2836,6 +2836,31 @@ window — a quiet day still renders its full empty grid rather than
 disappearing, since an empty but intact calendar reads as "nothing
 booked" at a glance, not as a broken screen.
 
+**Correction: percentage-based sizing instead of `ScaleToFit`, so the
+grid actually fills the screen.** The first cut above still wrapped the
+grid in `ScaleToFit` with a fixed-pixel natural size (`PX_PER_HOUR`
+rows × fixed-width day columns) — per an explicit "využi maximálnu šírku
+a výšku" (use the maximum width and height) correction, this left real
+space unused on a real 16:9 TV: `ScaleToFit` scales uniformly to the
+*smaller* of the width/height ratios, so a grid whose natural aspect
+ratio didn't match the screen's just sat centered with empty margins on
+whichever axis wasn't the limiting one (height, in practice — the grid's
+7 narrow fixed-width columns needed far less width than a 1920px screen
+offered). Replaced with genuine percentage-based sizing: day columns are
+plain `flex-1` (filling whatever width is left after the fixed time
+axis), and every slot's `top`/`height` is a `%` of the fixed 19-hour
+axis (`TOTAL_HOURS * 60` minutes) rather than a pixel offset — the hour
+gridlines' CSS `background-size` is likewise expressed as a percentage
+(`100% / TOTAL_HOURS`) so they repeat correctly regardless of the
+column's real rendered height. `ScaleToFit` is gone from this component
+entirely; only the small header strip (day name/date + rink mini-labels,
+`HEADER_HEIGHT`) stays a fixed pixel height, same "chrome doesn't need
+to scale, content does" reasoning the main rink-schedule board's own 6vh
+header bar already follows. Text sizes switched to `clamp()` tied to
+`vw` (same technique the header club-name text and the main TV board's
+own "later" cells already use) so they scale continuously with screen
+size now that the grid genuinely occupies the full available width.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
