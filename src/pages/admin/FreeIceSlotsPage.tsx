@@ -12,19 +12,24 @@ import { Label } from '@/components/ui/label'
 import { Link } from 'react-router-dom'
 import BackButton from '@/components/BackButton'
 import QrCodeDisplay from '@/components/QrCodeDisplay'
+import FreeIceImportPanel from '@/components/FreeIceImportPanel'
 
 /**
  * Staff tool for the "free ice available to rent" listing (see FreeIceSlot
- * in src/types/index.ts) — a plain CRUD list, replacing the external
- * spreadsheet the club previously kept this in by hand. Deliberately no
- * conflict-detection/booking integration at all (unlike RinkSchedulePage.tsx)
- * — this is advertising copy for ice that's still open, not a reservation.
- * Shown on the alternating TV board at /rozvrh/strieda.
+ * in src/types/index.ts) — replacing the external spreadsheet the club
+ * previously kept this in by hand. This is now the SOLE source of what the
+ * public `/book` page offers (see CLAUDE.md's "Free ice import becomes the
+ * public booking source" note) — a rink/date with no entries here shows as
+ * closed on `/book`, with no fallback to the old generated schedule.
+ * Deliberately no conflict-detection of its own (unlike RinkSchedulePage.tsx)
+ * — a customer books a slot through the exact same public createBooking
+ * transaction every other reservation uses, so double-booking protection is
+ * unchanged; this page only decides what gets *offered*.
  */
 export default function FreeIceSlotsPage() {
   const { t, i18n } = useTranslation()
   const { user, staff } = useAuth()
-  const { club, rinks } = useClubData()
+  const { club, rinks, zones } = useClubData()
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
@@ -35,12 +40,15 @@ export default function FreeIceSlotsPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [rinkId, setRinkId] = useState('')
+  const [zoneId, setZoneId] = useState('')
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('06:00')
   const [endTime, setEndTime] = useState('07:00')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
 
   const refresh = () => {
     if (!club) return
@@ -57,6 +65,11 @@ export default function FreeIceSlotsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRinks])
 
+  useEffect(() => {
+    if (zonesForRink.length && !zonesForRink.some((z) => z.id === zoneId)) setZoneId(zonesForRink[0].id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zonesForRink])
+
   const resetForm = () => {
     setEditingId(null)
     setDate(formatDateISO(new Date()))
@@ -68,6 +81,7 @@ export default function FreeIceSlotsPage() {
   const handleEdit = (slot: FreeIceSlot & { id: string }) => {
     setEditingId(slot.id)
     setRinkId(slot.rinkId)
+    setZoneId(slot.zoneId)
     setDate(slot.date)
     setStartTime(slot.startTime)
     setEndTime(slot.endTime)
@@ -76,11 +90,11 @@ export default function FreeIceSlotsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!club || !user || !staff || !rinkId || !date || !startTime || !endTime) return
+    if (!club || !user || !staff || !rinkId || !zoneId || !date || !startTime || !endTime) return
     setSaving(true)
     setError(null)
     try {
-      const fields = { rinkId, date, startTime, endTime, note: note.trim() || undefined }
+      const fields = { rinkId, zoneId, date, startTime, endTime, note: note.trim() || undefined }
       if (editingId) {
         await updateFreeIceSlot(editingId, fields)
       } else {
@@ -108,6 +122,7 @@ export default function FreeIceSlotsPage() {
   }
 
   const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
+  const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
 
   if (staff && !canManage) {
     return (
@@ -124,6 +139,9 @@ export default function FreeIceSlotsPage() {
       <BackButton fallback="/admin/rozvrh" />
       <h1 className="text-2xl font-bold text-white">{t('freeIce.title')}</h1>
       <p className="text-text-secondary text-sm">{t('freeIce.intro')}</p>
+      <p className="text-status-warning text-sm rounded-md border border-status-warning/40 bg-status-warning/10 px-3 py-2">
+        {t('freeIce.replacesPublicScheduleWarning')}
+      </p>
 
       <Card className="arena-card">
         <CardHeader>
@@ -156,6 +174,14 @@ export default function FreeIceSlotsPage() {
               </select>
             </div>
             <div>
+              <Label className="text-white">{t('admin.zone')}</Label>
+              <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
+                {zonesForRink.map((z) => (
+                  <option key={z.id} value={z.id}>{localizedName(z, i18n.language)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <Label className="text-white">{t('common.date')}</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-background-dark border-border text-white" required />
             </div>
@@ -163,9 +189,9 @@ export default function FreeIceSlotsPage() {
               <Label className="text-white">{t('freeIce.startTime')}</Label>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="bg-background-dark border-border text-white" required />
             </div>
-            <div>
+            <div className="sm:col-span-4">
               <Label className="text-white">{t('freeIce.endTime')}</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="bg-background-dark border-border text-white" required />
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="bg-background-dark border-border text-white max-w-[160px]" required />
             </div>
             <div className="sm:col-span-4">
               <Label className="text-white">{t('freeIce.note')}</Label>
@@ -185,6 +211,17 @@ export default function FreeIceSlotsPage() {
         </CardContent>
       </Card>
 
+      {club && (
+        <FreeIceImportPanel
+          clubId={club.id}
+          rinks={activeRinks}
+          zones={zones}
+          createdBy={user?.uid ?? ''}
+          createdByName={staff?.name ?? ''}
+          onImported={refresh}
+        />
+      )}
+
       <Card className="arena-card">
         <CardHeader>
           <CardTitle className="text-white text-lg">{t('freeIce.listTitle')}</CardTitle>
@@ -202,6 +239,7 @@ export default function FreeIceSlotsPage() {
                     <th className="py-2 pr-3">{t('common.date')}</th>
                     <th className="py-2 pr-3">{t('common.time')}</th>
                     <th className="py-2 pr-3">{t('admin.rink')}</th>
+                    <th className="py-2 pr-3">{t('admin.zone')}</th>
                     <th className="py-2 pr-3">{t('freeIce.note')}</th>
                     <th className="py-2 pr-3" />
                   </tr>
@@ -212,6 +250,7 @@ export default function FreeIceSlotsPage() {
                       <td className="py-2 pr-3 mono">{slot.date}</td>
                       <td className="py-2 pr-3 mono text-primary">{slot.startTime}–{slot.endTime}</td>
                       <td className="py-2 pr-3">{rinkNameById.get(slot.rinkId) ?? slot.rinkId}</td>
+                      <td className="py-2 pr-3">{zoneNameById.get(slot.zoneId) ?? slot.zoneId}</td>
                       <td className="py-2 pr-3 text-text-secondary">{slot.note ?? '—'}</td>
                       <td className="py-2 pr-3">
                         <div className="flex gap-2">

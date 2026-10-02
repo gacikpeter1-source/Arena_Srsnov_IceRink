@@ -293,19 +293,27 @@ export interface RinkScheduleEntry {
 // A staff-curated "free ice available to rent" listing — the club
 // previously tracked this by hand in an external spreadsheet (date, time
 // range, rink, an occasional price/zone-restriction note like "len krajná
-// tretina — 80 €"); this is that same list, now shown on the alternating
-// TV board (see RinkScheduleAlternatingBoardPage.tsx). Deliberately NOT a
-// real reservation — it never touches bookings/slotLocks at all, unlike
-// RinkScheduleEntry above, since it's advertising copy for ice that's
-// still open, not ice that's already taken. `note` is a single free-text
-// field covering both price and any zone restriction together (e.g. "Len
-// stredná tretina — 50 €", "Celý ľad — jednorazová akcia — 150 €") since
-// neither concept has a structured field anywhere in this app's data
-// model yet (see the payment-scaffold note in CLAUDE.md).
+// tretina — 80 €"). Shown on the alternating TV board
+// (RinkScheduleAlternatingBoardPage.tsx) AND, since this became the sole
+// source of what the public `/book` page offers (see CLAUDE.md's "Free
+// ice import becomes the public booking source" note), a FreeIceSlot IS
+// now a real bookable slot — `zoneId` names exactly which zone a customer
+// reserves, resolved by staff (the manual form's zone `<select>`) or by
+// the Excel/CSV/TXT importer (`lib/excel.ts`'s `parseFreeIceWorkbook`,
+// resolving a "Zona" cell like "krajná tretina"/"stredná tretina" against
+// a real Zone the same way RinkScheduleImportPanel's "Ihrisko" column
+// already does). Still NOT a reservation itself — it never touches
+// bookings/slotLocks directly; a customer books it through the exact same
+// public `createBooking` transaction every other `/book` reservation
+// uses, so double-booking protection is unchanged. `note` stays a single
+// free-text field for price/extra info (e.g. "80 €", "jednorazová akcia
+// – 150 €") since there's still no structured price field anywhere in
+// this app's data model (see the payment-scaffold note in CLAUDE.md).
 export interface FreeIceSlot {
   id: string
   clubId: string
   rinkId: string
+  zoneId: string
   date: string
   startTime: string
   endTime: string

@@ -683,3 +683,115 @@ export function parseRinkScheduleWorkbook(input: ArrayBuffer | string): ParsedRi
 
   return { rows, errors }
 }
+
+// ---------------------------------------------------------------------
+// Free-ice-for-rent bulk import (see CLAUDE.md's "Free ice import becomes
+// the public booking source" note) — a club receives this data as an
+// Excel/CSV/TXT file from whoever maintains it, so this mirrors
+// parseRinkScheduleWorkbook's conventions exactly: plain ASCII Slovak
+// headers (hand-typeable, survive a plain-text file with no guaranteed
+// encoding), "Hala" a 1-based rink position rather than a name, and the
+// same .xlsx/.csv/.txt dual input + parseSimpleCsv text path (SheetJS's
+// own CSV date-guessing already proved unreliable for d.m.yyyy strings —
+// see parseRinkScheduleWorkbook's doc comment). Unlike that importer,
+// "Od"/"Do" (start/end time) are both required — a free-ice slot has no
+// club-wide default duration to fall back to the way a rink-schedule
+// entry does.
+// ---------------------------------------------------------------------
+
+const FREE_ICE_HEADERS = {
+  rink: 'Hala',
+  date: 'Datum',
+  startTime: 'Od',
+  endTime: 'Do',
+  zone: 'Zona',
+  note: 'Cena'
+} as const
+
+const FREE_ICE_IMPORT_HEADERS = [
+  FREE_ICE_HEADERS.rink,
+  FREE_ICE_HEADERS.date,
+  FREE_ICE_HEADERS.startTime,
+  FREE_ICE_HEADERS.endTime,
+  FREE_ICE_HEADERS.zone,
+  FREE_ICE_HEADERS.note
+]
+
+const FREE_ICE_EXAMPLE_ROW = [1, '04.10.2026', '06:00', '07:00', '', '']
+
+export function downloadFreeIceImportTemplate(filename = 'volne-lady-template.xlsx'): void {
+  const ws = XLSX.utils.aoa_to_sheet([FREE_ICE_IMPORT_HEADERS, FREE_ICE_EXAMPLE_ROW])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'VolneLady')
+  XLSX.writeFile(wb, filename)
+}
+
+export interface FreeIceImportRow {
+  // 1-based position among the club's rinks (sorted by Rink.sortOrder) —
+  // resolved to a real rinkId by the caller, same as RinkScheduleImportRow.
+  rinkNumber: number
+  date: string
+  startTime: string
+  endTime: string
+  // Free text naming which zone is open — blank means the whole rink. The
+  // caller additionally recognizes "krajná"/"krajna tretina" (an edge
+  // third) and "stredná"/"stredna tretina" (the middle third) as synonyms,
+  // on top of matching a real zone's name/translation/A-B-C letter the
+  // same way RinkScheduleImportRow.zonePart already does.
+  zonePart?: string
+  // Free text — price and/or any extra note, e.g. "80 €", "jednorazová
+  // akcia – 150 €". No structured price field exists yet (see the
+  // payment-scaffold note in CLAUDE.md).
+  note?: string
+}
+
+export interface ParsedFreeIceImport {
+  rows: FreeIceImportRow[]
+  errors: ImportRowError[]
+}
+
+export function parseFreeIceWorkbook(input: ArrayBuffer | string): ParsedFreeIceImport {
+  let raw: Record<string, unknown>[]
+  if (typeof input === 'string') {
+    raw = parseSimpleCsv(input)
+  } else {
+    const wb = XLSX.read(input)
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+  }
+
+  const rows: FreeIceImportRow[] = []
+  const errors: ImportRowError[] = []
+
+  raw.forEach((r, i) => {
+    const rowNumber = i + 2
+
+    const rinkNumber = Number(String(getFieldCI(r, FREE_ICE_HEADERS.rink) ?? '').trim())
+    const date = excelValueToDateString(getFieldCI(r, FREE_ICE_HEADERS.date))
+    const startTime = excelValueToTimeString(getFieldCI(r, FREE_ICE_HEADERS.startTime))
+    const endTime = excelValueToTimeString(getFieldCI(r, FREE_ICE_HEADERS.endTime))
+    const zonePart = String(getFieldCI(r, FREE_ICE_HEADERS.zone) ?? '').trim()
+    const note = String(getFieldCI(r, FREE_ICE_HEADERS.note) ?? '').trim()
+
+    if (!Number.isInteger(rinkNumber) || rinkNumber < 1) {
+      errors.push({ rowNumber, message: `Invalid or missing "${FREE_ICE_HEADERS.rink}"` })
+      return
+    }
+    if (!date) {
+      errors.push({ rowNumber, message: `Invalid or missing "${FREE_ICE_HEADERS.date}"` })
+      return
+    }
+    if (!startTime) {
+      errors.push({ rowNumber, message: `Invalid or missing "${FREE_ICE_HEADERS.startTime}"` })
+      return
+    }
+    if (!endTime) {
+      errors.push({ rowNumber, message: `Invalid or missing "${FREE_ICE_HEADERS.endTime}"` })
+      return
+    }
+
+    rows.push({ rinkNumber, date, startTime, endTime, zonePart: zonePart || undefined, note: note || undefined })
+  })
+
+  return { rows, errors }
+}

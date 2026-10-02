@@ -156,5 +156,5 @@ export function useRinkScheduleBoardData(lang: string) {
   })
   itemsByRink.forEach((items) => items.sort((a, b) => a.startMin - b.startMin))
 
-  return { club, loading, now, nowMin, activeRinks, itemsByRink }
+  return { club, zones, loading, now, nowMin, activeRinks, itemsByRink }
 }

@@ -43,6 +43,14 @@
       ]
     },
     {
+      "collectionGroup": "freeIceSlots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clubId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "scheduleOverrides",
       "queryScope": "COLLECTION",
       "fields": [

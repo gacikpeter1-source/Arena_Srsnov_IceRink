@@ -2734,6 +2734,77 @@ number. `firestore.rules` opens `freeIceSlots` to public read (the kiosk
 has no login) with writes restricted to the same trainer/staff roles as
 `rinkScheduleEntries`.
 
+### Free ice import becomes the public booking source
+
+A follow-up request changed what `FreeIceSlot` actually *is*: the club
+will receive this same "free ice" data as a real Excel file from whoever
+maintains it, and explicitly wants `/book` (the public booking page) to
+show customers **only** the time slots listed there — not the full
+TimeSlotConfig/ScheduleOverride-generated schedule `computeDaySchedule`
+has always produced. Per an explicit three-way confirmation: (1) this is
+a full replacement, not a filter layered on top of the old schedule; (2)
+a rink/date with no `FreeIceSlot` entry shows as closed on `/book`, with
+no fallback to the old generated schedule; (3) a restriction note like
+"len krajná tretina" must resolve to a real, specific bookable zone, not
+stay purely informational.
+
+**`FreeIceSlot` gained a real `zoneId`.** It's no longer just advertising
+copy — it names exactly which zone a customer reserves. Resolved either
+by staff directly (a Zone `<select>` next to Rink on `FreeIceSlotsPage.tsx`'s
+manual form) or by the new bulk importer (below). `note` stays free text
+for price/extra info only (e.g. "80 €", "jednorazová akcia – 150 €") —
+still no structured price field anywhere in this app's data model (see
+the payment-scaffold section). Booking one still goes through the exact
+same public `createBooking` transaction every other `/book` reservation
+uses — `FreeIceSlot` only decides what's *offered*, the atomic
+double-booking protection is completely unchanged.
+
+**`freeIceSlotsToScheduleRows` (`lib/schedule.ts`) is the new row
+generator**, living alongside `computeDaySchedule` rather than replacing
+it — `computeDaySchedule` itself is untouched and still backs every
+staff-side tool (`AdminCreateBookingModal.tsx`, the admin QR panel,
+`TournamentDetailPage.tsx`'s manual-match zone picker): staff still need
+to see/plan against the full day regardless of what's publicly
+advertised. Only `BookingPage.tsx` (and the `AvailabilityGrid.tsx` week
+heatmap it feeds, refactored to take pre-computed `rowsByDate` instead of
+a `TimeSlotConfig`/`ScheduleOverride` pair it used to compute from
+internally) switched its source — fetching `FreeIceSlot` docs across the
+visible 14-day range (`fetchFreeIceSlotsRange`, same `clubId`+`date>=/<=`
+shape as `fetchLockedSlotsRange`, backed by a matching
+`firestore.indexes.json` composite index) and generating every rink's
+`ScheduleRow[]` from that alone. A rink/date with zero entries returns an
+empty array — by design, the day shows "closed," there is no fallback.
+
+**Known, accepted gap**: the admin QR panel's quick-registration
+(`?zone=&date=&time=`) deep links still derive their duration from
+`TimeSlotConfig.slotDurationMinutes`, independent of whether that exact
+zone/time is actually in the current free-ice listing — scanning an old
+QR code can still open a booking form for a slot nobody's currently
+advertising. Left as-is for this pass since fixing it would mean
+reworking the QR panel (a staff tool, deliberately out of scope here) to
+generate its codes from `FreeIceSlot` too; `computeOverlapBlockedKeys`
+still runs against whatever rows the page is now sourcing, so the usual
+interval-overlap protection applies regardless of where a row came from.
+
+**Bulk import**: `parseFreeIceWorkbook`/`downloadFreeIceImportTemplate`
+(`lib/excel.ts`) mirror `parseRinkScheduleWorkbook`'s conventions exactly
+— plain ASCII Slovak headers (Hala/Datum/Od/Do/Zona/Cena), the same
+`.xlsx`/`.csv`/`.txt` dual input via `parseSimpleCsv` (SheetJS's own CSV
+date-guessing already proved unreliable for `d.m.yyyy` strings — see that
+importer's own doc comment). Unlike it, "Od"/"Do" are both required —
+there's no club-wide default duration to fall back to for a free-ice
+slot. `FreeIceImportPanel.tsx` (mirroring `RinkScheduleImportPanel.tsx`)
+resolves "Hala" (1-based rink position) and "Zona" the same way that
+importer resolves "Ihrisko" — exact zone name/translation/A-B-C letter —
+plus two extra synonyms specific to this spreadsheet's own vocabulary:
+"krajná tretina" (an edge third — ambiguous between the two physical
+edges, so this deterministically picks the first non-middle third) and
+"stredná tretina" (the middle third). A blank cell resolves to the rink's
+whole-rink zone. `FreeIceSlotsPage.tsx` also shows a standing warning
+banner above the form explaining this list now gates real public booking
+availability, so staff don't mistake it for the purely-informational tool
+it started as.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

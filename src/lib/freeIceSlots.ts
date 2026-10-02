@@ -4,10 +4,13 @@ import { FreeIceSlot } from '@/types'
 
 // Staff-curated "free ice available to rent" listing — see FreeIceSlot in
 // src/types/index.ts for why this is a separate, plain CRUD collection
-// rather than reusing RinkScheduleEntry/bookings.
+// rather than reusing RinkScheduleEntry/bookings, and for why it now also
+// carries a real `zoneId` (the public /book page sources its availability
+// straight from this collection).
 
 export interface FreeIceSlotFields {
   rinkId: string
+  zoneId: string
   date: string
   startTime: string
   endTime: string
@@ -21,6 +24,7 @@ export async function createFreeIceSlot(
   await setDoc(ref, {
     clubId: input.clubId,
     rinkId: input.rinkId,
+    zoneId: input.zoneId,
     date: input.date,
     startTime: input.startTime,
     endTime: input.endTime,
@@ -35,6 +39,7 @@ export async function createFreeIceSlot(
 export async function updateFreeIceSlot(id: string, fields: FreeIceSlotFields): Promise<void> {
   await updateDoc(doc(db, 'freeIceSlots', id), {
     rinkId: fields.rinkId,
+    zoneId: fields.zoneId,
     date: fields.date,
     startTime: fields.startTime,
     endTime: fields.endTime,
@@ -58,4 +63,23 @@ export async function fetchFreeIceSlots(clubId: string): Promise<(FreeIceSlot & 
 export async function fetchUpcomingFreeIceSlots(clubId: string, fromDate: string): Promise<(FreeIceSlot & { id: string })[]> {
   const slots = await fetchFreeIceSlots(clubId)
   return slots.filter((s) => s.date >= fromDate)
+}
+
+// Ranged fetch for BookingPage.tsx's visible 14-day window — same
+// clubId+date>=/<= shape as fetchLockedSlotsRange/fetchBookingsInRange,
+// backed by a matching composite index (firestore.indexes.json).
+export async function fetchFreeIceSlotsRange(
+  clubId: string,
+  startDate: string,
+  endDate: string
+): Promise<(FreeIceSlot & { id: string })[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'freeIceSlots'),
+      where('clubId', '==', clubId),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    )
+  )
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as FreeIceSlot & { id: string })
 }

@@ -471,7 +471,10 @@
     "none": "No free slots yet.",
     "confirmDelete": "Remove this slot from the free-ice list?",
     "boardTitle": "Free ice for rent",
-    "boardNone": "No free slots currently scheduled."
+    "boardNone": "No free slots currently scheduled.",
+    "replacesPublicScheduleWarning": "Heads up: this list is now the ONLY source of what a customer sees and can book on /book. A rink/date with no entry here shows nothing on /book (the day is \"closed\").",
+    "importTitle": "Bulk import",
+    "importHint": "Upload a spreadsheet (or a plain .csv/.txt file with the same columns) to add several free-ice slots at once. Required columns: Hala (rink number, e.g. 1 or 2), Datum (date, dd.mm.yyyy), Od and Do (start/end time, 24h format). Optional: Zona (which part of the ice — \"krajná tretina\" / \"stredná tretina\", an exact zone name, or blank for the whole rink) and Cena (free text, e.g. \"80 €\")."
   },
   "trainerIceLog": {
     "title": "Trainer ice log",
