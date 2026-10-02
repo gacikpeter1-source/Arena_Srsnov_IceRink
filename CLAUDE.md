@@ -2861,6 +2861,47 @@ header bar already follows. Text sizes switched to `clamp()` tied to
 own "later" cells already use) so they scale continuously with screen
 size now that the grid genuinely occupies the full available width.
 
+**Time axis compressed to only the hours actually in use, not a fixed
+5:00-24:00 range.** Even after the full-screen fix above, most of the
+19-hour axis still sat empty on a real day (free ice mostly clusters in
+a few morning/evening windows), so every event's own box stayed short —
+its price/restriction `note` line often got clipped by the cell's own
+`overflow-hidden` rather than genuinely not fitting the available width.
+Per an explicit "zobraz len tie hodiny kde je voľný ľad" (show only the
+hours where there's free ice) request: `computeActiveHours`
+(`FreeIceBoard.tsx`) scans every slot across the whole visible 7-day
+window and keeps only the whole hours at least one of them actually
+touches — a quiet stretch (late morning, after 22:00, overnight) is
+dropped from the axis entirely rather than reserved as blank space, and
+every kept hour gets an equal share of the grid's height
+(`100 / activeHours.length` instead of `100 / 19`). This is a shared,
+week-wide set (not computed per day) specifically so every day column
+still aligns on the same row grid — a slot on Tuesday and a slot on
+Friday in the same kept hour still line up horizontally.
+
+`compressedPosition` maps a real clock time to its fractional position
+on this compressed axis (e.g. 2.25 = a quarter into the 3rd kept hour).
+This works cleanly because every hour a slot spans is, by construction,
+itself kept (that's exactly what "touches" means in
+`computeActiveHours`), and since hours are consecutive integers, two
+hours a single slot spans are still adjacent after compression — a
+slot's own span never needs to jump a gap. The one real edge case: an
+end time landing exactly on an hour boundary (very common in this data,
+e.g. "20:00-21:00") has to resolve to the END of the *previous* hour's
+bucket, not the start of whatever hour follows (which might not even be
+kept) — handled by nudging the boundary-exact minute back by 1 before
+taking its hour, while still computing the fractional position (1.0)
+from the real, unnudged minute so the box's bottom edge lands exactly on
+the bucket boundary with no rounding seam.
+
+Trade-off accepted explicitly: this gives up the earlier "fixed axis,
+same shape every night" property (see the original "časová os zhora dole
+od 5:00 do 24:00" request two sections up) — the grid's shape now
+depends on the night's actual data, and the hour labels on the left
+visibly "jump" across a skipped stretch (e.g. straight from 11:00 to
+15:00) instead of listing every hour in between. That jump is the
+intended signal that a quiet stretch was compressed away, not a bug.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
