@@ -14,41 +14,86 @@ interface FreeIceBoardProps {
 // isn't something a viewer picks a language for.
 const BOARD_DAY_NAMES = ['Nedeľa', 'Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok', 'Sobota']
 
-// The fixed time axis this board always shows, per an explicit "časová os
-// zhora dole od 5:00 do 24:00" request — regardless of how early/late the
-// real slots that day actually start, so the grid's shape never jumps
-// around as the underlying data changes.
+// The outer bound this board will ever consider — not shown as-is any
+// more (see activeHours below), just the range scanned for hours that
+// actually have something in them.
 const HOUR_START = 5
 const HOUR_END = 24
-const TOTAL_HOURS = HOUR_END - HOUR_START
-const PERCENT_PER_HOUR = 100 / TOTAL_HOURS
+
 // Fixed small chrome strip (day name/date + rink mini-labels, and the
 // matching spacer above the time axis) — unlike the grid body below it,
 // this doesn't need to grow with screen size, same reasoning the main
 // board's own 6vh header bar already uses.
 const HEADER_HEIGHT = 56
 
-function minutesFromGridStart(time: string): number {
-  return timeToMinutes(time) - HOUR_START * 60
+/**
+ * Which whole hours, across the entire visible week, actually have at
+ * least one slot touching them. Hours nobody uses (a quiet midday
+ * stretch, the small hours) are dropped from the axis entirely instead
+ * of being reserved as empty space — this is what lets the hours that
+ * DO matter get a much bigger share of the screen each, per an explicit
+ * "zobraz len tie hodiny kde je voľný ľad" request. Trade-off (explicitly
+ * accepted): the axis's shape now depends on the data instead of being
+ * fixed 5:00-24:00 every night, and the hour labels can visibly "jump"
+ * across a skipped stretch.
+ */
+function computeActiveHours(allSlots: { startTime: string; endTime: string }[]): number[] {
+  const hours: number[] = []
+  for (let h = HOUR_START; h < HOUR_END; h++) {
+    const hourStartMin = h * 60
+    const hourEndMin = (h + 1) * 60
+    const used = allSlots.some((s) => timeToMinutes(s.startTime) < hourEndMin && timeToMinutes(s.endTime) > hourStartMin)
+    if (used) hours.push(h)
+  }
+  return hours
+}
+
+/**
+ * A slot's start/end time, expressed as a fractional position on the
+ * compressed `activeHours` axis (e.g. 2.25 = a quarter into the 3rd kept
+ * hour) rather than real elapsed hours from HOUR_START. Every hour a slot
+ * touches is, by construction, itself in `activeHours` (see
+ * computeActiveHours above), and since hours are consecutive integers,
+ * any two hours a single slot spans are still adjacent after compression
+ * — so a slot's own span never needs to "jump" a gap.
+ *
+ * `isEnd` handles the one edge case that needs it: an end time landing
+ * exactly on an hour boundary (very common here, e.g. "20:00-21:00")
+ * belongs to the END of the previous hour's bucket, not the START of
+ * whatever hour follows (which may not even be in `activeHours`).
+ */
+function compressedPosition(minutesOfDay: number, activeHours: number[], isEnd: boolean): number {
+  const adjusted = isEnd && minutesOfDay % 60 === 0 ? minutesOfDay - 1 : minutesOfDay
+  const hour = Math.floor(adjusted / 60)
+  const fracInHour = (minutesOfDay - hour * 60) / 60
+  const idx = activeHours.indexOf(hour)
+  return (idx === -1 ? 0 : idx) + fracInHour
 }
 
 /**
  * The staff-curated "free ice available to rent" listing (see FreeIceSlot
  * in src/types/index.ts), rendered for the alternating TV board
  * (RinkScheduleAlternatingBoardPage.tsx) as a real weekly calendar grid —
- * a fixed 5:00-24:00 time axis down the left, one column per day for the
- * next 7 days (today first, each with its own date), and — since this
- * club runs two physical rinks that can both have slots at/near the same
- * time — each day column splits into one lane per active rink so
- * same-time slots on different ice never overlap each other.
+ * a time axis down the left, one column per day for the next 7 days
+ * (today first, each with its own date), and — since this club runs two
+ * physical rinks that can both have slots at/near the same time — each
+ * day column splits into one lane per active rink so same-time slots on
+ * different ice never overlap each other.
+ *
+ * The axis itself only shows the hours that actually have something in
+ * them across the visible week (see computeActiveHours below) — a quiet
+ * midday or overnight stretch is dropped entirely rather than reserved
+ * as empty space, so every event gets a noticeably bigger box (and its
+ * price/zone note room to actually render) than a fixed 5:00-24:00 axis
+ * would give it.
  *
  * Every size here is a CSS percentage of its own flex parent (day columns
  * are `flex-1`, slot blocks are positioned by `top`/`height` in `%` of the
- * fixed 19-hour axis) rather than a fixed pixel grid wrapped in
- * `ScaleToFit` — the earlier fixed-pixel version only ever grew within its
- * own aspect ratio, leaving real screen space unused on a 16:9 TV. This
- * way the grid genuinely fills the kiosk's full width and height, however
- * much of either it actually has.
+ * compressed axis) rather than a fixed pixel grid wrapped in `ScaleToFit`
+ * — the earlier fixed-pixel version only ever grew within its own aspect
+ * ratio, leaving real screen space unused on a 16:9 TV. This way the grid
+ * genuinely fills the kiosk's full width and height, however much of
+ * either it actually has.
  */
 export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoardProps) {
   const { t } = useTranslation()
@@ -75,10 +120,21 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
     )
   }
 
-  const hourTicks = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => HOUR_START + i)
+  const weekSlots = slots.filter((s) => visibleDates.has(s.date))
+  const activeHours = computeActiveHours(weekSlots)
+  const hourUnits = activeHours.length || 1
+  const percentPerUnit = 100 / hourUnits
+  // One label per kept hour, plus a final closing label for the end of
+  // the last one — e.g. kept hours [8, 9, 17] show "08:00 09:00 10:00
+  // 17:00 18:00", the jump itself being the visible signal that a quiet
+  // stretch was skipped.
+  const hourTicks = [
+    ...activeHours.map((h, i) => ({ hour: h, pct: i * percentPerUnit })),
+    { hour: activeHours[activeHours.length - 1] + 1, pct: 100 }
+  ]
   const hourLineBackground = {
     backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)',
-    backgroundSize: `100% ${PERCENT_PER_HOUR}%`
+    backgroundSize: `100% ${percentPerUnit}%`
   }
 
   return (
@@ -89,13 +145,13 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
         <div className="shrink-0 w-16 flex flex-col">
           <div className="shrink-0" style={{ height: HEADER_HEIGHT }} />
           <div className="flex-1 min-h-0 relative">
-            {hourTicks.map((h) => (
+            {hourTicks.map(({ hour, pct }) => (
               <div
-                key={h}
+                key={hour}
                 className="absolute right-1 -translate-y-1/2 text-text-muted text-[clamp(0.6rem,0.8vw,0.95rem)] mono"
-                style={{ top: `${(h - HOUR_START) * PERCENT_PER_HOUR}%` }}
+                style={{ top: `${pct}%` }}
               >
-                {String(h).padStart(2, '0')}:00
+                {String(hour).padStart(2, '0')}:00
               </div>
             ))}
           </div>
@@ -122,8 +178,10 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                     {daySlots
                       .filter((s) => s.rinkId === rink.id)
                       .map((slot) => {
-                        const topPct = (minutesFromGridStart(slot.startTime) / (TOTAL_HOURS * 60)) * 100
-                        const heightPct = ((timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime)) / (TOTAL_HOURS * 60)) * 100
+                        const topUnits = compressedPosition(timeToMinutes(slot.startTime), activeHours, false)
+                        const endUnits = compressedPosition(timeToMinutes(slot.endTime), activeHours, true)
+                        const topPct = (topUnits / hourUnits) * 100
+                        const heightPct = ((endUnits - topUnits) / hourUnits) * 100
                         const zone = zoneLabel(slot.zoneId)
                         return (
                           <div
