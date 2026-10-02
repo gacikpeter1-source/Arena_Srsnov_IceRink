@@ -1,4 +1,4 @@
-import { Booking, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
+import { Booking, FreeIceSlot, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 import { minutesToTime, timeToMinutes } from './utils'
 
 export interface ScheduleRow {
@@ -59,6 +59,47 @@ export function computeDaySchedule(
     rows.push({ time, durationMinutes: timeSlotConfig.slotDurationMinutes, zones: zones.filter((z) => z.mode === 'full') })
   }
   return rows
+}
+
+/**
+ * Builds a day's ScheduleRow[] purely from staff-curated FreeIceSlot
+ * entries for one rink+date, instead of computeDaySchedule's TimeSlotConfig/
+ * ScheduleOverride generation — this is the public `/book` page's actual
+ * schedule source now (see CLAUDE.md's "Free ice import becomes the public
+ * booking source" note); computeDaySchedule itself is untouched and still
+ * backs every staff-side tool (AdminCreateBookingModal, the QR panel, the
+ * tournament manual-match zone picker). A rink+date with no FreeIceSlot
+ * entries returns an empty array (closed) — deliberately no fallback to
+ * the old generated schedule. Entries sharing an exact start time are
+ * grouped into one row (e.g. two different thirds opened at once), same
+ * "one row per time, multiple zones" shape computeDaySchedule itself uses;
+ * when zones at the same start time carry different end times, the row's
+ * single `durationMinutes` is taken from whichever entry sorts first —
+ * an accepted simplification, since real data rarely does this.
+ */
+export function freeIceSlotsToScheduleRows(
+  rinkId: string,
+  date: string,
+  freeIceSlots: (FreeIceSlot & { id: string })[],
+  zones: Zone[]
+): ScheduleRow[] {
+  const relevant = freeIceSlots
+    .filter((s) => s.rinkId === rinkId && s.date === date)
+    .sort((a, b) => a.id.localeCompare(b.id))
+
+  const byTime = new Map<string, { zones: Zone[]; durationMinutes: number }>()
+  for (const slot of relevant) {
+    const zone = zones.find((z) => z.id === slot.zoneId)
+    if (!zone) continue
+    const durationMinutes = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime)
+    if (!byTime.has(slot.startTime)) byTime.set(slot.startTime, { zones: [], durationMinutes })
+    const entry = byTime.get(slot.startTime)!
+    if (!entry.zones.some((z) => z.id === zone.id)) entry.zones.push(zone)
+  }
+
+  return Array.from(byTime.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([time, { zones: slotZones, durationMinutes }]) => ({ time, durationMinutes, zones: slotZones }))
 }
 
 /**

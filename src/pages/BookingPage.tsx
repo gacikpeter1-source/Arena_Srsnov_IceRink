@@ -3,10 +3,10 @@ import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
 import { fetchBookingsInRange, fetchLockedSlots, fetchLockedSlotsRange } from '@/lib/bookings'
-import { computeDaySchedule, computeOverlapBlockedKeys, ScheduleRow } from '@/lib/schedule'
-import { fetchScheduleOverridesRange } from '@/lib/scheduleOverrides'
+import { computeOverlapBlockedKeys, freeIceSlotsToScheduleRows, ScheduleRow } from '@/lib/schedule'
+import { fetchFreeIceSlotsRange } from '@/lib/freeIceSlots'
 import { addDays, formatDateISO, localizedName } from '@/lib/utils'
-import { Booking, Rink, ScheduleOverride, Zone } from '@/types'
+import { Booking, FreeIceSlot, Rink, Zone } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BookingModal from '@/components/BookingModal'
@@ -37,8 +37,8 @@ export default function BookingPage() {
   const [lockedSlots, setLockedSlots] = useState<Set<string>>(new Set())
   // Real bookings for the selected day, across every rink — used to catch a
   // genuine time-interval overlap that a different-but-overlapping exact
-  // start time (e.g. an ad-hoc rink-schedule entry at 11:30) would slip
-  // past the exact-match `lockedSlots` check above. See
+  // start time (e.g. two free-ice slots covering overlapping ice) would
+  // slip past the exact-match `lockedSlots` check above. See
   // computeOverlapBlockedKeys (lib/schedule.ts).
   const [dayBookings, setDayBookings] = useState<(Booking & { id: string })[]>([])
   // Locked slots across the whole visible day range, one Set per date —
@@ -46,11 +46,14 @@ export default function BookingPage() {
   // above which is just the currently selected day (used for graying out
   // individual zone buttons).
   const [lockedSlotsRange, setLockedSlotsRange] = useState<Map<string, Set<string>>>(new Map())
-  // Per-rink hand-adjusted schedules (see scheduleOverrides.ts) across the
-  // visible date range — keyed by rinkId, then by date. Empty inner map
-  // means that rink has no overrides in range, i.e. every visible day uses
-  // the recurring default.
-  const [overridesByRink, setOverridesByRink] = useState<Map<string, Map<string, ScheduleOverride>>>(new Map())
+  // The staff-curated "free ice available to rent" listing across the
+  // whole visible day range — this is the SOLE source of what's offered
+  // on this page now (see CLAUDE.md's "Free ice import becomes the public
+  // booking source" note); a rink/date with no entries here shows closed,
+  // with no fallback to the old TimeSlotConfig/ScheduleOverride-generated
+  // schedule (that generation path, computeDaySchedule, still backs every
+  // staff-side tool — it's just no longer called from this page).
+  const [freeIceSlots, setFreeIceSlots] = useState<(FreeIceSlot & { id: string })[]>([])
   const [pendingBooking, setPendingBooking] = useState<{ rink: Rink; zone: Zone; time: string; durationMinutes: number } | null>(
     null
   )
@@ -85,13 +88,9 @@ export default function BookingPage() {
   }, [club, rangeStart, rangeEnd])
 
   useEffect(() => {
-    if (!club || rinks.length === 0) return
-    Promise.all(rinks.map((rink) => fetchScheduleOverridesRange(club.id, rink.id, rangeStart, rangeEnd))).then((results) => {
-      const map = new Map<string, Map<string, ScheduleOverride>>()
-      rinks.forEach((rink, i) => map.set(rink.id, results[i]))
-      setOverridesByRink(map)
-    })
-  }, [club, rinks, rangeStart, rangeEnd])
+    if (!club) return
+    fetchFreeIceSlotsRange(club.id, rangeStart, rangeEnd).then(setFreeIceSlots)
+  }, [club, rangeStart, rangeEnd])
 
   // A per-zone QR link (?zone=) narrows the calendar to that zone's rink.
   useEffect(() => {
@@ -101,7 +100,10 @@ export default function BookingPage() {
   }, [zoneParam, zones])
 
   // Quick-registration QR: zone + date + time all fixed — open the form
-  // immediately instead of making the customer navigate to it.
+  // immediately instead of making the customer navigate to it. Still
+  // derives its duration from TimeSlotConfig (not the free-ice listing) —
+  // a documented, accepted gap, see CLAUDE.md's "Free ice import becomes
+  // the public booking source" note.
   useEffect(() => {
     if (autoOpened || !zoneParam || !dateParam || !timeParam || zones.length === 0 || rinks.length === 0) return
     const zone = zones.find((z) => z.id === zoneParam)
@@ -127,28 +129,31 @@ export default function BookingPage() {
 
   const visibleRinks = rinkFilter === 'all' ? rinks : rinks.filter((r) => r.id === rinkFilter)
 
-  // For each visible rink, resolve which division mode + zone(s) are
-  // offered at every open time slot on the selected day — using that
-  // rink's own hours/division schedule, never a shared one. A ?zone= link
-  // narrows every row down to just that one zone (if actually offered).
-  const schedulesByRink = useMemo(() => {
-    const map = new Map<string, ScheduleRow[]>()
+  // For each visible rink and every visible day, which zone(s) are offered
+  // at which times — sourced entirely from the staff-curated FreeIceSlot
+  // listing now (see the freeIceSlots state doc comment above). Computed
+  // for the whole 14-day range (not just the selected day) so the list
+  // view, the grid heatmap, and the day-picker occupancy dots all read
+  // from this one map instead of three separate computations. A ?zone=
+  // link narrows every row down to just that one zone (if actually
+  // offered).
+  const schedulesByRinkDate = useMemo(() => {
+    const map = new Map<string, Map<string, ScheduleRow[]>>()
     for (const rink of visibleRinks) {
-      const config = timeSlotConfigs.find((c) => c.rinkId === rink.id)
-      if (!config) {
-        map.set(rink.id, [])
-        continue
-      }
       const rinkZones = zones.filter((z) => z.rinkId === rink.id)
-      const override = overridesByRink.get(rink.id)?.get(dateISO) ?? null
-      let rows = computeDaySchedule(selectedDate, config, rinkZones, override)
-      if (zoneParam) {
-        rows = rows.map((row) => ({ ...row, zones: row.zones.filter((z) => z.id === zoneParam) }))
+      const byDate = new Map<string, ScheduleRow[]>()
+      for (const day of days) {
+        const dISO = formatDateISO(day)
+        let rows = freeIceSlotsToScheduleRows(rink.id, dISO, freeIceSlots, rinkZones)
+        if (zoneParam) {
+          rows = rows.map((row) => ({ ...row, zones: row.zones.filter((z) => z.id === zoneParam) }))
+        }
+        byDate.set(dISO, rows)
       }
-      map.set(rink.id, rows)
+      map.set(rink.id, byDate)
     }
     return map
-  }, [visibleRinks, timeSlotConfigs, zones, selectedDate, dateISO, overridesByRink, zoneParam])
+  }, [visibleRinks, zones, days, freeIceSlots, zoneParam])
 
   // Real overlap-blocked `${zoneId}__${time}` keys per visible rink, for
   // the currently selected day only — merged with the exact-match
@@ -158,11 +163,11 @@ export default function BookingPage() {
   const overlapBlockedByRink = useMemo(() => {
     const map = new Map<string, Set<string>>()
     for (const rink of visibleRinks) {
-      const rows = schedulesByRink.get(rink.id) ?? []
+      const rows = schedulesByRinkDate.get(rink.id)?.get(dateISO) ?? []
       map.set(rink.id, computeOverlapBlockedKeys(rows, rink.id, zones, dayBookings))
     }
     return map
-  }, [visibleRinks, schedulesByRink, zones, dayBookings])
+  }, [visibleRinks, schedulesByRinkDate, dateISO, zones, dayBookings])
 
   // How full each of the 14 visible days is, across whichever rink(s) are
   // currently in view — "occupied" counts individually-bookable zone-time
@@ -176,11 +181,7 @@ export default function BookingPage() {
       let total = 0
       let occupied = 0
       for (const rink of visibleRinks) {
-        const config = timeSlotConfigs.find((c) => c.rinkId === rink.id)
-        if (!config) continue
-        const rinkZones = zones.filter((z) => z.rinkId === rink.id)
-        const override = overridesByRink.get(rink.id)?.get(dISO) ?? null
-        const rows = computeDaySchedule(day, config, rinkZones, override)
+        const rows = schedulesByRinkDate.get(rink.id)?.get(dISO) ?? []
         for (const row of rows) {
           for (const zone of row.zones) {
             total++
@@ -191,7 +192,7 @@ export default function BookingPage() {
       map.set(dISO, { total, occupied })
     }
     return map
-  }, [days, visibleRinks, timeSlotConfigs, zones, lockedSlotsRange, overridesByRink])
+  }, [days, visibleRinks, schedulesByRinkDate, lockedSlotsRange])
 
   // Both rinks share one diagram now, so its highlight just follows
   // whichever zone the customer is currently interacting with — live
@@ -329,27 +330,19 @@ export default function BookingPage() {
 
           <div className={`grid gap-4 ${visibleRinks.length > 1 ? 'grid-cols-2' : ''}`}>
             {visibleRinks.map((rink) => {
-              const schedule = schedulesByRink.get(rink.id) ?? []
-              const rinkConfig = timeSlotConfigs.find((c) => c.rinkId === rink.id)
-              const rinkZones = zones.filter((z) => z.rinkId === rink.id)
+              const schedule = schedulesByRinkDate.get(rink.id)?.get(dateISO) ?? []
 
               return (
                 <div key={rink.id} className="space-y-3">
                   {rinks.length > 1 && <h2 className="text-white text-lg font-semibold">{localizedName(rink, i18n.language)}</h2>}
 
                   {viewMode === 'grid' ? (
-                    rinkConfig ? (
-                      <AvailabilityGrid
-                        days={days}
-                        timeSlotConfig={rinkConfig}
-                        zones={rinkZones}
-                        lockedSlotsByDate={lockedSlotsRange}
-                        overridesByDate={overridesByRink.get(rink.id) ?? new Map()}
-                        onSelectDate={handleSelectGridDate}
-                      />
-                    ) : (
-                      <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
-                    )
+                    <AvailabilityGrid
+                      days={days}
+                      rowsByDate={schedulesByRinkDate.get(rink.id) ?? new Map()}
+                      lockedSlotsByDate={lockedSlotsRange}
+                      onSelectDate={handleSelectGridDate}
+                    />
                   ) : schedule.length === 0 ? (
                     <Card className="arena-card p-8 text-center text-text-secondary">{t('home.closedToday')}</Card>
                   ) : (

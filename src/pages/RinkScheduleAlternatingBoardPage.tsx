@@ -41,7 +41,7 @@ export default function RinkScheduleAlternatingBoardPage() {
   const requestedInterval = Number(searchParams.get('interval'))
   const intervalSeconds = Number.isFinite(requestedInterval) && requestedInterval >= 3 ? requestedInterval : DEFAULT_INTERVAL_SECONDS
 
-  const { club, now, nowMin, activeRinks, itemsByRink } = useRinkScheduleBoardData(i18n.language)
+  const { club, zones, now, nowMin, activeRinks, itemsByRink } = useRinkScheduleBoardData(i18n.language)
   const [freeSlots, setFreeSlots] = useState<(FreeIceSlot & { id: string })[]>([])
   const [slide, setSlide] = useState<0 | 1>(0)
 
@@ -79,7 +79,7 @@ export default function RinkScheduleAlternatingBoardPage() {
           <RinkScheduleTvGrid activeRinks={activeRinks} itemsByRink={itemsByRink} nowMin={nowMin} lang={i18n.language} t={t} />
         </div>
         <div className={`absolute inset-0 transition-opacity duration-700 ${slide === 1 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-          <FreeIceBoard slots={freeSlots} rinks={activeRinks} lang={i18n.language} />
+          <FreeIceBoard slots={freeSlots} rinks={activeRinks} zones={zones} lang={i18n.language} />
         </div>
       </div>
     </div>

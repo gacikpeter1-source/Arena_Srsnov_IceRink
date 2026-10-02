@@ -1,15 +1,12 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { computeDaySchedule } from '@/lib/schedule'
+import { ScheduleRow } from '@/lib/schedule'
 import { formatDateISO } from '@/lib/utils'
-import { ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 
 interface AvailabilityGridProps {
   days: Date[]
-  timeSlotConfig: TimeSlotConfig
-  zones: Zone[]
+  rowsByDate: Map<string, ScheduleRow[]>
   lockedSlotsByDate: Map<string, Set<string>>
-  overridesByDate?: Map<string, ScheduleOverride>
   onSelectDate: (date: string) => void
 }
 
@@ -23,32 +20,29 @@ type CellStatus = 'closed' | 'open' | 'full'
  * offering anything at that time on that day. Clicking an open cell jumps
  * the day-by-day list to that date so the customer can pick the exact
  * zone.
+ *
+ * Takes the day's rows pre-computed by the caller (`rowsByDate`) rather
+ * than a TimeSlotConfig/ScheduleOverride to generate them from — BookingPage
+ * already has to compute the exact same rows for its own list view, and
+ * since that source switched to FreeIceSlot-only (see CLAUDE.md's "Free
+ * ice import becomes the public booking source" note), there's no reason
+ * for this component to duplicate that logic a second way.
  */
-export default function AvailabilityGrid({
-  days,
-  timeSlotConfig,
-  zones,
-  lockedSlotsByDate,
-  overridesByDate,
-  onSelectDate
-}: AvailabilityGridProps) {
+export default function AvailabilityGrid({ days, rowsByDate, lockedSlotsByDate, onSelectDate }: AvailabilityGridProps) {
   const { t, i18n } = useTranslation()
 
   const { times, cellStatus } = useMemo(() => {
-    const schedulesByDate = new Map<string, ReturnType<typeof computeDaySchedule>>()
     const timeSet = new Set<string>()
     for (const day of days) {
       const dISO = formatDateISO(day)
-      const rows = computeDaySchedule(day, timeSlotConfig, zones, overridesByDate?.get(dISO) ?? null)
-      schedulesByDate.set(dISO, rows)
-      for (const row of rows) timeSet.add(row.time)
+      for (const row of rowsByDate.get(dISO) ?? []) timeSet.add(row.time)
     }
     const times = Array.from(timeSet).sort()
 
     const cellStatus = new Map<string, CellStatus>() // key: `${time}__${dateISO}`
     for (const day of days) {
       const dISO = formatDateISO(day)
-      const rowByTime = new Map((schedulesByDate.get(dISO) ?? []).map((r) => [r.time, r]))
+      const rowByTime = new Map((rowsByDate.get(dISO) ?? []).map((r) => [r.time, r]))
       const lockedForDay = lockedSlotsByDate.get(dISO) ?? new Set<string>()
       for (const time of times) {
         const row = rowByTime.get(time)
@@ -61,7 +55,7 @@ export default function AvailabilityGrid({
       }
     }
     return { times, cellStatus }
-  }, [days, timeSlotConfig, zones, lockedSlotsByDate, overridesByDate])
+  }, [days, rowsByDate, lockedSlotsByDate])
 
   const statusClass: Record<CellStatus, string> = {
     closed: 'bg-background-dark',

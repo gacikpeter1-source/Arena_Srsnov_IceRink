@@ -471,7 +471,10 @@
     "none": "Zatiaľ žiadne voľné termíny.",
     "confirmDelete": "Zmazať tento termín zo zoznamu voľných ľadov?",
     "boardTitle": "Voľné ľady na prenájom",
-    "boardNone": "Momentálne nie sú naplánované žiadne voľné termíny."
+    "boardNone": "Momentálne nie sú naplánované žiadne voľné termíny.",
+    "replacesPublicScheduleWarning": "Pozor: tento zoznam je teraz jediným zdrojom termínov, ktoré zákazník vidí a môže si rezervovať na stránke /book. Pre deň/halu bez záznamu tu sa na /book nezobrazí nič (deň je \"zatvorený\").",
+    "importTitle": "Hromadný import",
+    "importHint": "Nahrajte tabuľku (alebo obyčajný .csv/.txt súbor s rovnakými stĺpcami) a pridajte viacero voľných termínov naraz. Povinné stĺpce: Hala (číslo haly, napr. 1 alebo 2), Datum (dd.mm.rrrr), Od a Do (čas, 24-hodinový formát). Nepovinné: Zona (ktorá časť ľadovej plochy — \"krajná tretina\", \"stredná tretina\", presný názov zóny, alebo prázdne pre celé ihrisko) a Cena (voľný text, napr. \"80 €\")."
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",

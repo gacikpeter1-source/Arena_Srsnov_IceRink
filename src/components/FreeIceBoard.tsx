@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { localizedName } from '@/lib/utils'
-import { FreeIceSlot, Rink } from '@/types'
+import { FreeIceSlot, Rink, Zone } from '@/types'
 import ScaleToFit from './ScaleToFit'
 
 interface FreeIceBoardProps {
   slots: (FreeIceSlot & { id: string })[]
   rinks: Rink[]
+  zones: Zone[]
   lang: string
 }
 
@@ -28,11 +29,19 @@ function formatDayHeader(dateIso: string): string {
  * already laid this out), wrapped in ScaleToFit so an arbitrary number of
  * upcoming dates/slots never needs scrolling on a kiosk screen.
  */
-export default function FreeIceBoard({ slots, rinks, lang }: FreeIceBoardProps) {
+export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoardProps) {
   const { t } = useTranslation()
   const rinkName = (rinkId: string) => {
     const rink = rinks.find((r) => r.id === rinkId)
     return rink ? localizedName(rink, lang) : rinkId
+  }
+  // The zone is now a real bookable zone (see FreeIceSlot in
+  // src/types/index.ts), not just an informational note — shown only for
+  // a genuinely split zone, same "no badge for a whole-rink booking"
+  // convention the main TV board's zonePart badge already follows.
+  const zoneLabel = (zoneId: string) => {
+    const zone = zones.find((z) => z.id === zoneId)
+    return zone && zone.mode !== 'full' ? localizedName(zone, lang) : undefined
   }
 
   const byDate = new Map<string, (FreeIceSlot & { id: string })[]>()
@@ -66,6 +75,7 @@ export default function FreeIceBoard({ slots, rinks, lang }: FreeIceBoardProps) 
                         {slot.startTime}–{slot.endTime}
                       </span>
                       <span className="text-white shrink-0 w-[90px] truncate">{rinkName(slot.rinkId)}</span>
+                      {zoneLabel(slot.zoneId) && <span className="text-text-secondary shrink-0 truncate">{zoneLabel(slot.zoneId)}</span>}
                       {slot.note && <span className="text-sky-300 truncate">{slot.note}</span>}
                     </div>
                   ))}
