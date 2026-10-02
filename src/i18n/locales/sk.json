@@ -30,6 +30,7 @@
     "scanQr": "Skenovať QR kód",
     "rinkSchedule": "Rozvrh ihriska",
     "manageRinkSchedule": "Spravovať rozvrh",
+    "manageFreeIce": "Spravovať voľné ľady",
     "manageTournaments": "Spravovať turnaje",
     "subscription": "Cenník / Môj plán",
     "website": "Webová stránka",
@@ -449,7 +450,28 @@
     "boardNoUpcoming": "Nič ďalšie nie je naplánované.",
     "boardScanHint": "Naskenujte pre rozvrh na telefóne",
     "boardNone": "Dnes nie je nič naplánované.",
-    "boardNoneForRink": "Dnes nie je nič naplánované."
+    "boardNoneForRink": "Dnes nie je nič naplánované.",
+    "alternatingTitle": "Striedavá TV obrazovka (striedačka)",
+    "alternatingHint": "Strieda aktuálny rozvrh ľadu s rozpisom voľných ľadov na prenájom — určené pre obrazovku na striedačke (iné miesto ako hlavná TV v chodbách). Rýchlosť striedania zmeníte parametrom v adrese, napr. ?interval=15 (v sekundách, predvolene 10).",
+    "openAlternatingScreen": "Otvoriť striedavú obrazovku"
+  },
+  "freeIce": {
+    "title": "Voľné ľady na prenájom",
+    "intro": "Zoznam voľných termínov na prenájom ľadu — zobrazuje sa aj na striedavej TV obrazovke (/rozvrh/strieda).",
+    "notAuthorizedTitle": "Nedostupné",
+    "notAuthorizedNotice": "Nemáte prístup k voľným ľadom.",
+    "newSlot": "Nový termín",
+    "editSlot": "Upraviť termín",
+    "startTime": "Od",
+    "endTime": "Do",
+    "note": "Poznámka (cena, obmedzenie zóny...)",
+    "notePlaceholder": "napr. Len krajná tretina – 80 €",
+    "addSlot": "Pridať termín",
+    "listTitle": "Zoznam voľných termínov",
+    "none": "Zatiaľ žiadne voľné termíny.",
+    "confirmDelete": "Zmazať tento termín zo zoznamu voľných ľadov?",
+    "boardTitle": "Voľné ľady na prenájom",
+    "boardNone": "Momentálne nie sú naplánované žiadne voľné termíny."
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",

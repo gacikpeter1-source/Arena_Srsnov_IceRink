@@ -430,6 +430,19 @@ service cloud.firestore {
       allow create, update, delete: if isTrainer() || isStaffMember();
     }
 
+    // A staff-curated list of advertised "free ice available to rent"
+    // slots (see FreeIceSlot in src/types/index.ts) — shown on the
+    // alternating TV board (RinkScheduleAlternatingBoardPage.tsx), public
+    // read so that no-login kiosk screen works. Unlike rinkScheduleEntries,
+    // this never touches bookings/slotLocks at all — it's informational
+    // copy staff type in by hand, not a real reservation — so writes need
+    // no conflict-checking, just the same trainer/staff access as the rest
+    // of this planning domain.
+    match /freeIceSlots/{slotId} {
+      allow read: if true;
+      allow create, update, delete: if isTrainer() || isStaffMember();
+    }
+
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.
     // Anyone may enqueue a notification; only the extension (which bypasses
     // rules) reads or deletes.

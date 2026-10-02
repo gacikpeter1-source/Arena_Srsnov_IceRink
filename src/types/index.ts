@@ -290,6 +290,31 @@ export interface RinkScheduleEntry {
   createdAt: Date
 }
 
+// A staff-curated "free ice available to rent" listing — the club
+// previously tracked this by hand in an external spreadsheet (date, time
+// range, rink, an occasional price/zone-restriction note like "len krajná
+// tretina — 80 €"); this is that same list, now shown on the alternating
+// TV board (see RinkScheduleAlternatingBoardPage.tsx). Deliberately NOT a
+// real reservation — it never touches bookings/slotLocks at all, unlike
+// RinkScheduleEntry above, since it's advertising copy for ice that's
+// still open, not ice that's already taken. `note` is a single free-text
+// field covering both price and any zone restriction together (e.g. "Len
+// stredná tretina — 50 €", "Celý ľad — jednorazová akcia — 150 €") since
+// neither concept has a structured field anywhere in this app's data
+// model yet (see the payment-scaffold note in CLAUDE.md).
+export interface FreeIceSlot {
+  id: string
+  clubId: string
+  rinkId: string
+  date: string
+  startTime: string
+  endTime: string
+  note?: string
+  createdBy: string
+  createdByName: string
+  createdAt: Date
+}
+
 // Role hierarchy (ice-rink admin duties only — see isTrainer below for the
 // separate, orthogonal training-reservations track):
 // - superadmin: full control, and the only role that can grant/revoke 'owner'
