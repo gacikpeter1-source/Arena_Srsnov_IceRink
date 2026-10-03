@@ -2902,6 +2902,18 @@ visibly "jump" across a skipped stretch (e.g. straight from 11:00 to
 15:00) instead of listing every hour in between. That jump is the
 intended signal that a quiet stretch was compressed away, not a bug.
 
+**Public link to the striedačka board, from the public `/rozvrh` page
+itself.** `/rozvrh/strieda` (`RinkScheduleAlternatingBoardPage.tsx`) was
+already login-free — it reads the exact same public data
+(`useRinkScheduleBoardData`, `freeIceSlots`) the plain `/rozvrh` page
+does — but the only link to it anywhere in the app lived on the
+staff-only `FreeIceSlotsPage.tsx` (`/admin/volne-lady`), so a customer
+had no way to find it on their own. `RinkScheduleBoardPage.tsx`'s header
+now shows a second link, "TV striedačka"
+(`rinkSchedule.alternatingScreen`), right next to the existing "Zobraziť
+ako na obrazovke" one — same treatment, no new route or rule needed since
+the page was never actually gated, just unlinked.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

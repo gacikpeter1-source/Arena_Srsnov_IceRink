@@ -74,9 +74,14 @@ export default function RinkScheduleBoardPage() {
       <BackButton fallback={backFallback} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-white">{t('rinkSchedule.title')}</h1>
-        <Link to="/rozvrh?display=tv" className="text-primary hover:text-primary-gold text-sm underline w-fit">
-          {t('tournaments.viewAsScreen')}
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Link to="/rozvrh?display=tv" className="text-primary hover:text-primary-gold text-sm underline w-fit">
+            {t('tournaments.viewAsScreen')}
+          </Link>
+          <Link to="/rozvrh/strieda" className="text-primary hover:text-primary-gold text-sm underline w-fit">
+            {t('rinkSchedule.alternatingScreen')}
+          </Link>
+        </div>
       </div>
 
       {loading ? (
