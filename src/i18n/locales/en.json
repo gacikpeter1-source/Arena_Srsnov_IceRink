@@ -410,6 +410,7 @@
     "notAuthorizedNotice": "You don't have access to the rink schedule.",
     "tvScreenTitle": "TV screen",
     "tvScreenHint": "A public, no-scroll schedule display suited for an unattended screen (front desk, locker room hallway).",
+    "alternatingScreen": "TV bench screen",
     "tvShortcutHint": "Or type this short address on the TV's remote:",
     "newEntry": "New entry",
     "teamName": "Team / group",
