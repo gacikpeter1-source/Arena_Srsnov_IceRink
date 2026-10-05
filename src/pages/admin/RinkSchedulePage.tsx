@@ -329,7 +329,7 @@ export default function RinkSchedulePage() {
               <Label className="text-white">{t('admin.rink')}</Label>
               <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
                 {activeRinks.map((r) => (
-                  <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
+                  <option key={r.id} value={r.id} className="bg-background-dark text-white">{localizedName(r, i18n.language)}</option>
                 ))}
               </select>
             </div>
@@ -337,7 +337,7 @@ export default function RinkSchedulePage() {
               <Label className="text-white">{t('admin.zone')}</Label>
               <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
                 {zonesForRink.map((z) => (
-                  <option key={z.id} value={z.id}>{localizedName(z, i18n.language)}</option>
+                  <option key={z.id} value={z.id} className="bg-background-dark text-white">{localizedName(z, i18n.language)}</option>
                 ))}
               </select>
             </div>
@@ -470,9 +470,9 @@ export default function RinkSchedulePage() {
                   onChange={(e) => setFilterRinkId(e.target.value)}
                   className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
                 >
-                  <option value="">{t('booking.allRinks')}</option>
+                  <option value="" className="bg-background-dark text-white">{t('booking.allRinks')}</option>
                   {activeRinks.map((r) => (
-                    <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
+                    <option key={r.id} value={r.id} className="bg-background-dark text-white">{localizedName(r, i18n.language)}</option>
                   ))}
                 </select>
               </div>

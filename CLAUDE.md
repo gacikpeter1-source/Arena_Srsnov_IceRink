@@ -2963,6 +2963,19 @@ its own doc comment). The top-of-page form is now create-only again
 modal with that slot's values regardless of scroll position, closing on
 save or cancel.
 
+**Fixed: dropdown ("rolldown") menus showed black text when opened.**
+Every `<select>` on these two admin pages (and their matching edit modals,
+`RinkScheduleEditModal.tsx`/`FreeIceSlotEditModal.tsx`) already had
+`text-white` on the closed `<select>` box, but that class only styles the
+box itself — the browser's native opened option list ignores the
+parent's Tailwind classes and falls back to its own default rendering
+(black text), which on this app's dark `bg-background-dark` background
+made the open list unreadable. `<option>` elements now carry their own
+explicit `bg-background-dark text-white` classes too, which Chrome/
+Firefox do respect for the opened list — same reasoning as the closed
+box's own styling, just applied to the part of the control the parent's
+className doesn't reach.
+
 **"Zoznam voľných termínov" row format: day name first, then date, then
 time.** `FreeIceSlotsPage.tsx`'s list table previously led with the raw
 ISO date (`2026-10-07`) and no day-of-week at all, per an explicit
