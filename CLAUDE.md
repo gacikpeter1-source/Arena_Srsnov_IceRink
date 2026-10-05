@@ -2914,6 +2914,19 @@ now shows a second link, "TV striedačka"
 ako na obrazovke" one — same treatment, no new route or rule needed since
 the page was never actually gated, just unlinked.
 
+**Fixed: "Upraviť" (Edit) on `FreeIceSlotsPage.tsx` looked like it did
+nothing.** `handleEdit` always correctly populated the create/edit form's
+state (confirmed by inspecting the DOM directly) — the bug was purely
+visual: that form sits in a card near the *top* of the page, while the
+button that triggers edit mode is a per-row action in the slot list
+further down, which on a real club's data (dozens of rows) is well below
+the fold. Clicking it silently updated an off-screen form with no visible
+change at the click site, reading as "nothing happened" rather than "now
+editing." Fixed with a `ref` on the form's `Card` and
+`scrollIntoView({ behavior: 'smooth', block: 'start' })` inside
+`handleEdit`, so clicking "Upraviť" now visibly scrolls up to the
+populated form instead of silently updating off-screen.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

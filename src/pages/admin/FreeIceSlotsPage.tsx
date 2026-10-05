@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
@@ -38,6 +38,7 @@ export default function FreeIceSlotsPage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  const editFormRef = useRef<HTMLDivElement>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [rinkId, setRinkId] = useState('')
   const [zoneId, setZoneId] = useState('')
@@ -93,6 +94,11 @@ export default function FreeIceSlotsPage() {
     setStartTime(slot.startTime)
     setEndTime(slot.endTime)
     setNote(slot.note ?? '')
+    // The edit form lives in a card near the top of a long page — on a list
+    // further down (the common case once there are many slots), nothing
+    // visibly changes on click without this, so it looks like "Upraviť"
+    // does nothing at all even though the form is correctly populated.
+    editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -171,7 +177,7 @@ export default function FreeIceSlotsPage() {
         </CardContent>
       </Card>
 
-      <Card className="arena-card">
+      <Card className="arena-card" ref={editFormRef}>
         <CardHeader>
           <CardTitle className="text-white text-lg">{editingId ? t('freeIce.editSlot') : t('freeIce.newSlot')}</CardTitle>
         </CardHeader>
