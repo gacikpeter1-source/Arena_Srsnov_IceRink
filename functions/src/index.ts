@@ -13,6 +13,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import * as nodemailer from "nodemailer";
+import * as XLSX from "xlsx";
 
 initializeApp();
 
@@ -323,4 +324,188 @@ export const rollFreeIceSlotSeries = onSchedule("every 24 hours", async () => {
   }
 
   logger.info("Free ice slot series roll finished", { rolledCount, seriesCount: bySeries.size });
+});
+
+// Permanently deletes any Booking doc — regardless of which domain created
+// it (a direct customer /book reservation, a rink-schedule-tool entry, or a
+// tournament match's blocksIce reservation) — once it's this many days past
+// its own end time. A rink-schedule-sourced booking is normally already long
+// gone well before this (cleanupFinishedRinkScheduleEntries above deletes
+// those within RINK_SCHEDULE_CLEANUP_DELAY_HOURS), so in practice this job
+// mostly catches direct customer bookings and tournament blocksIce bookings,
+// neither of which had ANY cleanup before this — they accumulated forever.
+// 60 days is deliberately generous: it's what gives
+// sendMonthlyRinkUtilizationReport below a safe margin to still find last
+// month's data even if that job runs a few days late, while still bounding
+// how long raw booking data (name/email/phone) sits around. A deleted
+// booking's id can be left dangling on a TournamentMatch/RinkScheduleEntry
+// doc that still references it — same "orphaned docs left in place,
+// harmless" precedent this app already accepts elsewhere (old
+// divisionRules docs, a stale occurrenceRooms key) — neither ever reads the
+// Booking back once its own data (score, team names) lives on itself. A
+// booking missing startAtUtc (predates that field) is left alone rather than
+// guessed at, same documented gap the cancellation-cutoff feature already
+// accepts for that field.
+const BOOKING_RETENTION_DAYS = 60;
+
+export const cleanupOldBookings = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+  const cutoffMillis = Date.now() - BOOKING_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+  const snap = await db
+    .collection("bookings")
+    .where("startAtUtc", "<=", Timestamp.fromMillis(cutoffMillis))
+    .get();
+
+  let batch = db.batch();
+  let opsInBatch = 0;
+  let deletedCount = 0;
+
+  for (const docSnap of snap.docs) {
+    const endMillis = bookingEndMillis(docSnap.data());
+    if (endMillis === null || endMillis > cutoffMillis) continue;
+    batch.delete(docSnap.ref);
+    opsInBatch++;
+    deletedCount++;
+    if (opsInBatch >= CLEANUP_BATCH_LIMIT) {
+      await batch.commit();
+      batch = db.batch();
+      opsInBatch = 0;
+    }
+  }
+
+  if (opsInBatch > 0) {
+    await batch.commit();
+  }
+
+  logger.info("Old bookings cleanup finished", { deletedCount });
+});
+
+// Monthly "how were our rinks used" Excel report, emailed to the club's own
+// contact address — see CLAUDE.md's "Monthly rink utilization report / data
+// retention" section for the full rationale. Reads straight from `bookings`
+// (clubId + date range), the single source of truth every real ice
+// reservation already resolves to regardless of which domain created it
+// (direct customer /book, a rink-schedule-tool entry, or a tournament
+// match's blocksIce reservation) — trainings are never included, since that
+// domain deliberately never reserves ice/zone time at all.
+//
+// buildMonthlyUtilizationRows is factored out on its own specifically so a
+// later, more advanced view (a visual day-by-day "which hall was used when"
+// timeline, explicitly requested as a future possibility, not built yet)
+// can reuse the exact same row-shaping logic instead of re-deriving it —
+// the only thing that view would add is its own rendering, not a new query.
+function previousMonthRange(timeZone: string): { start: string; end: string; label: string } {
+  const todayStr = localDateString(timeZone); // "YYYY-MM-DD", club-local "today"
+  const [y, m] = todayStr.split("-").map(Number); // m is 1-based (current month)
+  const prevMonthUtc = new Date(Date.UTC(y, m - 2, 1)); // month-2: previous month, 0-based
+  const prevYear = prevMonthUtc.getUTCFullYear();
+  const prevMonth = prevMonthUtc.getUTCMonth(); // 0-based
+  const lastDay = new Date(Date.UTC(prevYear, prevMonth + 1, 0)).getUTCDate();
+  const mm = String(prevMonth + 1).padStart(2, "0");
+  return {
+    start: `${prevYear}-${mm}-01`,
+    end: `${prevYear}-${mm}-${String(lastDay).padStart(2, "0")}`,
+    label: `${prevYear}-${mm}`,
+  };
+}
+
+interface UtilizationRow {
+  Datum: string;
+  Cas: string;
+  "Trvanie (min)": number;
+  Hala: string;
+  Zona: string;
+  Nazov: string;
+  Stav: string;
+  Osoby: number;
+}
+
+async function buildMonthlyUtilizationRows(
+  db: FirebaseFirestore.Firestore,
+  clubId: string,
+  start: string,
+  end: string
+): Promise<UtilizationRow[]> {
+  const [bookingsSnap, rinksSnap, zonesSnap] = await Promise.all([
+    db
+      .collection("bookings")
+      .where("clubId", "==", clubId)
+      .where("date", ">=", start)
+      .where("date", "<=", end)
+      .orderBy("date", "asc")
+      .orderBy("startTime", "asc")
+      .get(),
+    db.collection("rinks").where("clubId", "==", clubId).get(),
+    db.collection("zones").where("clubId", "==", clubId).get(),
+  ]);
+
+  // Slovak name (translations.sk) preferred when set, same localizedName
+  // convention the app uses everywhere else — fixed to Slovak rather than
+  // reading a viewer's own language, since there's no viewer here, just an
+  // emailed file this club reads in their own language (same reasoning
+  // RinkScheduleBoardPage.tsx's own fixed-Slovak kiosk strings already use).
+  const nameById = new Map<string, string>();
+  for (const d of [...rinksSnap.docs, ...zonesSnap.docs]) {
+    const data = d.data();
+    nameById.set(d.id, (data.translations?.sk as string | undefined) ?? (data.name as string) ?? d.id);
+  }
+
+  // actual ice use only — a never-confirmed/cancelled booking never
+  // happened; filtered in-memory (not a Firestore query clause) to reuse
+  // the existing clubId+date+startTime index, no new composite index needed
+  return bookingsSnap.docs
+    .filter((d) => d.data().status === "confirmed")
+    .map((d) => {
+      const b = d.data();
+      return {
+        Datum: b.date,
+        Cas: b.startTime,
+        "Trvanie (min)": b.durationMinutes,
+        Hala: nameById.get(b.rinkId as string) ?? (b.rinkId as string),
+        Zona: nameById.get(b.zoneId as string) ?? (b.zoneId as string),
+        Nazov: b.name,
+        Stav: b.status,
+        Osoby: (b.attendeeCount as number | undefined) ?? 1,
+      };
+    });
+}
+
+export const sendMonthlyRinkUtilizationReport = onSchedule("0 2 1 * *", async () => {
+  const db = getFirestore();
+  const clubsSnap = await db.collection("clubs").get();
+
+  for (const clubDoc of clubsSnap.docs) {
+    const club = clubDoc.data();
+    const toEmail = club?.contact?.email as string | undefined;
+    if (!toEmail) {
+      logger.warn("Club has no contact email, skipping monthly report", { clubId: clubDoc.id });
+      continue;
+    }
+    const timezone = (club?.timezone as string | undefined) ?? "Europe/Bratislava";
+    const { start, end, label } = previousMonthRange(timezone);
+
+    const rows = await buildMonthlyUtilizationRows(db, clubDoc.id, start, end);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Rezervacie");
+    const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string;
+
+    await db.collection("mail").add({
+      to: toEmail,
+      message: {
+        subject: `Mesačný výkaz využitia ľadu – ${label}`,
+        html: `<p>V prílohe nájdete prehľad všetkých rezervácií ľadu za mesiac ${label} (${rows.length} záznamov), jeden riadok na udalosť.</p>`,
+      },
+      attachments: [
+        {
+          filename: `vytazenost-ladu-${label}.xlsx`,
+          content: base64,
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      ],
+    });
+
+    logger.info("Monthly rink utilization report queued", { clubId: clubDoc.id, label, rowCount: rows.length });
+  }
 });

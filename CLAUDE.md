@@ -3255,6 +3255,109 @@ create button specifically swaps from a `Link`-wrapped button to a bare
 since a disabled button *inside* a `Link` still navigates on click — the
 wrapper itself has to go, not just the button's own disabled state.
 
+## Booking data retention + monthly utilization report
+A club raised two related concerns at once: they want old, already-happened
+bookings to stop cluttering the admin tools they look at day to day, but
+they also keep their own paper log specifically because they don't want to
+lose that history entirely. Rather than just deleting on request (which
+would have made the second concern worse), this ships three pieces that
+together satisfy both: hide old events from the UI quickly, keep the real
+data around for a while so a report can still use it, then delete for real
+once nothing needs it any more.
+
+**Admin visibility cutoff (1 hour past end) — display-only, nothing is
+deleted.** `isPastAdminVisibilityCutoff`/`ADMIN_VISIBILITY_CUTOFF_HOURS`
+(`lib/bookings.ts`) mirrors `isPastCancellationCutoff`'s own
+`zonedTimeToUtc`-based shape, just checking the booking's *end* instant
+(start + `durationMinutes`) instead of its start. `RinkSchedulePage.tsx`
+(`/admin/rozvrh`) is the one admin list this applies to today — its
+`fetchRinkScheduleEntries`/`fetchRinkScheduleOccurrences` calls had no date
+bound at all before this, so a club running the app for months accumulates
+an ever-growing, unfiltered table of every occurrence it ever had. Needed
+care around the existing "entry with zero real occurrences falls back to
+showing its own original date/time/rink/name" placeholder logic (for an
+entry whose one booking got cancelled) — filtering age *inside* that same
+fallback path would otherwise resurrect a stale placeholder row for an
+entry that simply aged out rather than one that's genuinely bookingless, so
+the age cutoff is applied to both the live-occurrences list AND the
+entry's-own-fields fallback check before that fallback is allowed to fire.
+`AdminDashboardPage.tsx`'s own bookings table was deliberately left
+untouched — it already defaults to today-only and lets staff pick any
+explicit date range on purpose, which is a different, intentional kind of
+history browsing than the unbounded default list this fixes.
+
+**60-day hard-delete, across every domain that creates a real Booking —
+not just rink-schedule entries.** `cleanupOldBookings`
+(`functions/src/index.ts`, `onSchedule("every 24 hours")`) permanently
+deletes a `Booking` doc once it's `BOOKING_RETENTION_DAYS` (60) past its
+own end time, reusing the same `bookingEndMillis` helper
+`cleanupFinishedRinkScheduleEntries` already defined. This is deliberately
+broader than that existing job (which only ever touches
+`RinkScheduleEntry`-sourced bookings, and only after 2 hours) — a direct
+customer `/book` reservation or a tournament match's `blocksIce` booking
+had no cleanup at all before this and accumulated forever. Safe to delete
+broadly because neither of those two other domains' own historical record
+depends on the Booking doc surviving: `TournamentMatch` carries its own
+`teamA`/`teamB`/score directly, so group standings/brackets are
+unaffected, and losing a direct customer booking after 60 days only means
+losing an old self-service lookup, consistent with this app's existing
+"data hygiene, not a correctness requirement" stance. A deleted booking's
+id can be left dangling on whatever still references it — same "orphaned
+docs left in place, harmless" precedent already used elsewhere (old
+`divisionRules` docs, a stale `occurrenceRooms` key). The query filters
+server-side on `startAtUtc <= cutoff` (reusing the existing
+clubId+date+startTime index isn't needed here since this scans across all
+clubs) and re-checks the precise end time in memory, so a booking missing
+`startAtUtc` (predates that field) is simply never matched and left alone
+— same documented gap the cancellation-cutoff feature already accepts.
+
+**Monthly Excel utilization report, emailed automatically.**
+`sendMonthlyRinkUtilizationReport` (`functions/src/index.ts`,
+`onSchedule("0 2 1 * *")` — 02:00 UTC on the 1st of every month) is the
+concrete deliverable the club actually asked for: on a monthly basis,
+export every real ice event from the previous calendar month and email it
+to the club's own contact address, one row per event, nothing aggregated.
+Reads straight from `bookings` (`clubId` + `date` range, the same
+`clubId+date+startTime` index every other ranged booking query already
+uses) rather than any one domain's own collection — a direct customer
+booking, a `RinkScheduleEntry`'s booking, and a tournament match's
+`blocksIce` booking all resolve to the same collection, so this
+automatically covers "every real ice event" without needing to know which
+tool created it. Training sessions are correctly never included — that
+domain deliberately never reserves ice/zone time at all (see "Training
+reservations" above). Only `status === 'confirmed'` rows are included
+("utilization" means ice that was actually used — a cancelled or
+never-confirmed pending booking never happened); this filter is applied in
+memory rather than as a Firestore query clause specifically so the
+existing `clubId+date+startTime` index still covers the query with no new
+composite index to deploy. `previousMonthRange` computes "last calendar
+month" from the club's own `timezone` (`localDateString`, the same
+`Intl`-based "what day is it right now, in this timezone" technique
+`rollFreeIceSlotSeries` already uses, not the device-local clock a
+scheduled function doesn't have) rather than the server's own UTC day, so
+the report boundary lines up with the club's actual month even though the
+job itself always fires at a fixed UTC time.
+
+The report is a plain `.xlsx` (via the `xlsx` package, now also a
+`functions` dependency, not just a client one) built directly in the
+Cloud Function and delivered through the exact same `mail`-collection +
+`sendQueuedMail` pipeline every other email in this app already uses —
+written as a base64 `attachments` entry, same mechanism the booking
+confirmation email's `.ics` calendar attachment already proved out, so no
+new delivery mechanism was needed. Rink/zone names in the report use
+`translations.sk` when set, hardcoded to Slovak rather than reading any
+viewer's language — there's no viewer here, just a club reading an email
+in their own language, same reasoning the rink-schedule TV board's own
+fixed-Slovak kiosk strings already use elsewhere in this file.
+
+**Architected with the explicitly-deferred future "utilization timeline"
+in mind, without building it yet.** The row-shaping logic lives in its own
+`buildMonthlyUtilizationRows` function specifically so a later, more
+advanced view — a visual day-by-day "which hall was used when" timeline,
+raised as a future possibility but explicitly not asked for in this pass
+— could reuse the same query/shaping instead of re-deriving it; the only
+new thing that view would need is its own rendering.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 
