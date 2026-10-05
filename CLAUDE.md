@@ -2530,6 +2530,41 @@ Excel bulk importer (`parseRinkScheduleWorkbook`) — that's for recurring
 standing blocks (practices/courses), not one-off matches, which are
 already a manual-form case.
 
+**Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
+already-created single entry into a recurring one.** The entries table
+previously showed each occurrence's raw ISO date (`2026-10-19`); it now
+goes through the same `formatDMY` string-reformat technique
+`FreeIceSlotsPage.tsx` already uses (built from the stored string's own
+parts, no `Date` parsing, so no UTC/local ambiguity). Separately, a club
+pointed out that `RinkSchedulePage.tsx` already lets staff set up a
+recurring entry at creation time (the "Opakovať túto rezerváciu"
+checkbox), but offered no way to turn an *already-created* single entry
+into one without deleting and retyping it from scratch.
+`startRinkScheduleEntryRepeat` (`lib/rinkSchedule.ts`) closes that gap —
+unlike `createRinkScheduleEntry`'s own recurring path, it can't just call
+`createBookingSeries` from the entry's existing date, since that would
+try to create a brand-new booking for that exact already-taken slot too
+and silently skip it (see `computeSeriesDates`' own doc comment),
+*losing* the original occurrence. Instead it keeps the entry's existing
+`Booking` as occurrence 1, stamps it with a freshly-minted `seriesId`,
+and creates every later date (`computeSeriesDates`, now exported from
+`lib/bookings.ts` for exactly this reuse) through the ordinary
+`createBooking` transaction — skipping, not failing on, a date someone
+else already has, same as `createBookingSeries`'s own loop — then writes
+a matching `bookingSeries` doc so the result is indistinguishable from a
+series created the normal way. No extra input needed: a one-click action
+defaults to `RINK_SCHEDULE_QUICK_REPEAT` (weekly, 8 occurrences, matching
+the create form's own default count) rather than opening a form, mirroring
+the equally input-free "Opakovať" just added to `FreeIceSlotsPage.tsx` —
+though the underlying mechanism is intentionally different there (a
+fixed 4-occurrence rolling window maintained by a Cloud Function, since
+`FreeIceSlot` has no concept of a real multi-week series at all) from
+here (a genuine `BookingSeries`, this page's native recurring model, just
+triggered retroactively). The button only shows on a non-recurring row
+(`!isSeries`) — once converted, the existing "Zrušiť tento termín"/
+"Zmazať celú sériu" actions already cover canceling one occurrence or the
+whole thing, so no separate "cancel repeat" action was needed.
+
 ### Automatic cleanup: finished rink-schedule bookings are hard-deleted
 
 An explicit, scoped exception to this app's usual "never hard-delete,

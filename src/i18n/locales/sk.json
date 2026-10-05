@@ -429,6 +429,7 @@
     "clearFilters": "Zrušiť filtre",
     "noneFiltered": "Žiadne záznamy nezodpovedajú zadanému filtru.",
     "recurring": "opakuje sa",
+    "repeat": "Opakovať",
     "confirmDelete": "Zmazať tento záznam z rozvrhu? Zruší sa tým aj rezervácia ľadu, ktorú vytvoril.",
     "editEntry": "Upraviť záznam v rozvrhu",
     "noOccurrences": "Žiadne nadchádzajúce termíny",

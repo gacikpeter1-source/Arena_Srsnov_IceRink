@@ -353,7 +353,13 @@ export const SERIES_MAX_OCCURRENCES: Record<SeriesFrequency, number> = {
   weekly: 52
 }
 
-function computeSeriesDates(startDate: string, recurrence: SeriesRecurrence): string[] {
+// Exported so lib/rinkSchedule.ts's startRinkScheduleEntryRepeat can compute
+// the same date list createBookingSeries would, without going through it —
+// that call always creates a brand-new booking for every date including the
+// first, which would collide with (and silently skip) an already-existing
+// single entry's own occurrence; the rink-schedule caller instead reuses
+// that existing booking as occurrence 1 and only creates the rest.
+export function computeSeriesDates(startDate: string, recurrence: SeriesRecurrence): string[] {
   const stepDays = recurrence.frequency === 'daily' ? 1 : 7
   const dates: string[] = []
   let d = new Date(`${startDate}T00:00:00`)
