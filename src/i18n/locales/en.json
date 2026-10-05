@@ -192,6 +192,7 @@
     "time": "Time",
     "rink": "Rink",
     "zone": "Zone",
+    "allZones": "All zones",
     "status": "Status",
     "newReservation": "New reservation",
     "createReservation": "Create reservation",
