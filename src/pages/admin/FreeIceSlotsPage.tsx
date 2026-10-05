@@ -115,6 +115,22 @@ export default function FreeIceSlotsPage() {
   const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
   const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
 
+  // "Streda" / "Wednesday" — localized to whichever language the admin UI
+  // is currently in (unlike the TV-board day names elsewhere in this app,
+  // which stay fixed Slovak since a physical kiosk isn't something a
+  // viewer picks a language for — this is a staff screen, so it should
+  // follow the same language the rest of the page is already in).
+  const dayFormatter = new Intl.DateTimeFormat(i18n.language, { weekday: 'long' })
+  const dayName = (isoDate: string) => {
+    const d = new Date(`${isoDate}T00:00:00`)
+    const name = dayFormatter.format(d)
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  }
+  const formatDMY = (isoDate: string) => {
+    const [y, m, d] = isoDate.split('-')
+    return `${Number(d)}.${Number(m)}.${y}`
+  }
+
   if (staff && !canManage) {
     return (
       <div className="content-container py-12 max-w-md mx-auto text-center space-y-4">
@@ -228,6 +244,7 @@ export default function FreeIceSlotsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-text-muted border-b border-border">
+                    <th className="py-2 pr-3">{t('freeIce.day')}</th>
                     <th className="py-2 pr-3">{t('common.date')}</th>
                     <th className="py-2 pr-3">{t('common.time')}</th>
                     <th className="py-2 pr-3">{t('admin.rink')}</th>
@@ -239,7 +256,8 @@ export default function FreeIceSlotsPage() {
                 <tbody>
                   {slots.map((slot) => (
                     <tr key={slot.id} className="border-b border-border">
-                      <td className="py-2 pr-3 mono">{slot.date}</td>
+                      <td className="py-2 pr-3">{dayName(slot.date)}</td>
+                      <td className="py-2 pr-3 mono">{formatDMY(slot.date)}</td>
                       <td className="py-2 pr-3 mono text-primary">{slot.startTime}–{slot.endTime}</td>
                       <td className="py-2 pr-3">{rinkNameById.get(slot.rinkId) ?? slot.rinkId}</td>
                       <td className="py-2 pr-3">{zoneNameById.get(slot.zoneId) ?? slot.zoneId}</td>

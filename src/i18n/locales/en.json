@@ -463,6 +463,7 @@
     "notAuthorizedNotice": "You don't have access to free ice rentals.",
     "newSlot": "New slot",
     "editSlot": "Edit slot",
+    "day": "Day",
     "startTime": "From",
     "endTime": "To",
     "note": "Note (price, zone restriction...)",
