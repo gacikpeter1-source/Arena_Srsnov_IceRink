@@ -1149,6 +1149,18 @@ Slovak phrasing the club actually asked for (there was no existing
 English equivalent to preserve, unlike a normal translation edit via
 `scripts/translate-rinks-zones.mjs`). `*-full` zones were untouched.
 
+**Follow-up: the two "k Tabuli" ("towards the scoreboard") zones were
+renamed again, to "k časomiere" ("towards the timer/game clock").** Club
+feedback that "tabuľa" read as ambiguous — `main-hall-half-b`/
+`small-hall-half-b` ("Polovica k Tabuli") and `main-hall-third-1`/
+`small-hall-third-1` ("Tretina k Tabuli") became "Polovica k časomiere"/
+"Tretina k časomiere" (English: "Half – Timer Side"/"Third – Timer
+Side") — via a new one-off script, `scripts/rename-zones-casomiera.mjs`
+(same dry-run-by-default, `--apply`-to-write pattern, matched by each
+zone's current `translations.sk` so it safely no-ops if already renamed).
+Every other zone (the Rolbovňa-side half/thirds, the middle third,
+`*-full`) was untouched.
+
 **Blocking real ice is a per-match choice, not automatic.** A tournament
 might run entirely on the club's own ice, or on a different surface this
 app doesn't manage a calendar for at all (a hokejbal/football pitch) —
