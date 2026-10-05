@@ -3109,6 +3109,24 @@ nothing keeps "maintaining" a series that was just cancelled. Past
 occurrences are left alone — once `repeatWeekly` is gone nothing rolls
 them forward any more, so there's nothing left to decide about them.
 
+**Bigger text on the striedačka's free-ice grid, scoped to that board
+only.** A club asked specifically for the "voľné ľady" (free-ice) half of
+`/rozvrh/strieda` to be more readable from across a room — explicitly
+*not* the live rink-schedule half, which keeps its own existing sizing.
+Every `clamp()` in `FreeIceBoard.tsx` was bumped roughly 30-45% (e.g. the
+slot time range, the single most important text on this board, from
+`clamp(0.55rem,0.75vw,0.9rem)` to `clamp(0.8rem,1.1vw,1.3rem)`; the hour
+axis and day-name headers similarly), the time axis column widened
+(`w-16` → `w-20`) to fit the now-larger hour labels without clipping, and
+`HEADER_HEIGHT` grew `56px` → `72px` so the enlarged day-name/date/rink-
+label stack in each column header still fits without overlapping the
+grid below it. A 1-hour slot's time range (e.g. "06:00–07:00") now
+commonly wraps to two lines inside its box at this larger size instead
+of fitting on one — left as-is rather than fought, since the box height
+already scales with the slot's own duration and two clearly-legible
+lines read better than one cramped line squeezed to fit a narrow rink
+lane.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
