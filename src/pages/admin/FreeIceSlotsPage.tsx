@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
-import { createFreeIceSlot, deleteFreeIceSlot, fetchFreeIceSlots } from '@/lib/freeIceSlots'
+import { cancelFreeIceSlotRepeat, createFreeIceSlot, deleteFreeIceSlot, fetchFreeIceSlots, startFreeIceSlotRepeat } from '@/lib/freeIceSlots'
+import { fetchBookingsInRange } from '@/lib/bookings'
 import { formatDateISO, localizedName } from '@/lib/utils'
-import { FreeIceSlot } from '@/types'
+import { Booking, FreeIceSlot } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,6 +69,31 @@ export default function FreeIceSlotsPage() {
 
   useEffect(refresh, [club])
 
+  // Cross-references every listed slot against real bookings so the list
+  // can show "Rezervované: {meno}" and so cancelling a repeat knows which
+  // future occurrences are already spoken for (see cancelFreeIceSlotRepeat's
+  // own doc comment) — fetched once over the whole date range the loaded
+  // slots span, not one query per row.
+  const [bookingsByKey, setBookingsByKey] = useState<Map<string, Booking & { id: string }>>(new Map())
+  useEffect(() => {
+    if (!club || slots.length === 0) {
+      setBookingsByKey(new Map())
+      return
+    }
+    const dates = slots.map((s) => s.date)
+    const startDate = dates.reduce((a, b) => (a < b ? a : b))
+    const endDate = dates.reduce((a, b) => (a > b ? a : b))
+    fetchBookingsInRange(club.id, startDate, endDate).then((bookings) => {
+      const map = new Map<string, Booking & { id: string }>()
+      for (const b of bookings) {
+        if (b.status !== 'confirmed' && b.status !== 'pending') continue
+        map.set(`${b.rinkId}__${b.zoneId}__${b.date}__${b.startTime}`, b)
+      }
+      setBookingsByKey(map)
+    })
+  }, [club, slots])
+  const bookingFor = (slot: FreeIceSlot) => bookingsByKey.get(`${slot.rinkId}__${slot.zoneId}__${slot.date}__${slot.startTime}`)
+
   useEffect(() => {
     if (activeRinks.length && !rinkId) setRinkId(activeRinks[0].id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,6 +132,28 @@ export default function FreeIceSlotsPage() {
     setBusyId(slot.id)
     try {
       await deleteFreeIceSlot(slot.id)
+      refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleStartRepeat = async (slot: FreeIceSlot & { id: string }) => {
+    setBusyId(slot.id)
+    try {
+      await startFreeIceSlotRepeat(slot)
+      refresh()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleCancelRepeat = async (slot: FreeIceSlot & { id: string }) => {
+    if (!club || !slot.seriesId) return
+    if (!confirm(t('freeIce.confirmCancelRepeat'))) return
+    setBusyId(slot.id)
+    try {
+      await cancelFreeIceSlotRepeat(club.id, slot.seriesId, new Set(bookingsByKey.keys()))
       refresh()
     } finally {
       setBusyId(null)
@@ -250,30 +298,49 @@ export default function FreeIceSlotsPage() {
                     <th className="py-2 pr-3">{t('admin.rink')}</th>
                     <th className="py-2 pr-3">{t('admin.zone')}</th>
                     <th className="py-2 pr-3">{t('freeIce.note')}</th>
+                    <th className="py-2 pr-3">{t('freeIce.status')}</th>
                     <th className="py-2 pr-3" />
                   </tr>
                 </thead>
                 <tbody>
-                  {slots.map((slot) => (
-                    <tr key={slot.id} className="border-b border-border">
-                      <td className="py-2 pr-3">{dayName(slot.date)}</td>
-                      <td className="py-2 pr-3 mono">{formatDMY(slot.date)}</td>
-                      <td className="py-2 pr-3 mono text-primary">{slot.startTime}–{slot.endTime}</td>
-                      <td className="py-2 pr-3">{rinkNameById.get(slot.rinkId) ?? slot.rinkId}</td>
-                      <td className="py-2 pr-3">{zoneNameById.get(slot.zoneId) ?? slot.zoneId}</td>
-                      <td className="py-2 pr-3 text-text-secondary">{slot.note ?? '—'}</td>
-                      <td className="py-2 pr-3">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" disabled={busyId === slot.id} onClick={() => setEditingSlot(slot)}>
-                            {t('common.edit')}
-                          </Button>
-                          <Button size="sm" variant="destructive" disabled={busyId === slot.id} onClick={() => handleDelete(slot)}>
-                            {t('common.delete')}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {slots.map((slot) => {
+                    const booking = bookingFor(slot)
+                    return (
+                      <tr key={slot.id} className="border-b border-border">
+                        <td className="py-2 pr-3">{dayName(slot.date)}</td>
+                        <td className="py-2 pr-3 mono">{formatDMY(slot.date)}</td>
+                        <td className="py-2 pr-3 mono text-primary">{slot.startTime}–{slot.endTime}</td>
+                        <td className="py-2 pr-3">{rinkNameById.get(slot.rinkId) ?? slot.rinkId}</td>
+                        <td className="py-2 pr-3">{zoneNameById.get(slot.zoneId) ?? slot.zoneId}</td>
+                        <td className="py-2 pr-3 text-text-secondary">{slot.note ?? '—'}</td>
+                        <td className="py-2 pr-3">
+                          <div className="flex flex-col gap-1">
+                            {slot.repeatWeekly && <span className="text-primary text-xs whitespace-nowrap">{t('freeIce.repeatBadge')}</span>}
+                            {booking && <span className="text-status-success text-xs whitespace-nowrap">{t('freeIce.bookedBadge', { name: booking.name })}</span>}
+                          </div>
+                        </td>
+                        <td className="py-2 pr-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" disabled={busyId === slot.id} onClick={() => setEditingSlot(slot)}>
+                              {t('common.edit')}
+                            </Button>
+                            {slot.repeatWeekly ? (
+                              <Button size="sm" variant="outline" disabled={busyId === slot.id} onClick={() => handleCancelRepeat(slot)}>
+                                {t('freeIce.cancelRepeat')}
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="outline" disabled={busyId === slot.id || slot.date < formatDateISO(new Date())} onClick={() => handleStartRepeat(slot)}>
+                                {t('freeIce.repeat')}
+                              </Button>
+                            )}
+                            <Button size="sm" variant="destructive" disabled={busyId === slot.id} onClick={() => handleDelete(slot)}>
+                              {t('common.delete')}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

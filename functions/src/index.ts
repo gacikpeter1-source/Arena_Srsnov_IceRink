@@ -225,3 +225,102 @@ export const cleanupFinishedRinkScheduleEntries = onSchedule("every 30 minutes",
 
   logger.info("Rink schedule cleanup finished", { deletedBookings, deletedEntries });
 });
+
+// Keeps a weekly-repeating FreeIceSlot series (see FreeIceSlot.repeatWeekly
+// in src/types/index.ts) alive indefinitely without either running dry or
+// growing without bound: rather than generating a long list of future
+// occurrences up front, a series is always exactly FREE_ICE_SERIES_TARGET
+// docs — once one's date has passed, this job "rolls" that same doc
+// forward to a new date one interval past the series' own latest
+// occurrence (reusing the id, not delete-and-recreate), so the series
+// permanently holds a fixed, small number of documents. src/lib/
+// freeIceSlots.ts's startFreeIceSlotRepeat only ever creates the initial
+// window; this job is what actually sustains it week over week. A series
+// whose owner clicked "Zrušiť opakovanie" (cancelFreeIceSlotRepeat)
+// disappears from this job's query entirely, since that call always clears
+// `repeatWeekly` on every occurrence it touches.
+const FREE_ICE_SERIES_TARGET_OCCURRENCES = 4; // keep in sync with src/lib/freeIceSlots.ts
+const FREE_ICE_SERIES_INTERVAL_DAYS = 7;
+
+function localDateString(timeZone: string, date: Date = new Date()): string {
+  // en-CA formats as YYYY-MM-DD directly — avoids the UTC-vs-local "today"
+  // bug documented on formatDateISO in src/lib/utils.ts, here on the
+  // server side where there's no device-local Date to read from at all.
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+function addDaysToDateString(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+export const rollFreeIceSlotSeries = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+
+  const slotsSnap = await db.collection("freeIceSlots").where("repeatWeekly", "==", true).get();
+  if (slotsSnap.empty) {
+    logger.info("Free ice slot series roll: nothing to do");
+    return;
+  }
+
+  const bySeries = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
+  for (const d of slotsSnap.docs) {
+    const seriesId = d.data().seriesId as string | undefined;
+    if (!seriesId) continue; // shouldn't happen — repeatWeekly always comes with a seriesId
+    if (!bySeries.has(seriesId)) bySeries.set(seriesId, []);
+    bySeries.get(seriesId)!.push(d);
+  }
+
+  const timezoneCache = new Map<string, string>();
+  const timezoneFor = async (clubId: string): Promise<string> => {
+    const cached = timezoneCache.get(clubId);
+    if (cached) return cached;
+    const clubSnap = await db.doc(`clubs/${clubId}`).get();
+    const tz = (clubSnap.data()?.timezone as string | undefined) ?? "Europe/Bratislava";
+    timezoneCache.set(clubId, tz);
+    return tz;
+  };
+
+  let batch = db.batch();
+  let opsInBatch = 0;
+  let rolledCount = 0;
+  const commitIfNeeded = async () => {
+    if (opsInBatch >= CLEANUP_BATCH_LIMIT) {
+      await batch.commit();
+      batch = db.batch();
+      opsInBatch = 0;
+    }
+  };
+
+  for (const docs of bySeries.values()) {
+    const clubId = docs[0].data().clubId as string;
+    const today = localDateString(await timezoneFor(clubId));
+
+    const sorted = [...docs].sort((a, b) => (a.data().date as string).localeCompare(b.data().date as string));
+    let latestDate = sorted[sorted.length - 1].data().date as string;
+    let futureCount = sorted.filter((d) => (d.data().date as string) >= today).length;
+
+    for (const d of sorted) {
+      const date = d.data().date as string;
+      if (date >= today) continue;
+      // Enough future occurrences already exist — a stray past doc this
+      // job somehow hasn't rolled yet (e.g. a missed run) is left as-is
+      // rather than rolled past the target count.
+      if (futureCount >= FREE_ICE_SERIES_TARGET_OCCURRENCES) continue;
+      latestDate = addDaysToDateString(latestDate, FREE_ICE_SERIES_INTERVAL_DAYS);
+      batch.update(d.ref, { date: latestDate });
+      opsInBatch++;
+      futureCount++;
+      rolledCount++;
+      await commitIfNeeded();
+    }
+  }
+
+  if (opsInBatch > 0) {
+    await batch.commit();
+  }
+
+  logger.info("Free ice slot series roll finished", { rolledCount, seriesCount: bySeries.size });
+});

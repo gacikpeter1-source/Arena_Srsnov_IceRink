@@ -3009,6 +3009,71 @@ stay fixed Slovak because a physical kiosk screen isn't something a
 viewer picks a language for, but this is a staff admin page where the
 viewer does.
 
+**Weekly-repeating free-ice listings.** A club asked for a per-row
+"Opakovať" button on `FreeIceSlotsPage.tsx`'s list so a standing weekly
+rental slot (e.g. "every Thursday 05:00-06:00") doesn't need retyping
+every week by hand — and for the listing to keep repeating even once a
+given week gets rented, only showing the actual renter's name for that
+one week instead of staying generic. `FreeIceSlot` gained two optional
+fields (`repeatWeekly`, `seriesId`) rather than a new collection, since a
+repeating listing is still just a `FreeIceSlot` doc in every way that
+matters to `/book`/the TV boards — only how it's maintained differs.
+
+**Fixed-size rolling window, not a generated-up-front list.** Neither
+`/book` nor the TV boards do any live "expand this rule into virtual
+future weeks" computation — they only ever read whatever `FreeIceSlot`
+docs already exist for the dates in view, same as every other query in
+this app. Generating, say, a year of future occurrences up front was
+rejected (unbounded growth, and "pick a horizon" is an arbitrary number
+either way); per explicit direction, a repeating series instead always
+holds exactly `FREE_ICE_REPEAT_OCCURRENCES` (4) occurrences, and stays
+that size forever: `startFreeIceSlotRepeat` (`lib/freeIceSlots.ts`)
+turns the clicked row into occurrence 1 of a fresh series (a random
+`seriesId`) and creates 3 more siblings at +7/+14/+21 days; from there,
+`rollFreeIceSlotSeries` (`functions/src/index.ts`, `onSchedule("every 24
+hours")`, deployed and live) is what actually sustains it — once an
+occurrence's date has passed, the job moves that *same* doc forward to a
+new date one week past the series' own latest occurrence (reusing the
+id, not delete-and-recreate), so a series is permanently 4 documents,
+never fewer, never more. Computing "today" needs the club's own
+`timezone` (`Intl.DateTimeFormat('en-CA', { timeZone }, ...)`, formatting
+straight to `yyyy-mm-dd`) since a scheduled function has no device-local
+clock to read, the same class of bug `formatDateISO`'s own doc comment
+already covers in the client. The job tolerates a missed run (e.g. two
+weeks passed since it last fired): it rolls every past occurrence it
+finds forward one at a time, advancing its own "latest date" marker each
+time, so a series always ends up exactly caught back up to 4 future
+occurrences regardless of how far behind it got.
+
+**A booked occurrence isn't specially flagged on the `FreeIceSlot` doc
+itself — "booked" is derived, the same way it already is everywhere else
+in this app.** Booking a slot via `/book` only ever creates a normal,
+separate `Booking` doc (through the exact same public `createBooking`
+transaction every reservation uses) — nothing writes back to the
+`FreeIceSlot` row it came from, consistent with `FreeIceSlot` never being
+a second source of truth for what's reserved. `FreeIceSlotsPage.tsx` now
+fetches real bookings across the date range its own loaded slots span
+(`fetchBookingsInRange`, once, not per row) and matches each slot against
+them by the same `${rinkId}__${zoneId}__${date}__${startTime}` key
+`computeOverlapBlockedKeys` already uses, showing a "Rezervované:
+{meno}" badge when one's found — this is what makes "the repeat keeps
+going, only that one week's name changes" true without any extra state:
+the listing row is untouched, a real booking with the customer's own
+name simply exists alongside it for that date.
+
+**"Zrušiť opakovanie" really means cancel, per explicit confirmation** —
+every occurrence dated today or later that ISN'T already booked
+(checked via the same booked-keys lookup above) is deleted outright, not
+just excluded from future rolling, so it stops being offered on `/book`
+immediately. An already-booked future occurrence can't be un-rented by
+this action — the real `Booking` is untouched either way — so it's
+instead demoted to a plain one-off slot (`repeatWeekly`/`seriesId`
+stripped) rather than deleted, which also quietly drops it out of
+`rollFreeIceSlotSeries`'s `where('repeatWeekly','==',true)` query so
+nothing keeps "maintaining" a series that was just cancelled. Past
+occurrences are left alone — once `repeatWeekly` is gone nothing rolls
+them forward any more, so there's nothing left to decide about them.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

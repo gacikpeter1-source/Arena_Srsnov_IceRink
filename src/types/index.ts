@@ -321,6 +321,20 @@ export interface FreeIceSlot {
   createdBy: string
   createdByName: string
   createdAt: Date
+  // Weekly-repeating listing (see "Opakovať"/startFreeIceSlotRepeat in
+  // lib/freeIceSlots.ts) — when set, this doc is one of exactly
+  // FREE_ICE_REPEAT_OCCURRENCES live occurrences sharing `seriesId`, kept
+  // rolling forward in time by the scheduled Cloud Function
+  // rollFreeIceSlotSeries (functions/src/index.ts) rather than generated
+  // as a long list up front: once an occurrence's date passes, the
+  // function moves that same doc to a new date one interval past the
+  // series' latest occurrence, so the series never runs out and never
+  // accumulates stale rows either. A customer booking one occurrence
+  // doesn't touch this doc at all — the real Booking is a separate doc,
+  // see the FreeIceSlot doc comment above — so the repeat continues
+  // regardless of whether any given week ends up rented.
+  repeatWeekly?: boolean
+  seriesId?: string
 }
 
 // Role hierarchy (ice-rink admin duties only — see isTrainer below for the
