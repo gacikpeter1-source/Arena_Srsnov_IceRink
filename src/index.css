@@ -170,3 +170,20 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #FDB913;
 }
+
+/* Every <select> in this app sits on a dark background, but the native
+   dropdown-indicator icon browsers render (the small up/down chevron) is
+   a fixed OS/browser gray that ignores the element's own text color — on
+   iOS Safari in particular this reads as a near-black icon on a dark box.
+   Replace it with a plain white chevron we control, since there's no
+   per-element text color to inherit from for a native form control icon. */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem !important;
+}
