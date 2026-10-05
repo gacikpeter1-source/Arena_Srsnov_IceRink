@@ -24,7 +24,7 @@ const HOUR_END = 24
 // matching spacer above the time axis) — unlike the grid body below it,
 // this doesn't need to grow with screen size, same reasoning the main
 // board's own 6vh header bar already uses.
-const HEADER_HEIGHT = 56
+const HEADER_HEIGHT = 72
 
 /**
  * Which whole hours, across the entire visible week, actually have at
@@ -139,16 +139,16 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden p-2 gap-2">
-      <h2 className="shrink-0 text-primary text-[clamp(1rem,2vw,1.75rem)] font-bold text-center">{t('freeIce.boardTitle')}</h2>
+      <h2 className="shrink-0 text-primary text-[clamp(1.25rem,2.3vw,2rem)] font-bold text-center">{t('freeIce.boardTitle')}</h2>
       <div className="flex-1 min-h-0 flex">
         {/* Time axis */}
-        <div className="shrink-0 w-16 flex flex-col">
+        <div className="shrink-0 w-20 flex flex-col">
           <div className="shrink-0" style={{ height: HEADER_HEIGHT }} />
           <div className="flex-1 min-h-0 relative">
             {hourTicks.map(({ hour, pct }) => (
               <div
                 key={hour}
-                className="absolute right-1 -translate-y-1/2 text-text-muted text-[clamp(0.6rem,0.8vw,0.95rem)] mono"
+                className="absolute right-1 -translate-y-1/2 text-text-muted text-[clamp(0.8rem,1.1vw,1.3rem)] font-semibold mono"
                 style={{ top: `${pct}%` }}
               >
                 {String(hour).padStart(2, '0')}:00
@@ -162,9 +162,9 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
           return (
             <div key={day.iso} className="flex-1 min-w-0 flex flex-col border-l border-border/60">
               <div className="shrink-0 text-center" style={{ height: HEADER_HEIGHT }}>
-                <div className="text-white font-bold text-[clamp(0.75rem,1.1vw,1.15rem)]">{day.dayName}</div>
-                <div className="text-text-muted text-[clamp(0.6rem,0.85vw,0.9rem)]">{day.label}</div>
-                <div className="flex text-text-muted text-[clamp(0.45rem,0.6vw,0.65rem)] uppercase tracking-wide opacity-70">
+                <div className="text-white font-bold text-[clamp(1rem,1.4vw,1.5rem)]">{day.dayName}</div>
+                <div className="text-text-muted text-[clamp(0.8rem,1.1vw,1.2rem)]">{day.label}</div>
+                <div className="flex text-text-muted text-[clamp(0.55rem,0.75vw,0.8rem)] uppercase tracking-wide opacity-70">
                   {rinks.map((rink) => (
                     <div key={rink.id} className="flex-1 truncate px-0.5">
                       {localizedName(rink, lang)}
@@ -186,14 +186,14 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                         return (
                           <div
                             key={slot.id}
-                            className="absolute left-0.5 right-0.5 rounded border border-primary/50 bg-primary/10 px-1 py-0.5 overflow-hidden leading-tight"
+                            className="absolute left-0.5 right-0.5 rounded border border-primary/50 bg-primary/10 px-1.5 py-1 overflow-hidden leading-tight"
                             style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%` }}
                           >
-                            <div className="text-primary mono text-[clamp(0.55rem,0.75vw,0.9rem)] font-bold">
+                            <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold">
                               {slot.startTime}–{slot.endTime}
                             </div>
-                            {zone && <div className="text-text-secondary text-[clamp(0.45rem,0.65vw,0.8rem)] truncate">{zone}</div>}
-                            {slot.note && <div className="text-sky-300 text-[clamp(0.45rem,0.65vw,0.8rem)] truncate">{slot.note}</div>}
+                            {zone && <div className="text-text-secondary text-[clamp(0.6rem,0.85vw,1rem)] truncate">{zone}</div>}
+                            {slot.note && <div className="text-sky-300 text-[clamp(0.6rem,0.85vw,1rem)] truncate">{slot.note}</div>}
                           </div>
                         )
                       })}
