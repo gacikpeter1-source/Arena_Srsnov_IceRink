@@ -257,6 +257,58 @@ function addDaysToDateString(dateStr: string, days: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
+// Shared by every job below that needs "this club's IANA timezone" while
+// scanning across many clubs' docs at once (rollFreeIceSlotSeries,
+// cleanupOldFreeIceSlots) — a fresh cache per call, same as each of those
+// jobs used to keep inline before being factored out here.
+function makeTimezoneLookup(db: FirebaseFirestore.Firestore): (clubId: string) => Promise<string> {
+  const cache = new Map<string, string>();
+  return async (clubId: string): Promise<string> => {
+    const cached = cache.get(clubId);
+    if (cached) return cached;
+    const clubSnap = await db.doc(`clubs/${clubId}`).get();
+    const tz = (clubSnap.data()?.timezone as string | undefined) ?? "Europe/Bratislava";
+    cache.set(clubId, tz);
+    return tz;
+  };
+}
+
+// Ported from src/lib/ics.ts's zonedTimeToUtc — same self-contained,
+// Intl-only DST-aware local-to-UTC conversion, duplicated here rather than
+// imported since functions/ is a separate TypeScript project from src/.
+function zonedTimeToUtc(date: string, time: string, timeZone: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+    .formatToParts(new Date(guess))
+    .reduce<Record<string, string>>((acc, p) => {
+      acc[p.type] = p.value;
+      return acc;
+    }, {});
+
+  const asIfUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    parts.hour === "24" ? 0 : Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  const offsetMillis = asIfUtc - guess;
+  return new Date(guess - offsetMillis);
+}
+
 export const rollFreeIceSlotSeries = onSchedule("every 24 hours", async () => {
   const db = getFirestore();
 
@@ -274,15 +326,7 @@ export const rollFreeIceSlotSeries = onSchedule("every 24 hours", async () => {
     bySeries.get(seriesId)!.push(d);
   }
 
-  const timezoneCache = new Map<string, string>();
-  const timezoneFor = async (clubId: string): Promise<string> => {
-    const cached = timezoneCache.get(clubId);
-    if (cached) return cached;
-    const clubSnap = await db.doc(`clubs/${clubId}`).get();
-    const tz = (clubSnap.data()?.timezone as string | undefined) ?? "Europe/Bratislava";
-    timezoneCache.set(clubId, tz);
-    return tz;
-  };
+  const timezoneFor = makeTimezoneLookup(db);
 
   let batch = db.batch();
   let opsInBatch = 0;
@@ -345,12 +389,14 @@ export const rollFreeIceSlotSeries = onSchedule("every 24 hours", async () => {
 // Booking back once its own data (score, team names) lives on itself. A
 // booking missing startAtUtc (predates that field) is left alone rather than
 // guessed at, same documented gap the cancellation-cutoff feature already
-// accepts for that field.
-const BOOKING_RETENTION_DAYS = 60;
+// accepts for that field. Shared with cleanupOldFreeIceSlots below — both
+// collections get the same 60-day window for the same reason (a safe
+// margin for the monthly report).
+const DATA_RETENTION_DAYS = 60;
 
 export const cleanupOldBookings = onSchedule("every 24 hours", async () => {
   const db = getFirestore();
-  const cutoffMillis = Date.now() - BOOKING_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const cutoffMillis = Date.now() - DATA_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
   const snap = await db
     .collection("bookings")
@@ -379,6 +425,58 @@ export const cleanupOldBookings = onSchedule("every 24 hours", async () => {
   }
 
   logger.info("Old bookings cleanup finished", { deletedCount });
+});
+
+// Same visibility-cutoff/retention treatment as cleanupOldBookings above,
+// for FreeIceSlot — the admin "zoznam voľných ľadov" list
+// (FreeIceSlotsPage.tsx) had no cutoff and no cleanup at all before this,
+// so a one-off listing just accumulated forever. A FreeIceSlot stores its
+// own explicit `endTime` (not a duration like Booking), and has no
+// `startAtUtc` field to filter on server-side the way cleanupOldBookings
+// does — this collection is small enough per club that a full scan plus an
+// in-memory zonedTimeToUtc check per doc is fine, same approach
+// cleanupFinishedRinkScheduleEntries already uses for rinkScheduleEntries.
+// A repeatWeekly occurrence is rolled forward daily by rollFreeIceSlotSeries
+// above and so should never actually reach this cutoff in practice, but
+// nothing here special-cases it — if one somehow did go stale (e.g. its
+// series was cancelled), it's just as eligible for cleanup as any one-off.
+export const cleanupOldFreeIceSlots = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+  const cutoffMillis = Date.now() - DATA_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const timezoneFor = makeTimezoneLookup(db);
+
+  const snap = await db.collection("freeIceSlots").get();
+
+  let batch = db.batch();
+  let opsInBatch = 0;
+  let deletedCount = 0;
+
+  for (const docSnap of snap.docs) {
+    const slot = docSnap.data();
+    const clubId = slot.clubId as string | undefined;
+    const date = slot.date as string | undefined;
+    const endTime = slot.endTime as string | undefined;
+    if (!clubId || !date || !endTime) continue;
+
+    const timezone = await timezoneFor(clubId);
+    const endMillis = zonedTimeToUtc(date, endTime, timezone).getTime();
+    if (endMillis > cutoffMillis) continue;
+
+    batch.delete(docSnap.ref);
+    opsInBatch++;
+    deletedCount++;
+    if (opsInBatch >= CLEANUP_BATCH_LIMIT) {
+      await batch.commit();
+      batch = db.batch();
+      opsInBatch = 0;
+    }
+  }
+
+  if (opsInBatch > 0) {
+    await batch.commit();
+  }
+
+  logger.info("Old free ice slots cleanup finished", { deletedCount });
 });
 
 // Monthly "how were our rinks used" Excel report, emailed to the club's own
@@ -421,35 +519,41 @@ interface UtilizationRow {
   Osoby: number;
 }
 
-async function buildMonthlyUtilizationRows(
-  db: FirebaseFirestore.Firestore,
-  clubId: string,
-  start: string,
-  end: string
-): Promise<UtilizationRow[]> {
-  const [bookingsSnap, rinksSnap, zonesSnap] = await Promise.all([
-    db
-      .collection("bookings")
-      .where("clubId", "==", clubId)
-      .where("date", ">=", start)
-      .where("date", "<=", end)
-      .orderBy("date", "asc")
-      .orderBy("startTime", "asc")
-      .get(),
+// Rink/zone id -> display name, Slovak (translations.sk) preferred when
+// set, same localizedName convention the app uses everywhere else — fixed
+// to Slovak rather than reading a viewer's own language, since there's no
+// viewer here, just an emailed file this club reads in their own language
+// (same reasoning RinkScheduleBoardPage.tsx's own fixed-Slovak kiosk
+// strings already use). Shared by both sheets of the monthly report so
+// rinks/zones are only ever fetched once per club.
+async function buildNameById(db: FirebaseFirestore.Firestore, clubId: string): Promise<Map<string, string>> {
+  const [rinksSnap, zonesSnap] = await Promise.all([
     db.collection("rinks").where("clubId", "==", clubId).get(),
     db.collection("zones").where("clubId", "==", clubId).get(),
   ]);
-
-  // Slovak name (translations.sk) preferred when set, same localizedName
-  // convention the app uses everywhere else — fixed to Slovak rather than
-  // reading a viewer's own language, since there's no viewer here, just an
-  // emailed file this club reads in their own language (same reasoning
-  // RinkScheduleBoardPage.tsx's own fixed-Slovak kiosk strings already use).
   const nameById = new Map<string, string>();
   for (const d of [...rinksSnap.docs, ...zonesSnap.docs]) {
     const data = d.data();
     nameById.set(d.id, (data.translations?.sk as string | undefined) ?? (data.name as string) ?? d.id);
   }
+  return nameById;
+}
+
+async function buildMonthlyUtilizationRows(
+  db: FirebaseFirestore.Firestore,
+  clubId: string,
+  start: string,
+  end: string,
+  nameById: Map<string, string>
+): Promise<UtilizationRow[]> {
+  const bookingsSnap = await db
+    .collection("bookings")
+    .where("clubId", "==", clubId)
+    .where("date", ">=", start)
+    .where("date", "<=", end)
+    .orderBy("date", "asc")
+    .orderBy("startTime", "asc")
+    .get();
 
   // actual ice use only — a never-confirmed/cancelled booking never
   // happened; filtered in-memory (not a Firestore query clause) to reuse
@@ -471,6 +575,50 @@ async function buildMonthlyUtilizationRows(
     });
 }
 
+interface FreeIceRow {
+  Datum: string;
+  Od: string;
+  Do: string;
+  Hala: string;
+  Zona: string;
+  Poznamka: string;
+}
+
+// Second sheet of the same report — every FreeIceSlot advertised for a date
+// in the previous month (see "zoznam voľných ľadov", FreeIceSlotsPage.tsx).
+// A FreeIceSlot isn't itself a real reservation (it's advertising copy for
+// ice that was open, not necessarily booked — see FreeIceSlot in
+// src/types/index.ts), so it's kept on its own sheet rather than merged into
+// buildMonthlyUtilizationRows' real-bookings rows above; nameById is passed
+// in rather than re-fetched since the caller already has it for the same
+// clubId+date range.
+async function buildMonthlyFreeIceRows(
+  db: FirebaseFirestore.Firestore,
+  clubId: string,
+  start: string,
+  end: string,
+  nameById: Map<string, string>
+): Promise<FreeIceRow[]> {
+  const snap = await db
+    .collection("freeIceSlots")
+    .where("clubId", "==", clubId)
+    .where("date", ">=", start)
+    .where("date", "<=", end)
+    .get();
+
+  return snap.docs
+    .map((d) => d.data())
+    .sort((a, b) => (a.date === b.date ? (a.startTime as string).localeCompare(b.startTime) : (a.date as string).localeCompare(b.date)))
+    .map((s) => ({
+      Datum: s.date,
+      Od: s.startTime,
+      Do: s.endTime,
+      Hala: nameById.get(s.rinkId as string) ?? (s.rinkId as string),
+      Zona: nameById.get(s.zoneId as string) ?? (s.zoneId as string),
+      Poznamka: (s.note as string | undefined) ?? "",
+    }));
+}
+
 export const sendMonthlyRinkUtilizationReport = onSchedule("0 2 1 * *", async () => {
   const db = getFirestore();
   const clubsSnap = await db.collection("clubs").get();
@@ -485,17 +633,20 @@ export const sendMonthlyRinkUtilizationReport = onSchedule("0 2 1 * *", async ()
     const timezone = (club?.timezone as string | undefined) ?? "Europe/Bratislava";
     const { start, end, label } = previousMonthRange(timezone);
 
-    const rows = await buildMonthlyUtilizationRows(db, clubDoc.id, start, end);
+    const nameById = await buildNameById(db, clubDoc.id);
+    const rows = await buildMonthlyUtilizationRows(db, clubDoc.id, start, end, nameById);
+    const freeIceRows = await buildMonthlyFreeIceRows(db, clubDoc.id, start, end, nameById);
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Rezervacie");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(freeIceRows), "Volny lad");
     const base64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string;
 
     await db.collection("mail").add({
       to: toEmail,
       message: {
         subject: `Mesačný výkaz využitia ľadu – ${label}`,
-        html: `<p>V prílohe nájdete prehľad všetkých rezervácií ľadu za mesiac ${label} (${rows.length} záznamov), jeden riadok na udalosť.</p>`,
+        html: `<p>V prílohe nájdete prehľad všetkých rezervácií ľadu za mesiac ${label} (${rows.length} záznamov) a zoznam vtedy ponúkaného voľného ľadu (${freeIceRows.length} záznamov), jeden riadok na udalosť.</p>`,
       },
       attachments: [
         {

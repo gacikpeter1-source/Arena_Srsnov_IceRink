@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
 import { cancelFreeIceSlotRepeat, createFreeIceSlot, deleteFreeIceSlot, fetchFreeIceSlots, startFreeIceSlotRepeat } from '@/lib/freeIceSlots'
-import { fetchBookingsInRange } from '@/lib/bookings'
+import { fetchBookingsInRange, isPastAdminVisibilityCutoffByEndTime } from '@/lib/bookings'
 import { formatDateISO, localizedName } from '@/lib/utils'
 import { Booking, FreeIceSlot } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,7 +63,12 @@ export default function FreeIceSlotsPage() {
     if (!club) return
     setLoading(true)
     fetchFreeIceSlots(club.id)
-      .then(setSlots)
+      .then((fetched) =>
+        // Same 1-hour-past-end admin visibility cutoff as RinkSchedulePage.tsx
+        // — display-only, the underlying doc stays in Firestore (see
+        // CLAUDE.md's "Admin visibility cutoff / data retention" section).
+        setSlots(fetched.filter((s) => !isPastAdminVisibilityCutoffByEndTime(s.date, s.endTime, club.timezone)))
+      )
       .finally(() => setLoading(false))
   }
 

@@ -3370,6 +3370,49 @@ raised as a future possibility but explicitly not asked for in this pass
 — could reuse the same query/shaping instead of re-deriving it; the only
 new thing that view would need is its own rendering.
 
+**Follow-up: the same two-part treatment (admin visibility cutoff + 60-day
+hard-delete) extended to `FreeIceSlot`, and that collection added to the
+monthly report as a second sheet.** The club wanted `/admin/volne-lady`
+("zoznam voľných ľadov") to behave exactly like `/admin/rozvrh` — a
+one-off listing had no cutoff and no cleanup at all before this, and just
+accumulated forever. `isPastAdminVisibilityCutoffByEndTime` (`lib/
+bookings.ts`) is a FreeIceSlot-shaped sibling of `isPastAdminVisibilityCutoff`
+— sharing the same `ADMIN_VISIBILITY_CUTOFF_HOURS` cutoff and underlying
+check, just taking a `FreeIceSlot`'s own explicit `endTime` directly
+instead of deriving one from `startTime` + `durationMinutes` the way a
+`Booking` does — applied in `FreeIceSlotsPage.tsx`'s own `refresh()`.
+`cleanupOldFreeIceSlots` (`functions/src/index.ts`, `onSchedule("every 24
+hours")`) mirrors `cleanupOldBookings`, sharing the same `DATA_RETENTION_DAYS`
+(60, renamed from `BOOKING_RETENTION_DAYS` now that two collections share
+it) — but since `FreeIceSlot` has no `startAtUtc` to filter on server-side,
+and no per-club composite index would help here anyway, this job does a
+full collection scan with an in-memory `zonedTimeToUtc` check per doc
+(ported into `functions/src/index.ts` as a standalone copy of `lib/
+ics.ts`'s own function, since `functions/` is a separate TypeScript project
+from `src/` and can't import across that boundary) — acceptable since this
+collection stays small per club. A `repeatWeekly` occurrence is rolled
+forward daily by `rollFreeIceSlotSeries` and so should never actually reach
+this cutoff in normal operation, but nothing here special-cases it, so a
+series that somehow went stale (e.g. its `cancelFreeIceSlotRepeat` call
+only partially completed) still ages out like any one-off slot.
+`makeTimezoneLookup` factors the per-club-timezone-with-cache lookup both
+this job and `rollFreeIceSlotSeries` need into one shared helper rather
+than each keeping its own inline copy.
+
+The monthly report gained a second workbook sheet, "Volny lad"
+(`buildMonthlyFreeIceRows`), listing every `FreeIceSlot` advertised for a
+date in the same previous-month range — one row per listing (Dátum/Od/Do/
+Hala/Zóna/Poznámka), same "one row per event, nothing merged" principle
+as the "Rezervacie" sheet. Kept as its own sheet rather than merged into
+the existing rows, since a `FreeIceSlot` isn't itself a real reservation —
+it's advertising copy for ice that was *offered*, not necessarily booked
+(see "Free ice import becomes the public booking source" above) — merging
+the two would conflate "what happened" with "what was available."
+`buildNameById` (rink/zone id → Slovak display name) was pulled out of
+`buildMonthlyUtilizationRows` into its own function specifically so both
+sheets' row-builders share one rinks/zones fetch per club instead of each
+querying separately.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 
