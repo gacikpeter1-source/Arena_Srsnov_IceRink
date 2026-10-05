@@ -2976,6 +2976,23 @@ Firefox do respect for the opened list — same reasoning as the closed
 box's own styling, just applied to the part of the control the parent's
 className doesn't reach.
 
+**Fixed: the native `<select>` dropdown-indicator icon (the small up/down
+chevron) rendered black on a real iOS phone**, a second, separate bug
+from the black-opened-option-list fix just above — that fix only covers
+the opened option list; the closed box's own indicator icon is a
+different rendering path. Browsers draw that chevron themselves using a
+fixed OS/browser color, not the element's `color` — Chromium already
+renders a visible (if slightly different) icon, but iOS Safari rendered
+it as a near-black glyph invisible against this app's dark select boxes.
+Since every `<select>` in this app (checked — there's no Radix/shadcn
+`Select` component in use, only raw native `<select>` elements)
+consistently sits on the same dark background, this was fixed once,
+globally, in `src/index.css` rather than per-component: a plain `select`
+base rule sets `appearance: none` and swaps in an inline white SVG
+chevron via `background-image`, with `padding-right: 2.5rem !important`
+reserving room for it (needed because turning off the native appearance
+also removes the native reserved space the old icon used to sit in).
+
 **"Zoznam voľných termínov" row format: day name first, then date, then
 time.** `FreeIceSlotsPage.tsx`'s list table previously led with the raw
 ISO date (`2026-10-07`) and no day-of-week at all, per an explicit
