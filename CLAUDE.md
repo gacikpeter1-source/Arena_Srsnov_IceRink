@@ -2935,6 +2935,22 @@ its own doc comment). The top-of-page form is now create-only again
 modal with that slot's values regardless of scroll position, closing on
 save or cancel.
 
+**"Zoznam voľných termínov" row format: day name first, then date, then
+time.** `FreeIceSlotsPage.tsx`'s list table previously led with the raw
+ISO date (`2026-10-07`) and no day-of-week at all, per an explicit
+"každý riadok začína menom dňa" request — a new leading "Deň" column
+(`dayName`, `Intl.DateTimeFormat(i18n.language, { weekday: 'long' })`,
+capitalized) now shows the localized weekday name, followed by the date
+reformatted to `d.m.yyyy` (`formatDMY`, built directly from the stored
+ISO string's own parts rather than via `Date` parsing — no UTC/local
+ambiguity to worry about for a pure string reformat), then time,
+Hala/Zóna/Poznámka unchanged. Deliberately `Intl`-localized to whichever
+language the admin UI is currently in, unlike the TV-board day-name
+arrays elsewhere in this app (`RinkScheduleBoardPage.tsx` etc.) — those
+stay fixed Slovak because a physical kiosk screen isn't something a
+viewer picks a language for, but this is a staff admin page where the
+viewer does.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
