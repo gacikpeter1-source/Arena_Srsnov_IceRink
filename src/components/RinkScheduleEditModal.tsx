@@ -200,7 +200,7 @@ export default function RinkScheduleEditModal({
                 className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
               >
                 {activeRinks.map((r) => (
-                  <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>
+                  <option key={r.id} value={r.id} className="bg-background-dark text-white">{localizedName(r, i18n.language)}</option>
                 ))}
               </select>
             </div>
@@ -208,7 +208,7 @@ export default function RinkScheduleEditModal({
               <Label className="text-white">{t('admin.zone')}</Label>
               <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
                 {zonesForRink.map((z) => (
-                  <option key={z.id} value={z.id}>{localizedName(z, i18n.language)}</option>
+                  <option key={z.id} value={z.id} className="bg-background-dark text-white">{localizedName(z, i18n.language)}</option>
                 ))}
               </select>
             </div>
