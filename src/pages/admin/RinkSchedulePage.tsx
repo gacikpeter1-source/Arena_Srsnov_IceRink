@@ -6,7 +6,8 @@ import {
   createRinkScheduleEntry,
   deleteRinkScheduleEntry,
   fetchRinkScheduleEntries,
-  fetchRinkScheduleOccurrences
+  fetchRinkScheduleOccurrences,
+  startRinkScheduleEntryRepeat
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking } from '@/lib/bookings'
@@ -227,6 +228,25 @@ export default function RinkSchedulePage() {
       }
     } finally {
       setCreating(false)
+    }
+  }
+
+  // d.m.yyyy, built directly from the stored ISO string's own parts — no
+  // UTC/local ambiguity for a pure string reformat, same technique
+  // FreeIceSlotsPage.tsx's own formatDMY already uses.
+  const formatDMY = (isoDate: string) => {
+    const [y, m, d] = isoDate.split('-')
+    return `${Number(d)}.${Number(m)}.${y}`
+  }
+
+  const handleStartRepeat = async (entry: RinkScheduleEntry & { id: string }) => {
+    if (!club) return
+    setBusyId(entry.id)
+    try {
+      await startRinkScheduleEntryRepeat(entry, club.timezone)
+      refresh()
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -559,7 +579,7 @@ export default function RinkSchedulePage() {
                           const awayRoomValue = entry.occurrenceAwayRooms?.[occurrence.id] ?? entry.awayRoom
                           return (
                             <tr key={occurrence.id} className="border-b border-border">
-                              <td className="py-2 pr-3 mono">{occurrence.date}{isSeries ? ` (${t('rinkSchedule.recurring')})` : ''}</td>
+                              <td className="py-2 pr-3 mono">{formatDMY(occurrence.date)}{isSeries ? ` (${t('rinkSchedule.recurring')})` : ''}</td>
                               <td className="py-2 pr-3 mono text-primary">{occurrence.startTime}</td>
                               <td className="py-2 pr-3">{rinkNameById.get(occurrence.rinkId) ?? occurrence.rinkId}</td>
                               <td className="py-2 pr-3">{zoneNameById.get(occurrence.zoneId) ?? occurrence.zoneId}</td>
@@ -576,6 +596,16 @@ export default function RinkSchedulePage() {
                                   >
                                     {t('common.edit')}
                                   </Button>
+                                  {!isSeries && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busyId === entry.id}
+                                      onClick={() => handleStartRepeat(entry)}
+                                    >
+                                      {t('rinkSchedule.repeat')}
+                                    </Button>
+                                  )}
                                   {isSeries ? (
                                     <Button
                                       size="sm"

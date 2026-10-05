@@ -1,6 +1,15 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase'
-import { createBooking, createBookingSeries, cancelBooking, fetchSeriesBookings, SeriesRecurrence } from './bookings'
+import {
+  createBooking,
+  createBookingSeries,
+  cancelBooking,
+  fetchSeriesBookings,
+  computeSeriesDates,
+  SeriesRecurrence,
+  SlotUnavailableError
+} from './bookings'
+import { generateToken } from './utils'
 import { Booking, RinkScheduleEntry } from '@/types'
 
 // A staff/trainer schedule of standing team-practice/public-skating
@@ -249,6 +258,83 @@ export async function rescheduleRinkScheduleOccurrence(
   if (Object.keys(entryUpdates).length > 0) {
     await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), entryUpdates)
   }
+}
+
+// Weekly default used by "Opakovať" on RinkSchedulePage.tsx's entries
+// table — a quick, no-extra-input way to turn an already-created single
+// entry into a recurring one, mirroring the same frequency/count the
+// create form's own "Repeat this booking" checkbox defaults to.
+export const RINK_SCHEDULE_QUICK_REPEAT: SeriesRecurrence = { type: 'count', frequency: 'weekly', count: 8 }
+
+/**
+ * Converts an existing single (non-recurring) entry into a recurring
+ * series, keeping its already-existing booking as occurrence 1 rather than
+ * recreating it — calling createBookingSeries directly from this entry's
+ * own date would try to create a brand-new booking for that exact slot too
+ * and silently skip it as already taken (see computeSeriesDates' own doc
+ * comment), losing the original occurrence from the result. Every later
+ * date is created the same way createBookingSeries creates its own
+ * occurrences: one at a time through the normal createBooking transaction,
+ * skipping (not failing on) a date someone else already has. A matching
+ * `bookingSeries` doc is written so this series looks identical to one
+ * created the normal way to any other code that reads that collection.
+ */
+export async function startRinkScheduleEntryRepeat(
+  entry: RinkScheduleEntry & { id: string },
+  timezone: string,
+  recurrence: SeriesRecurrence = RINK_SCHEDULE_QUICK_REPEAT
+): Promise<void> {
+  if (!entry.bookingId) throw new Error('This entry is already recurring')
+  const bookingRef = doc(db, 'bookings', entry.bookingId)
+  const bookingSnap = await getDoc(bookingRef)
+  if (!bookingSnap.exists()) throw new Error('This entry has no booking to repeat')
+  const booking = bookingSnap.data() as Booking
+
+  const dates = computeSeriesDates(entry.date, recurrence)
+  const seriesRef = doc(collection(db, 'bookingSeries'))
+
+  await updateDoc(bookingRef, { seriesId: seriesRef.id })
+
+  for (const date of dates.slice(1)) {
+    try {
+      await createBooking({
+        clubId: entry.clubId,
+        rinkId: entry.rinkId,
+        zoneId: entry.zoneId,
+        date,
+        startTime: entry.startTime,
+        durationMinutes: entry.durationMinutes,
+        name: entry.teamName,
+        email: booking.email,
+        phone: booking.phone,
+        timezone,
+        seriesId: seriesRef.id
+      })
+    } catch (err) {
+      if (!(err instanceof SlotUnavailableError)) throw err
+    }
+  }
+
+  await setDoc(seriesRef, {
+    clubId: entry.clubId,
+    rinkId: entry.rinkId,
+    zoneId: entry.zoneId,
+    frequency: recurrence.frequency,
+    dayOfWeek: new Date(`${entry.date}T00:00:00`).getDay(),
+    startTime: entry.startTime,
+    durationMinutes: entry.durationMinutes,
+    name: entry.teamName,
+    email: booking.email,
+    phone: booking.phone,
+    cancellationToken: generateToken(),
+    tokenExpiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    createdAt: serverTimestamp()
+  })
+
+  await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), {
+    bookingId: deleteField(),
+    seriesId: seriesRef.id
+  })
 }
 
 export async function fetchRinkScheduleEntries(clubId: string): Promise<(RinkScheduleEntry & { id: string })[]> {
