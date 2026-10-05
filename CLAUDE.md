@@ -1121,6 +1121,34 @@ directly by mode without consulting `DivisionRule` at all. If a club later
 wants customers to book a lengthwise half directly via `/book`, that would
 need its own `DivisionRule` (same script-only limitation as zones today).
 
+**Update: the `halfLengthwise` zones were removed; the real half/third
+zones were renamed to match how staff actually refer to the ice.** A club
+request to rename zones to match the physical layout staff actually use
+day to day (relative to the "Rolbovňa" ice-resurfacer bay and the rink's
+scoreboard) also included dropping `halfLengthwise` entirely — it was
+never reachable from `/book` (see above) and the club doesn't use that
+split in practice. Both rinks' `*-halflengthwise-0`/`*-halflengthwise-1`
+`Zone` docs were deleted (via the same one-off Admin-SDK script pattern,
+run dry-run first, checking every collection that stores a raw `zoneId`
+— `bookings`, `bookingSeries`, `rinkScheduleEntries`, `freeIceSlots`,
+`tournamentMatches`, `slotLocks` — for live references before deleting;
+the only hit was a single already-past, already-orphaned `slotLocks` doc
+whose own `bookingId` no longer resolved to a real `Booking`, cleaned up
+alongside the zones rather than treated as a blocker, same "orphaned docs
+left in place, harmless" precedent documented elsewhere in this file). The
+remaining `half-a`/`half-b`/`third-1`/`third-2`/`third-3` zones (on both
+`main-hall` and `small-hall` — identical rename on both, per explicit
+confirmation that the physical orientation is the same on both rinks)
+were renamed on both their English `name` and Slovak `translations.sk`:
+Half A → "Half – Resurfacer Side" / "Polovica k Rolbovni", Half B →
+"Half – Scoreboard Side" / "Polovica k Tabuli", Third 1 → "Third –
+Scoreboard Side" / "Tretina k Tabuli", Third 2 → "Middle Third" /
+"Stredná Tretina", Third 3 → "Third – Resurfacer Side" / "Tretina k
+Rolbovni" — the English names are this session's own translation of the
+Slovak phrasing the club actually asked for (there was no existing
+English equivalent to preserve, unlike a normal translation edit via
+`scripts/translate-rinks-zones.mjs`). `*-full` zones were untouched.
+
 **Blocking real ice is a per-match choice, not automatic.** A tournament
 might run entirely on the club's own ice, or on a different surface this
 app doesn't manage a calendar for at all (a hokejbal/football pitch) —
