@@ -1,6 +1,13 @@
-import { collection, deleteDoc, deleteField, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './firebase'
 import { FreeIceSlot } from '@/types'
+import { addDays, formatDateISO } from './utils'
+
+// Kept in sync with functions/src/index.ts's own copy of this constant
+// (rollFreeIceSlotSeries) — both sides need to agree on how many
+// occurrences a "repeating" series keeps alive in the future.
+export const FREE_ICE_REPEAT_OCCURRENCES = 4
+const FREE_ICE_REPEAT_INTERVAL_DAYS = 7
 
 // Staff-curated "free ice available to rent" listing — see FreeIceSlot in
 // src/types/index.ts for why this is a separate, plain CRUD collection
@@ -49,6 +56,75 @@ export async function updateFreeIceSlot(id: string, fields: FreeIceSlotFields): 
 
 export async function deleteFreeIceSlot(id: string): Promise<void> {
   await deleteDoc(doc(db, 'freeIceSlots', id))
+}
+
+// Turns an existing one-off slot into occurrence 1 of a new weekly-repeating
+// series: FREE_ICE_REPEAT_OCCURRENCES - 1 sibling docs are created at
+// +7/+14/... days, all sharing a freshly-minted seriesId, and the slot
+// itself is stamped with the same seriesId. From here, rollFreeIceSlotSeries
+// (functions/src/index.ts) is what actually keeps the series alive week
+// over week — this call only ever establishes the initial window.
+export async function startFreeIceSlotRepeat(slot: FreeIceSlot & { id: string }): Promise<void> {
+  const seriesId = doc(collection(db, 'freeIceSlots')).id
+  const batch = writeBatch(db)
+  batch.update(doc(db, 'freeIceSlots', slot.id), { repeatWeekly: true, seriesId })
+  const baseDate = new Date(`${slot.date}T00:00:00`)
+  for (let i = 1; i < FREE_ICE_REPEAT_OCCURRENCES; i++) {
+    const occurrenceDate = formatDateISO(addDays(baseDate, i * FREE_ICE_REPEAT_INTERVAL_DAYS))
+    const ref = doc(collection(db, 'freeIceSlots'))
+    batch.set(ref, {
+      clubId: slot.clubId,
+      rinkId: slot.rinkId,
+      zoneId: slot.zoneId,
+      date: occurrenceDate,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      ...(slot.note ? { note: slot.note } : {}),
+      createdBy: slot.createdBy,
+      createdByName: slot.createdByName,
+      createdAt: serverTimestamp(),
+      repeatWeekly: true,
+      seriesId
+    })
+  }
+  await batch.commit()
+}
+
+// Stops a repeating series. Per explicit product confirmation, "cancel"
+// really means cancel: every occurrence dated today or later that ISN'T
+// already booked is deleted outright, so it stops being offered on /book
+// and the TV boards immediately. An already-booked future occurrence can't
+// be un-rented by this action (the real Booking is a separate doc,
+// untouched either way) — it's instead demoted to a plain one-off slot
+// (repeatWeekly/seriesId stripped) so rollFreeIceSlotSeries simply stops
+// tracking it as part of a live series, rather than deleting a slot a
+// customer is relying on. Past occurrences are left alone — once
+// repeatWeekly is gone nothing rolls them forward any more, so there's
+// nothing left to decide about them. `bookedKeys` is the caller's own
+// already-fetched set of `${rinkId}__${zoneId}__${date}__${startTime}`
+// keys for real (confirmed/pending) bookings, reused rather than this
+// function re-querying `bookings` itself.
+export async function cancelFreeIceSlotRepeat(
+  clubId: string,
+  seriesId: string,
+  bookedKeys: Set<string>
+): Promise<void> {
+  const today = formatDateISO(new Date())
+  const snap = await getDocs(
+    query(collection(db, 'freeIceSlots'), where('clubId', '==', clubId), where('seriesId', '==', seriesId))
+  )
+  const batch = writeBatch(db)
+  for (const d of snap.docs) {
+    const slot = { id: d.id, ...d.data() } as FreeIceSlot & { id: string }
+    if (slot.date < today) continue
+    const key = `${slot.rinkId}__${slot.zoneId}__${slot.date}__${slot.startTime}`
+    if (bookedKeys.has(key)) {
+      batch.update(d.ref, { repeatWeekly: deleteField(), seriesId: deleteField() })
+    } else {
+      batch.delete(d.ref)
+    }
+  }
+  await batch.commit()
 }
 
 export async function fetchFreeIceSlots(clubId: string): Promise<(FreeIceSlot & { id: string })[]> {
