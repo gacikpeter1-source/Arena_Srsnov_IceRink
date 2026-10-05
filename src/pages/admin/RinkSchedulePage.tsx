@@ -10,7 +10,7 @@ import {
   startRinkScheduleEntryRepeat
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
-import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking } from '@/lib/bookings'
+import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking, isPastAdminVisibilityCutoff } from '@/lib/bookings'
 import { formatDateISO, addDays, localizedName } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
@@ -276,20 +276,34 @@ export default function RinkSchedulePage() {
     }
   }
 
+  // An event already over for more than ADMIN_VISIBILITY_CUTOFF_HOURS stops
+  // showing on this page entirely — the underlying Booking is untouched (it
+  // stays in Firestore for the monthly report / the much-longer hard-delete
+  // cutoff, see CLAUDE.md), this is a display-only cutoff for this one list.
+  const timezone = club?.timezone ?? 'Europe/Bratislava'
+  const isStillVisible = (date: string, startTime: string, durationMinutes: number) =>
+    !isPastAdminVisibilityCutoff(date, startTime, durationMinutes, timezone)
+
   // Pre-filters each entry's occurrences once per render — an entry with
-  // zero real occurrences left is matched against its own original date/
-  // time/rink/name instead (nothing else to check it against), and an
-  // entry is only shown at all once at least one of its rows survives the
-  // filter, so a series with every occurrence filtered out doesn't leave a
-  // stray "delete series" row with nothing above it.
+  // zero real occurrences left (after both the age cutoff above and the
+  // quick filters below) is matched against its own original date/time/
+  // rink/name instead (nothing else to check it against, and only if that
+  // original slot itself isn't already aged out — otherwise there'd be
+  // nothing left worth showing a placeholder row for), and an entry is only
+  // shown at all once at least one of its rows survives, so a series with
+  // every occurrence filtered out doesn't leave a stray "delete series" row
+  // with nothing above it.
   const visibleEntries = entries
     .map((entry) => {
-      const occurrences = occurrencesByEntry.get(entry.id) ?? []
-      if (occurrences.length === 0) {
+      const liveOccurrences = (occurrencesByEntry.get(entry.id) ?? []).filter((occ) =>
+        isStillVisible(occ.date, occ.startTime, occ.durationMinutes)
+      )
+      if (liveOccurrences.length === 0) {
+        if (!isStillVisible(entry.date, entry.startTime, entry.durationMinutes)) return null
         const matches = matchesFilters({ date: entry.date, startTime: entry.startTime, rinkId: entry.rinkId, name: entry.teamName })
-        return matches ? { entry, occurrences } : null
+        return matches ? { entry, occurrences: liveOccurrences } : null
       }
-      const filteredOccurrences = occurrences.filter((occ) =>
+      const filteredOccurrences = liveOccurrences.filter((occ) =>
         matchesFilters({ date: occ.date, startTime: occ.startTime, rinkId: occ.rinkId, name: occ.name })
       )
       return filteredOccurrences.length > 0 ? { entry, occurrences: filteredOccurrences } : null
