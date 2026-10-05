@@ -3413,6 +3413,40 @@ the two would conflate "what happened" with "what was available."
 sheets' row-builders share one rinks/zones fetch per club instead of each
 querying separately.
 
+**Manual, on-demand export with the same filter criteria, alongside the
+automatic monthly one.** An owner also wanted to generate a report like
+this themselves, for an arbitrary date range plus rink/zone/name criteria
+— not just wait for the 1st of the month. `AdminDashboardPage.tsx`'s
+existing reservations table/export already had the date range (`dateFrom`/
+`dateTo`); it gained a second filter row — rink (exact match), zone (exact
+match, options scoped to the selected rink), and name (case-insensitive
+substring) — same "quick filters narrow both the on-screen list and what
+gets exported" pattern `RinkSchedulePage.tsx`'s own filters already
+established, reusing its `rinkSchedule.filterName`/`clearFilters`/
+`noneFiltered` i18n keys rather than duplicating them. `handleExport` now
+passes the filtered array (`filteredBookings`, not the raw `bookings`
+fetched for the date range) into the existing `exportBookingsToExcel` —
+no new export function needed, since that function already just writes
+out whatever booking array it's given. The zone `<select>`'s options
+exclude legacy `Zone` docs with no `rinkId` at all (pre-dating the
+multiple-rinks feature, left in place as harmless orphans — see
+"Multiple rinks" above) — including them crashed the options list's own
+sort, since grouping/sorting by rink assumes every zone has one.
+
+Verifying this surfaced a real, pre-existing latent bug in
+`refreshBookings` (unrelated to the new filters themselves): its
+`fetchBookingsInRange(...).then(setBookings)` had no guard against an
+older in-flight request's response landing *after* a newer one (e.g.
+changing the date range right after the page loads, or clicking "Tento
+týždeň" twice quickly) — the slower, stale response could silently
+overwrite the newer, correct `bookings` state. Harmless before (the table
+would just flicker to an older range momentarily), but worth closing now
+that a manual export depends on that same state actually being right at
+the moment "Export" is clicked. Fixed with a plain `latestRequestRef`
+(a `clubId|dateFrom|dateTo` key) that every `.then`/`.catch`/`.finally`
+callback checks against before touching state — a response for a request
+that's no longer the latest one is simply dropped.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 

@@ -28,6 +28,15 @@ export default function AdminDashboardPage() {
   const [dateFrom, setDateFrom] = useState(formatDateISO(new Date()))
   const [dateTo, setDateTo] = useState(formatDateISO(new Date()))
   const [bookings, setBookings] = useState<(Booking & { id: string })[]>([])
+  // Manual-export filter criteria, on top of the date range above — rink/
+  // zone exact match, name a case-insensitive substring — applied to both
+  // the on-screen table and the Excel export, so "Export" always exports
+  // exactly what's currently shown. Same pattern RinkSchedulePage.tsx's own
+  // quick filters already use.
+  const [filterRinkId, setFilterRinkId] = useState('')
+  const [filterZoneId, setFilterZoneId] = useState('')
+  const [filterName, setFilterName] = useState('')
+  const hasActiveFilter = !!(filterRinkId || filterZoneId || filterName)
   const [loading, setLoading] = useState(true)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -38,18 +47,49 @@ export default function AdminDashboardPage() {
 
   const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
   const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
+  const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
+  // Excludes legacy zone docs with no rinkId at all (pre-dating the
+  // multiple-rinks feature, left in place as harmless orphans — see
+  // CLAUDE.md's "Multiple rinks" section) — they can't usefully be shown
+  // grouped by rink, and no real Booking references them any more anyway.
+  const zonesForFilterRink = zones
+    .filter((z) => z.rinkId && (!filterRinkId || z.rinkId === filterRinkId))
+    .sort((a, b) => (a.rinkId === b.rinkId ? a.slotIndex - b.slotIndex : a.rinkId.localeCompare(b.rinkId)))
+
+  const filteredBookings = bookings.filter((b) => {
+    if (filterRinkId && b.rinkId !== filterRinkId) return false
+    if (filterZoneId && b.zoneId !== filterZoneId) return false
+    if (filterName && !b.name.toLowerCase().includes(filterName.trim().toLowerCase())) return false
+    return true
+  })
+
+  // Guards against an older in-flight fetchBookingsInRange response landing
+  // AFTER a newer one (e.g. staff changes the date range right after this
+  // page loads, or clicks "Táto týždeň" twice quickly) — without this, the
+  // slower/older response could overwrite the newer, correct `bookings`
+  // state, which would silently narrow or wrong-date what the manual
+  // export below actually writes out.
+  const latestRequestRef = useRef<string | null>(null)
 
   const refreshBookings = () => {
     if (!club) return
+    const requestKey = `${club.id}|${dateFrom}|${dateTo}`
+    latestRequestRef.current = requestKey
     setLoading(true)
     setBookingsError(null)
     fetchBookingsInRange(club.id, dateFrom, dateTo)
-      .then(setBookings)
+      .then((result) => {
+        if (latestRequestRef.current !== requestKey) return
+        setBookings(result)
+      })
       .catch((err) => {
+        if (latestRequestRef.current !== requestKey) return
         console.error('Error fetching bookings:', err)
         setBookingsError(t('common.error'))
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (latestRequestRef.current === requestKey) setLoading(false)
+      })
   }
 
   useEffect(() => {
@@ -97,7 +137,7 @@ export default function AdminDashboardPage() {
   }
 
   const handleExport = () => {
-    exportBookingsToExcel(bookings, rinks, zones, `bookings_${dateFrom}_to_${dateTo}.xlsx`)
+    exportBookingsToExcel(filteredBookings, rinks, zones, `bookings_${dateFrom}_to_${dateTo}.xlsx`)
   }
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,7 +259,7 @@ export default function AdminDashboardPage() {
             <Button onClick={() => setShowCreate(true)} className="bg-primary hover:bg-primary-gold text-primary-foreground">
               {t('admin.newReservation')}
             </Button>
-            <Button variant="outline" onClick={handleExport} disabled={bookings.length === 0}>
+            <Button variant="outline" onClick={handleExport} disabled={filteredBookings.length === 0}>
               {t('admin.exportExcel')}
             </Button>
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importing}>
@@ -235,6 +275,66 @@ export default function AdminDashboardPage() {
               className="hidden"
               onChange={handleImportFile}
             />
+          </div>
+
+          {/* Manual-export filter criteria (on top of the date range above):
+              rink/zone exact match, name a substring — narrows both the
+              table below and what "Export" actually writes out. */}
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-3 pb-4 border-b border-border">
+            <div className="min-w-[160px]">
+              <Label className="text-white">{t('admin.rink')}</Label>
+              <select
+                value={filterRinkId}
+                onChange={(e) => {
+                  setFilterRinkId(e.target.value)
+                  setFilterZoneId('')
+                }}
+                className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+              >
+                <option value="" className="bg-background-dark text-white">{t('booking.allRinks')}</option>
+                {activeRinks.map((r) => (
+                  <option key={r.id} value={r.id} className="bg-background-dark text-white">{localizedName(r, i18n.language)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[160px]">
+              <Label className="text-white">{t('admin.zone')}</Label>
+              <select
+                value={filterZoneId}
+                onChange={(e) => setFilterZoneId(e.target.value)}
+                className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+              >
+                <option value="" className="bg-background-dark text-white">{t('admin.allZones')}</option>
+                {zonesForFilterRink.map((z) => (
+                  <option key={z.id} value={z.id} className="bg-background-dark text-white">
+                    {rinkNameById.get(z.rinkId) ?? z.rinkId} · {localizedName(z, i18n.language)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <Label className="text-white">{t('rinkSchedule.filterName')}</Label>
+              <Input
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder={t('rinkSchedule.filterNamePlaceholder')}
+                className="bg-background-dark border-border text-white"
+              />
+            </div>
+            {hasActiveFilter && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setFilterRinkId('')
+                  setFilterZoneId('')
+                  setFilterName('')
+                }}
+              >
+                {t('rinkSchedule.clearFilters')}
+              </Button>
+            )}
           </div>
 
           <p className="text-text-muted text-xs">{t('admin.importHint')}</p>
@@ -256,6 +356,8 @@ export default function AdminDashboardPage() {
             <p className="text-status-danger">{bookingsError}</p>
           ) : bookings.length === 0 ? (
             <p className="text-text-muted">{t('admin.noBookingsInRange')}</p>
+          ) : filteredBookings.length === 0 ? (
+            <p className="text-text-muted">{t('rinkSchedule.noneFiltered')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -273,7 +375,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {bookings.map((b) => (
+                  {filteredBookings.map((b) => (
                     <tr key={b.id} className="border-b border-border">
                       <td className="py-2 pr-3 mono">{b.date}</td>
                       <td className="py-2 pr-3 mono text-primary">{b.startTime}</td>
