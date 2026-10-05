@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
-import { createFreeIceSlot, deleteFreeIceSlot, fetchFreeIceSlots, updateFreeIceSlot } from '@/lib/freeIceSlots'
+import { createFreeIceSlot, deleteFreeIceSlot, fetchFreeIceSlots } from '@/lib/freeIceSlots'
 import { formatDateISO, localizedName } from '@/lib/utils'
 import { FreeIceSlot } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom'
 import BackButton from '@/components/BackButton'
 import QrCodeDisplay from '@/components/QrCodeDisplay'
 import FreeIceImportPanel from '@/components/FreeIceImportPanel'
+import FreeIceSlotEditModal from '@/components/FreeIceSlotEditModal'
 
 /**
  * Staff tool for the "free ice available to rent" listing (see FreeIceSlot
@@ -38,8 +39,7 @@ export default function FreeIceSlotsPage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  const editFormRef = useRef<HTMLDivElement>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingSlot, setEditingSlot] = useState<(FreeIceSlot & { id: string }) | null>(null)
   const [rinkId, setRinkId] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [date, setDate] = useState(formatDateISO(new Date()))
@@ -79,26 +79,10 @@ export default function FreeIceSlotsPage() {
   }, [zonesForRink])
 
   const resetForm = () => {
-    setEditingId(null)
     setDate(formatDateISO(new Date()))
     setStartTime('06:00')
     setEndTime('07:00')
     setNote('')
-  }
-
-  const handleEdit = (slot: FreeIceSlot & { id: string }) => {
-    setEditingId(slot.id)
-    setRinkId(slot.rinkId)
-    setZoneId(slot.zoneId)
-    setDate(slot.date)
-    setStartTime(slot.startTime)
-    setEndTime(slot.endTime)
-    setNote(slot.note ?? '')
-    // The edit form lives in a card near the top of a long page — on a list
-    // further down (the common case once there are many slots), nothing
-    // visibly changes on click without this, so it looks like "Upraviť"
-    // does nothing at all even though the form is correctly populated.
-    editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,12 +91,7 @@ export default function FreeIceSlotsPage() {
     setSaving(true)
     setError(null)
     try {
-      const fields = { rinkId, zoneId, date, startTime, endTime, note: note.trim() || undefined }
-      if (editingId) {
-        await updateFreeIceSlot(editingId, fields)
-      } else {
-        await createFreeIceSlot({ ...fields, clubId: club.id, createdBy: user.uid, createdByName: staff.name })
-      }
+      await createFreeIceSlot({ rinkId, zoneId, date, startTime, endTime, note: note.trim() || undefined, clubId: club.id, createdBy: user.uid, createdByName: staff.name })
       resetForm()
       refresh()
     } catch {
@@ -127,7 +106,6 @@ export default function FreeIceSlotsPage() {
     setBusyId(slot.id)
     try {
       await deleteFreeIceSlot(slot.id)
-      if (editingId === slot.id) resetForm()
       refresh()
     } finally {
       setBusyId(null)
@@ -177,9 +155,9 @@ export default function FreeIceSlotsPage() {
         </CardContent>
       </Card>
 
-      <Card className="arena-card" ref={editFormRef}>
+      <Card className="arena-card">
         <CardHeader>
-          <CardTitle className="text-white text-lg">{editingId ? t('freeIce.editSlot') : t('freeIce.newSlot')}</CardTitle>
+          <CardTitle className="text-white text-lg">{t('freeIce.newSlot')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-4">
@@ -218,13 +196,8 @@ export default function FreeIceSlotsPage() {
             </div>
             <div className="sm:col-span-4 flex gap-2">
               <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary-gold text-primary-foreground">
-                {saving ? t('common.saving') : editingId ? t('common.save') : t('freeIce.addSlot')}
+                {saving ? t('common.saving') : t('freeIce.addSlot')}
               </Button>
-              {editingId && (
-                <Button type="button" variant="outline" onClick={resetForm}>
-                  {t('common.cancel')}
-                </Button>
-              )}
             </div>
           </form>
         </CardContent>
@@ -273,7 +246,7 @@ export default function FreeIceSlotsPage() {
                       <td className="py-2 pr-3 text-text-secondary">{slot.note ?? '—'}</td>
                       <td className="py-2 pr-3">
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" disabled={busyId === slot.id} onClick={() => handleEdit(slot)}>
+                          <Button size="sm" variant="outline" disabled={busyId === slot.id} onClick={() => setEditingSlot(slot)}>
                             {t('common.edit')}
                           </Button>
                           <Button size="sm" variant="destructive" disabled={busyId === slot.id} onClick={() => handleDelete(slot)}>
@@ -289,6 +262,16 @@ export default function FreeIceSlotsPage() {
           )}
         </CardContent>
       </Card>
+      {editingSlot && (
+        <FreeIceSlotEditModal
+          rinks={rinks}
+          zones={zones}
+          slot={editingSlot}
+          isOpen={!!editingSlot}
+          onClose={() => setEditingSlot(null)}
+          onSaved={refresh}
+        />
+      )}
     </div>
   )
 }

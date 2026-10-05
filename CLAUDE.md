@@ -2922,10 +2922,18 @@ button that triggers edit mode is a per-row action in the slot list
 further down, which on a real club's data (dozens of rows) is well below
 the fold. Clicking it silently updated an off-screen form with no visible
 change at the click site, reading as "nothing happened" rather than "now
-editing." Fixed with a `ref` on the form's `Card` and
-`scrollIntoView({ behavior: 'smooth', block: 'start' })` inside
-`handleEdit`, so clicking "Upraviť" now visibly scrolls up to the
-populated form instead of silently updating off-screen.
+editing." First fix attempt scrolled the same inline form into view on
+edit; per explicit follow-up feedback ("radšej popup okno... rovnaký
+princip je pri úprave rozvrhu") that was replaced with a real modal
+instead — `FreeIceSlotEditModal.tsx`, mirroring
+`RinkScheduleEditModal.tsx`'s own pattern for the sibling rink-schedule
+domain (same `Dialog` primitives, same per-field layout), minus that
+modal's conflict-detection (this page never had any to begin with — see
+its own doc comment). The top-of-page form is now create-only again
+(`handleSubmit` always calls `createFreeIceSlot`, no more
+`editingId`-driven dual mode); clicking "Upraviť" on a row opens the
+modal with that slot's values regardless of scroll position, closing on
+save or cancel.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
