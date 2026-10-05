@@ -48,18 +48,23 @@ export function isPastCancellationCutoff(date: string, startTime: string, timezo
   return new Date() >= cutoff
 }
 
-// How long after a booking's own end time it stays visible in an admin
-// management list (currently just RinkSchedulePage.tsx's occurrences table)
-// before being hidden from that UI — the underlying Booking doc itself is
-// untouched, it just stops being rendered, so it's still there for
-// e.g. the monthly utilization report (see functions/src/index.ts's
-// sendMonthlyRinkUtilizationReport) until the separate, much longer
-// BOOKING_RETENTION_DAYS hard-delete cutoff in that same file catches up
-// to it. See CLAUDE.md's "Admin visibility cutoff / data retention"
-// section for the full rationale.
+// How long after something's own end time it stays visible in an admin
+// management list (RinkSchedulePage.tsx's occurrences table and
+// FreeIceSlotsPage.tsx's listing) before being hidden from that UI — the
+// underlying Booking/FreeIceSlot doc itself is untouched, it just stops
+// being rendered, so it's still there for e.g. the monthly utilization
+// report (see functions/src/index.ts's sendMonthlyRinkUtilizationReport)
+// until the separate, much longer DATA_RETENTION_DAYS hard-delete cutoff
+// in that same file catches up to it. See CLAUDE.md's "Admin visibility
+// cutoff / data retention" section for the full rationale.
 export const ADMIN_VISIBILITY_CUTOFF_HOURS = 1
 
-/** True once a booking's own end time is more than ADMIN_VISIBILITY_CUTOFF_HOURS in the past. */
+function isPastAdminVisibilityCutoffUtc(endUtc: Date): boolean {
+  const cutoff = new Date(endUtc.getTime() + ADMIN_VISIBILITY_CUTOFF_HOURS * 60 * 60 * 1000)
+  return new Date() >= cutoff
+}
+
+/** True once a Booking's own end time (start + durationMinutes) is more than ADMIN_VISIBILITY_CUTOFF_HOURS in the past. */
 export function isPastAdminVisibilityCutoff(
   date: string,
   startTime: string,
@@ -68,8 +73,15 @@ export function isPastAdminVisibilityCutoff(
 ): boolean {
   const startUtc = zonedTimeToUtc(date, startTime, timezone)
   const endUtc = new Date(startUtc.getTime() + durationMinutes * 60_000)
-  const cutoff = new Date(endUtc.getTime() + ADMIN_VISIBILITY_CUTOFF_HOURS * 60 * 60 * 1000)
-  return new Date() >= cutoff
+  return isPastAdminVisibilityCutoffUtc(endUtc)
+}
+
+/**
+ * Same cutoff, for a FreeIceSlot — which stores its own explicit `endTime`
+ * rather than a duration, unlike Booking.
+ */
+export function isPastAdminVisibilityCutoffByEndTime(date: string, endTime: string, timezone: string): boolean {
+  return isPastAdminVisibilityCutoffUtc(zonedTimeToUtc(date, endTime, timezone))
 }
 
 function slotLockId(clubId: string, zoneId: string, date: string, startTime: string) {
