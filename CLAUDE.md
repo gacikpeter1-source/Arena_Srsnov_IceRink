@@ -2579,6 +2579,88 @@ triggered retroactively). The button only shows on a non-recurring row
 "Zmazať celú sériu" actions already cover canceling one occurrence or the
 whole thing, so no separate "cancel repeat" action was needed.
 
+### Indefinite repeat ("donekonečna") — a genuinely different recurrence shape
+
+Every recurrence built so far (the create form's count/until-date choice,
+and `startRinkScheduleEntryRepeat` above) is **bounded**: a fixed list of
+dates is computed once and every occurrence is created up front. A club
+asked for a standing weekly slot with no end date at all — not "52 weeks,
+renew annually," a genuine never-ending repeat, same shape as a real
+standing booking. Since there's no fixed count to compute dates from,
+this can't reuse `createBookingSeries`/`computeSeriesDates`'s "create
+them all now" approach — the create form's recurrence-type picker gained
+a third option, "Donekonečna" (`recurrenceType: 'forever'`), alongside
+the existing count/until-date ones.
+
+**No `BookingSeries` doc.** `RinkScheduleEntry.repeatForever?: boolean`
+(plus `frequency` — daily/weekly, same as any other series) marks an
+entry this way; occurrences still share a `seriesId`, but nothing creates
+a `bookingSeries` doc for it, since there's no fixed recurrence to
+describe and nothing already reads one back for a `RinkScheduleEntry`
+anyway (`fetchRinkScheduleOccurrences` always re-queries live `Booking`
+docs by `seriesId` directly). `createRinkScheduleEntry` creates just the
+*initial* `RINK_SCHEDULE_FOREVER_WINDOW` (8, matching the existing
+`RINK_SCHEDULE_QUICK_REPEAT` default) occurrences via the ordinary
+`createBooking` transaction, same skip-don't-fail-on-collision loop every
+other series-creation path here already uses.
+
+**`topUpForeverRinkScheduleEntries`** (`functions/src/index.ts`,
+`onSchedule("every 24 hours")`) is what actually sustains the window
+forever — the real "ratajme s ďalšou možnosťou" piece this needed.
+Mirrors `rollFreeIceSlotSeries`'s "fixed-size rolling window" shape but
+can't reuse its mechanism: a `FreeIceSlot` is just advertising copy, so
+rolling its `date` field in place is risk-free, while a
+`RinkScheduleEntry` occurrence is a **real ice reservation** — adding one
+has to go through the same atomic check-and-reserve transaction
+`createBooking`'s client-side version uses. `createBookingAdmin` is an
+Admin-SDK port of that exact transaction (plus ported, Web-Crypto-based
+copies of `generateToken`/`generateConfirmationCode` — not `Math.random()`,
+same reasoning the training domain's own cancellationToken rewrite
+already established). For each `repeatForever` entry, the job counts
+*active* (non-cancelled/non-expired) occurrences dated today or later; if
+that's below the window size, it creates enough more — stepping forward
+from whichever date is latest among *every* occurrence the series ever
+had (cancelled or not, so a freed-up gap is never reused) — to restore
+the full count. Counting only active occurrences specifically means
+cancelling one via "Zrušiť tento termín" (still fully functional, same as
+any other series — see below) genuinely frees a window slot: the next
+run backfills a new occurrence further out rather than just letting the
+count sit at 7, matching "maximálne 8 udalostí naplánované" literally (8
+*planned* events, not 8 dates reserved regardless of cancellation). A new
+occurrence's `email`/`phone` are read off an existing occurrence's own
+Booking doc (same as `startRinkScheduleEntryRepeat` already does)
+rather than stored separately on the entry, since `RinkScheduleEntry`
+never persisted those fields itself to begin with.
+
+**Visibility and retention reuse the general mechanisms already built for
+every booking — no special-casing needed.** A past occurrence stops
+showing on this page the same way any other booking does, via the
+existing `ADMIN_VISIBILITY_CUTOFF_HOURS` (1 hour past end) display
+cutoff. For real deletion, though, a `repeatForever` entry needed an
+explicit **exception to the 2-hour `cleanupFinishedRinkScheduleEntries`
+job** (see below) — that job's "every occurrence gone → delete the entry
+too" logic would never naturally trigger for an entry that's
+perpetually topped back up, and 2 hours is far more aggressive than what
+this request actually asked for ("zmažú sa po 2 mesiacoch" — deleted
+after roughly 2 months, not 2 hours). `cleanupFinishedRinkScheduleEntries`
+now skips any entry with `repeatForever === true` outright; its old
+occurrence `Booking`s instead age out via the already-existing, much more
+lenient `cleanupOldBookings` (60-day) job that already covers every other
+booking in the app — no new deletion logic needed, just routing this one
+case to the job whose retention window actually matches what was asked
+for. The entry doc itself is consequently never auto-deleted (by design —
+it's meant to run forever) — only an explicit "Zmazať celú sériu" removes
+it, which already works unmodified for a `repeatForever` entry exactly as
+it does for a bounded one (cancels every current real occurrence, deletes
+the entry doc), and that deletion is what actually stops future top-ups —
+the entry simply stops matching the topup job's own
+`repeatForever == true` query once it's gone, no separate "stop
+repeating" flag or flow needed. "Zrušiť tento termín" (cancel just one
+occurrence) and editing/moving a single occurrence are both likewise
+already fully generic — neither has ever special-cased how a series was
+created, so both continue to work exactly as before for this new kind of
+series too.
+
 ### Automatic cleanup: finished rink-schedule bookings are hard-deleted
 
 An explicit, scoped exception to this app's usual "never hard-delete,

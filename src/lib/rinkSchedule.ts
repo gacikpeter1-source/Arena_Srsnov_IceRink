@@ -10,7 +10,7 @@ import {
   SlotUnavailableError
 } from './bookings'
 import { generateToken } from './utils'
-import { Booking, RinkScheduleEntry } from '@/types'
+import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
 
 // A staff/trainer schedule of standing team-practice/public-skating
 // blocks — see CLAUDE.md's "Rink team schedule" section for the full
@@ -20,6 +20,13 @@ import { Booking, RinkScheduleEntry } from '@/types'
 // customer (or another entry) already holds — a collision throws the
 // same SlotUnavailableError (see lib/bookings.ts) that flow already
 // surfaces, and the caller (RinkSchedulePage.tsx) shows it the same way.
+
+// How many real future occurrences a `repeatForever` entry keeps alive at
+// once — kept in sync with functions/src/index.ts's own copy of this
+// constant (topUpForeverRinkScheduleEntries, which is what actually
+// sustains the window week over week; this constant only governs the
+// *initial* window created here).
+export const RINK_SCHEDULE_FOREVER_WINDOW = 8
 
 export interface CreateRinkScheduleEntryInput {
   clubId: string
@@ -39,8 +46,12 @@ export interface CreateRinkScheduleEntryInput {
   startTime: string
   durationMinutes: number
   timezone: string
-  // Set to also create a recurring series instead of a single occurrence.
+  // Set to also create a recurring series instead of a single occurrence
+  // — mutually exclusive with repeatForeverFrequency below.
   recurrence?: SeriesRecurrence
+  // Set instead of `recurrence` for a daily/weekly repeat with no end at
+  // all — see RinkScheduleEntry.repeatForever's own doc comment.
+  repeatForeverFrequency?: SeriesFrequency
 }
 
 export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInput): Promise<string> {
@@ -75,6 +86,41 @@ export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInpu
       recurrence: input.recurrence
     })
     await setDoc(entryRef, { ...base, seriesId: series.seriesId })
+    return entryRef.id
+  }
+
+  if (input.repeatForeverFrequency) {
+    // No BookingSeries doc — there's no fixed count/end date to describe,
+    // and nothing here reads one back (fetchRinkScheduleOccurrences below
+    // always re-queries real Booking docs by seriesId directly). Loop the
+    // same way createBookingSeries does: one createBooking call per date,
+    // skipping (not failing on) a date someone else already has.
+    const seriesId = doc(collection(db, 'rinkScheduleEntries')).id
+    const dates = computeSeriesDates(input.date, {
+      type: 'count',
+      frequency: input.repeatForeverFrequency,
+      count: RINK_SCHEDULE_FOREVER_WINDOW
+    })
+    for (const date of dates) {
+      try {
+        await createBooking({
+          clubId: input.clubId,
+          rinkId: input.rinkId,
+          zoneId: input.zoneId,
+          date,
+          startTime: input.startTime,
+          durationMinutes: input.durationMinutes,
+          name: input.teamName,
+          email: input.createdByEmail,
+          phone: '',
+          timezone: input.timezone,
+          seriesId
+        })
+      } catch (err) {
+        if (!(err instanceof SlotUnavailableError)) throw err
+      }
+    }
+    await setDoc(entryRef, { ...base, seriesId, repeatForever: true, frequency: input.repeatForeverFrequency })
     return entryRef.id
   }
 

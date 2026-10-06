@@ -169,6 +169,18 @@ export const cleanupFinishedRinkScheduleEntries = onSchedule("every 30 minutes",
   for (const entryDoc of entriesSnap.docs) {
     const entry = entryDoc.data();
 
+    // A repeatForever entry (see RinkScheduleEntry's own doc comment in
+    // src/types/index.ts) is deliberately NOT covered by this 2-hour
+    // delete — topUpForeverRinkScheduleEntries below keeps creating new
+    // occurrences indefinitely, so "every occurrence gone" never
+    // naturally happens here, and the entry doc should never be deleted
+    // except by an explicit "Zmazať celú sériu". Its old occurrence
+    // Bookings still get cleaned up eventually, just by the much longer
+    // 60-day cleanupOldBookings job instead (matching what staff were
+    // actually told to expect for this mode: data stays ~2 months, not
+    // 2 hours).
+    if (entry.repeatForever === true) continue;
+
     if (typeof entry.bookingId === "string") {
       // Single, non-recurring entry — one real Booking doc to check.
       const bookingRef = db.doc(`bookings/${entry.bookingId}`);
@@ -370,14 +382,211 @@ export const rollFreeIceSlotSeries = onSchedule("every 24 hours", async () => {
   logger.info("Free ice slot series roll finished", { rolledCount, seriesCount: bySeries.size });
 });
 
+// Sustains a repeatForever RinkScheduleEntry's rolling window of real
+// future occurrences (see RinkScheduleEntry.repeatForever's own doc
+// comment in src/types/index.ts) — createRinkScheduleEntry only ever
+// creates the INITIAL RINK_SCHEDULE_FOREVER_WINDOW occurrences; this job
+// is what keeps topping it back up to that count, forever, as old ones
+// age past. Mirrors rollFreeIceSlotSeries's "fixed-size rolling window"
+// shape above, but can't reuse its mechanism: a FreeIceSlot is just
+// advertising copy (rolling its `date` field in place is risk-free),
+// while a RinkScheduleEntry occurrence is a REAL ice reservation — a new
+// one has to go through the exact same atomic check-and-reserve
+// transaction createBooking's client-side version uses, just
+// reimplemented here with the Admin SDK (functions/ is a separate
+// TypeScript project from src/, same reason zonedTimeToUtc above is a
+// ported standalone copy rather than an import).
+const RINK_SCHEDULE_FOREVER_WINDOW = 8; // keep in sync with src/lib/rinkSchedule.ts
+
+// Exact ports of src/lib/utils.ts's own generateToken/generateConfirmationCode
+// — real Web Crypto (available globally in the Node 20 runtime, no import
+// needed), not Math.random(), for the same reason this app's own training-
+// domain rewrite rejected a Math.random() cancellationToken as not
+// cryptographically secure (see CLAUDE.md's "Training reservations" section).
+function generateToken(length = 32): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint32Array(length);
+  crypto.getRandomValues(bytes);
+  let token = "";
+  for (let i = 0; i < length; i++) {
+    token += chars[bytes[i] % chars.length];
+  }
+  return token;
+}
+
+function generateConfirmationCode(): string {
+  const bytes = new Uint32Array(2);
+  crypto.getRandomValues(bytes);
+  const part1 = (bytes[0] % 1000).toString().padStart(3, "0");
+  const part2 = (bytes[1] % 1000).toString().padStart(3, "0");
+  return `${part1}-${part2}`;
+}
+
+// Admin-SDK port of createBooking's transaction (src/lib/bookings.ts) —
+// same atomic check-reclaim-reserve shape, just using Timestamp.now()
+// in place of serverTimestamp() and returning a plain boolean (false =
+// slot unavailable) instead of throwing a client-only SlotUnavailableError,
+// so the caller's retry loop below can stay a plain while-loop.
+async function createBookingAdmin(
+  db: FirebaseFirestore.Firestore,
+  input: {
+    clubId: string;
+    rinkId: string;
+    zoneId: string;
+    date: string;
+    startTime: string;
+    durationMinutes: number;
+    name: string;
+    email: string;
+    phone: string;
+    timezone: string;
+    seriesId: string;
+  }
+): Promise<boolean> {
+  const lockRef = db.doc(`slotLocks/${input.clubId}__${input.zoneId}__${input.date}__${input.startTime}`);
+  const bookingRef = db.collection("bookings").doc();
+  try {
+    await db.runTransaction(async (tx) => {
+      const lockSnap = await tx.get(lockRef);
+      if (lockSnap.exists) {
+        const expiresAt = lockSnap.data()?.expiresAt as Timestamp | undefined;
+        if (!expiresAt || expiresAt.toMillis() >= Date.now()) {
+          throw new Error("SLOT_UNAVAILABLE");
+        }
+      }
+      const confirmationCode = generateConfirmationCode();
+      const cancellationToken = generateToken();
+      const tokenExpiresAt = Timestamp.fromMillis(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+      tx.set(lockRef, {
+        clubId: input.clubId,
+        zoneId: input.zoneId,
+        date: input.date,
+        startTime: input.startTime,
+        bookingId: bookingRef.id,
+        createdAt: Timestamp.now(),
+      });
+
+      tx.set(bookingRef, {
+        clubId: input.clubId,
+        rinkId: input.rinkId,
+        zoneId: input.zoneId,
+        date: input.date,
+        startTime: input.startTime,
+        durationMinutes: input.durationMinutes,
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        seriesId: input.seriesId,
+        confirmationCode,
+        cancellationToken,
+        tokenExpiresAt,
+        startAtUtc: Timestamp.fromDate(zonedTimeToUtc(input.date, input.startTime, input.timezone)),
+        status: "confirmed",
+        createdAt: Timestamp.now(),
+      });
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof Error && err.message === "SLOT_UNAVAILABLE") return false;
+    throw err;
+  }
+}
+
+export const topUpForeverRinkScheduleEntries = onSchedule("every 24 hours", async () => {
+  const db = getFirestore();
+  const entriesSnap = await db.collection("rinkScheduleEntries").where("repeatForever", "==", true).get();
+  if (entriesSnap.empty) {
+    logger.info("Forever rink-schedule top-up: nothing to do");
+    return;
+  }
+
+  const timezoneFor = makeTimezoneLookup(db);
+  let createdTotal = 0;
+
+  for (const entryDoc of entriesSnap.docs) {
+    const entry = entryDoc.data();
+    const seriesId = entry.seriesId as string | undefined;
+    if (!seriesId) continue;
+    const frequency = entry.frequency === "daily" ? "daily" : "weekly";
+    const stepDays = frequency === "daily" ? 1 : 7;
+
+    const occSnap = await db.collection("bookings").where("seriesId", "==", seriesId).get();
+    const occurrences = occSnap.docs.map((d) => d.data());
+    if (occurrences.length === 0) {
+      // Shouldn't normally happen (creation always makes at least the
+      // first occurrence) — nothing to clone email/phone/dates from, so
+      // left alone rather than guessed at, same stance this app already
+      // takes for other "shouldn't exist" edge cases.
+      logger.warn("repeatForever entry has no occurrences to top up from, skipping", { entryId: entryDoc.id });
+      continue;
+    }
+
+    const activeDates = occurrences
+      .filter((b) => b.status !== "cancelled" && b.status !== "expired")
+      .map((b) => b.date as string);
+    const latestDate = occurrences.map((b) => b.date as string).reduce((a, b) => (a > b ? a : b));
+
+    const timezone = await timezoneFor(entry.clubId as string);
+    const today = localDateString(timezone);
+    // Counts only ACTIVE (non-cancelled) future occurrences — cancelling
+    // one via "Zrušiť tento termín" genuinely frees up a slot in the
+    // window, so the next run backfills a new one further out to restore
+    // the full count, matching "maximálne 8 udalostí naplánované" literally
+    // (8 planned events, not 8 dates reserved regardless of cancellation).
+    const futureActiveCount = activeDates.filter((d) => d >= today).length;
+    const needed = RINK_SCHEDULE_FOREVER_WINDOW - futureActiveCount;
+    if (needed <= 0) continue;
+
+    // Reuse an existing occurrence's own synthesized email/phone —
+    // RinkScheduleEntry never stores these itself (see
+    // createRinkScheduleEntry's own doc comment: there's no real customer
+    // to email here, startRinkScheduleEntryRepeat already reuses the same
+    // fields this same way for its own, differently-triggered top-up).
+    const sample = occurrences[occurrences.length - 1];
+
+    let cursor = latestDate;
+    let createdForThisEntry = 0;
+    let attempts = 0;
+    // Capped so a persistently-blocked window (e.g. every candidate date
+    // collides with something else) can't loop indefinitely in one run.
+    while (createdForThisEntry < needed && attempts < needed * 4 + 8) {
+      cursor = addDaysToDateString(cursor, stepDays);
+      attempts++;
+      const ok = await createBookingAdmin(db, {
+        clubId: entry.clubId as string,
+        rinkId: entry.rinkId as string,
+        zoneId: entry.zoneId as string,
+        date: cursor,
+        startTime: entry.startTime as string,
+        durationMinutes: entry.durationMinutes as number,
+        name: entry.teamName as string,
+        email: sample.email as string,
+        phone: (sample.phone as string | undefined) ?? "",
+        timezone,
+        seriesId,
+      });
+      if (ok) {
+        createdForThisEntry++;
+        createdTotal++;
+      }
+    }
+  }
+
+  logger.info("Forever rink-schedule top-up finished", { createdTotal });
+});
+
 // Permanently deletes any Booking doc — regardless of which domain created
 // it (a direct customer /book reservation, a rink-schedule-tool entry, or a
 // tournament match's blocksIce reservation) — once it's this many days past
 // its own end time. A rink-schedule-sourced booking is normally already long
 // gone well before this (cleanupFinishedRinkScheduleEntries above deletes
-// those within RINK_SCHEDULE_CLEANUP_DELAY_HOURS), so in practice this job
-// mostly catches direct customer bookings and tournament blocksIce bookings,
-// neither of which had ANY cleanup before this — they accumulated forever.
+// those within RINK_SCHEDULE_CLEANUP_DELAY_HOURS — except a repeatForever
+// entry's occurrences, deliberately excluded from that job so they get this
+// job's much longer 2-month-ish window instead, see that job's own skip
+// comment), so in practice this job mostly catches direct customer bookings
+// and tournament blocksIce bookings, neither of which had ANY cleanup before
+// this — they accumulated forever.
 // 60 days is deliberately generous: it's what gives
 // sendMonthlyRinkUtilizationReport below a safe margin to still find last
 // month's data even if that job runs a few days late, while still bounding
