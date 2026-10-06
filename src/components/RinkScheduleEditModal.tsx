@@ -11,8 +11,9 @@ import {
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError } from '@/lib/bookings'
-import { localizedName } from '@/lib/utils'
+import { localizedName, withRoomPrefix, stripRoomPrefix } from '@/lib/utils'
 import { Booking, Rink, RinkScheduleEntry, Zone } from '@/types'
+import RoomPrefixInput from './RoomPrefixInput'
 
 interface RinkScheduleEditModalProps {
   clubId: string
@@ -64,8 +65,8 @@ export default function RinkScheduleEditModal({
   const [rinkId, setRinkId] = useState(occurrence.rinkId)
   const [zoneId, setZoneId] = useState(occurrence.zoneId)
   const [teamName, setTeamName] = useState(occurrence.name)
-  const [room, setRoom] = useState(currentRoom ?? '')
-  const [awayRoom, setAwayRoom] = useState(currentAwayRoom ?? '')
+  const [room, setRoom] = useState(stripRoomPrefix(t('rinkSchedule.room'), currentRoom ?? ''))
+  const [awayRoom, setAwayRoom] = useState(stripRoomPrefix(t('rinkSchedule.awayRoom'), currentAwayRoom ?? ''))
   const [date, setDate] = useState(occurrence.date)
   const [startTime, setStartTime] = useState(occurrence.startTime)
   const [durationMinutes, setDurationMinutes] = useState(occurrence.durationMinutes)
@@ -80,8 +81,8 @@ export default function RinkScheduleEditModal({
     setRinkId(occurrence.rinkId)
     setZoneId(occurrence.zoneId)
     setTeamName(occurrence.name)
-    setRoom(currentRoom ?? '')
-    setAwayRoom(currentAwayRoom ?? '')
+    setRoom(stripRoomPrefix(t('rinkSchedule.room'), currentRoom ?? ''))
+    setAwayRoom(stripRoomPrefix(t('rinkSchedule.awayRoom'), currentAwayRoom ?? ''))
     setDate(occurrence.date)
     setStartTime(occurrence.startTime)
     setDurationMinutes(occurrence.durationMinutes)
@@ -119,8 +120,8 @@ export default function RinkScheduleEditModal({
       startTime,
       durationMinutes,
       teamName: teamName.trim(),
-      room: room.trim() || undefined,
-      awayRoom: awayRoom.trim() || undefined,
+      room: withRoomPrefix(t('rinkSchedule.room'), room),
+      awayRoom: withRoomPrefix(t('rinkSchedule.awayRoom'), awayRoom),
       timezone
     }
     const apply = () =>
@@ -237,11 +238,11 @@ export default function RinkScheduleEditModal({
             </div>
             <div>
               <Label className="text-white">{t('rinkSchedule.room')}</Label>
-              <Input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={t('rinkSchedule.roomPlaceholder')} className="bg-background-dark border-border text-white" />
+              <RoomPrefixInput prefix={t('rinkSchedule.room')} value={room} onChange={setRoom} placeholder={t('rinkSchedule.roomPlaceholder')} />
             </div>
             <div>
               <Label className="text-white">{t('rinkSchedule.awayRoom')}</Label>
-              <Input value={awayRoom} onChange={(e) => setAwayRoom(e.target.value)} placeholder={t('rinkSchedule.awayRoomPlaceholder')} className="bg-background-dark border-border text-white" />
+              <RoomPrefixInput prefix={t('rinkSchedule.awayRoom')} value={awayRoom} onChange={setAwayRoom} placeholder={t('rinkSchedule.awayRoomPlaceholder')} />
             </div>
           </div>
           <DialogFooter>

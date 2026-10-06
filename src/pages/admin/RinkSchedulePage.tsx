@@ -12,7 +12,7 @@ import {
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking, isPastAdminVisibilityCutoff } from '@/lib/bookings'
-import { formatDateISO, addDays, localizedName } from '@/lib/utils'
+import { formatDateISO, addDays, localizedName, withRoomPrefix } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +23,7 @@ import BackButton from '@/components/BackButton'
 import RinkScheduleImportPanel from '@/components/RinkScheduleImportPanel'
 import RinkScheduleEditModal from '@/components/RinkScheduleEditModal'
 import QrCodeDisplay from '@/components/QrCodeDisplay'
+import RoomPrefixInput from '@/components/RoomPrefixInput'
 
 /**
  * Staff/trainer "who has the ice when" schedule — see CLAUDE.md's "Rink
@@ -168,8 +169,8 @@ export default function RinkSchedulePage() {
       rinkId,
       zoneId,
       teamName: teamName.trim(),
-      room: room.trim() || undefined,
-      awayRoom: awayRoom.trim() || undefined,
+      room: withRoomPrefix(t('rinkSchedule.room'), room),
+      awayRoom: withRoomPrefix(t('rinkSchedule.awayRoom'), awayRoom),
       createdBy: user.uid,
       createdByName: staff.name,
       createdByEmail: staff.email,
@@ -437,11 +438,11 @@ export default function RinkSchedulePage() {
             </div>
             <div>
               <Label className="text-white">{t('rinkSchedule.room')}</Label>
-              <Input value={room} onChange={(e) => setRoom(e.target.value)} placeholder={t('rinkSchedule.roomPlaceholder')} className="bg-background-dark border-border text-white" />
+              <RoomPrefixInput prefix={t('rinkSchedule.room')} value={room} onChange={setRoom} placeholder={t('rinkSchedule.roomPlaceholder')} />
             </div>
             <div>
               <Label className="text-white">{t('rinkSchedule.awayRoom')}</Label>
-              <Input value={awayRoom} onChange={(e) => setAwayRoom(e.target.value)} placeholder={t('rinkSchedule.awayRoomPlaceholder')} className="bg-background-dark border-border text-white" />
+              <RoomPrefixInput prefix={t('rinkSchedule.awayRoom')} value={awayRoom} onChange={setAwayRoom} placeholder={t('rinkSchedule.awayRoomPlaceholder')} />
             </div>
 
             <div className="sm:col-span-4 border-t border-border pt-3">
