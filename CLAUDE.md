@@ -2661,6 +2661,24 @@ already fully generic — neither has ever special-cased how a series was
 created, so both continue to work exactly as before for this new kind of
 series too.
 
+**One-off migration: every pre-existing bounded series converted to
+`repeatForever`.** Per explicit club confirmation that the owner had only
+ever used the repeat checkbox for genuinely standing, long-term bookings
+(never a short fixed-length course), all 9 recurring `RinkScheduleEntry`
+docs that existed in production before this feature shipped were
+converted in place — `scripts/convert-entries-to-forever.mjs` (same
+dry-run-by-default, `--apply`-to-write pattern as the other one-off
+Admin-SDK scripts in this file) reads each entry's own `bookingSeries` doc
+via its `seriesId` to recover the `frequency` the old creation path never
+stored on the entry itself, then sets `repeatForever: true` +
+`frequency` on the entry. Deliberately left untouched: the now-orphaned
+`bookingSeries` docs (harmless, nothing reads them back for a
+`RinkScheduleEntry`), and every already-existing future occurrence — two
+of the nine series already had 15 active occurrences booked out to
+January 2027, well past the 8-occurrence window; `topUpForeverRinkScheduleEntries`
+only ever adds more once the active count drops *below* the window, so
+nothing was deleted or needed trimming down to exactly 8.
+
 ### Automatic cleanup: finished rink-schedule bookings are hard-deleted
 
 An explicit, scoped exception to this app's usual "never hard-delete,
