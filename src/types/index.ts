@@ -298,6 +298,19 @@ export interface RinkScheduleEntry {
   // rather than folding into occurrenceRooms since a given occurrence can
   // override just one side's room without touching the other.
   occurrenceAwayRooms?: Record<string, string>
+  // Set (true) for a daily/weekly repeat with no end at all — "repeat
+  // forever" — a genuinely different shape from the usual `seriesId`
+  // (which always points at a bounded BookingSeries doc with a fixed
+  // count/end date computed up front). A repeatForever entry has NO
+  // BookingSeries doc — there's no fixed recurrence to describe — and
+  // keeps only RINK_SCHEDULE_FOREVER_WINDOW (lib/rinkSchedule.ts) real
+  // future occurrences alive at a time; `topUpForeverRinkScheduleEntries`
+  // (functions/src/index.ts) creates more as old ones age past, so the
+  // window never runs dry. `seriesId` is still set (occurrences share it,
+  // same as a bounded series) and `frequency` records daily/weekly so
+  // that job knows the interval between occurrences.
+  repeatForever?: boolean
+  frequency?: SeriesFrequency
   createdAt: Date
 }
 

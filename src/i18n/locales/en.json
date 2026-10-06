@@ -432,6 +432,8 @@
     "noneFiltered": "No entries match the current filter.",
     "recurring": "recurring",
     "repeat": "Repeat",
+    "recurrenceForever": "Indefinitely",
+    "recurrenceForeverHint": "Keeps {{count}} upcoming occurrences scheduled at all times — a new one is added automatically as each one passes, with no end date. Past occurrences stop showing in this list once they're over and are permanently deleted after 2 months.",
     "confirmDelete": "Delete this schedule entry? This also cancels the ice reservation it created.",
     "editEntry": "Edit schedule entry",
     "noOccurrences": "No upcoming occurrences",

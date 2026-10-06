@@ -432,6 +432,8 @@
     "noneFiltered": "Žiadne záznamy nezodpovedajú zadanému filtru.",
     "recurring": "opakuje sa",
     "repeat": "Opakovať",
+    "recurrenceForever": "Donekonečna",
+    "recurrenceForeverHint": "Vždy udržiava {{count}} nadchádzajúcich termínov naplánovaných dopredu — po uplynutí jedného sa automaticky pridá ďalší, bez konečného dátumu. Staré termíny zo zoznamu zmiznú hneď po skončení a z databázy sa natrvalo zmažú po 2 mesiacoch.",
     "confirmDelete": "Zmazať tento záznam z rozvrhu? Zruší sa tým aj rezervácia ľadu, ktorú vytvoril.",
     "editEntry": "Upraviť záznam v rozvrhu",
     "noOccurrences": "Žiadne nadchádzajúce termíny",

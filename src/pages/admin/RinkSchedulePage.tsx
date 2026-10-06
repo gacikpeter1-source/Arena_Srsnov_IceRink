@@ -7,7 +7,8 @@ import {
   deleteRinkScheduleEntry,
   fetchRinkScheduleEntries,
   fetchRinkScheduleOccurrences,
-  startRinkScheduleEntryRepeat
+  startRinkScheduleEntryRepeat,
+  RINK_SCHEDULE_FOREVER_WINDOW
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
 import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking, isPastAdminVisibilityCutoff } from '@/lib/bookings'
@@ -69,7 +70,7 @@ export default function RinkSchedulePage() {
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [repeat, setRepeat] = useState(false)
   const [frequency, setFrequency] = useState<SeriesFrequency>('weekly')
-  const [recurrenceType, setRecurrenceType] = useState<'count' | 'until'>('count')
+  const [recurrenceType, setRecurrenceType] = useState<'count' | 'until' | 'forever'>('count')
   const [count, setCount] = useState(8)
   const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(), 56)))
   const [creating, setCreating] = useState(false)
@@ -155,11 +156,13 @@ export default function RinkSchedulePage() {
     if (!club || !user || !staff || !rinkId || !zoneId || !teamName.trim()) return
     setCreating(true)
     setError(null)
-    const recurrence: SeriesRecurrence | undefined = repeat
-      ? recurrenceType === 'count'
-        ? { type: 'count', frequency, count }
-        : { type: 'until', frequency, endDate: untilDate }
-      : undefined
+    const recurrence: SeriesRecurrence | undefined =
+      repeat && recurrenceType !== 'forever'
+        ? recurrenceType === 'count'
+          ? { type: 'count', frequency, count }
+          : { type: 'until', frequency, endDate: untilDate }
+        : undefined
+    const repeatForeverFrequency = repeat && recurrenceType === 'forever' ? frequency : undefined
     const entryInput = {
       clubId: club.id,
       rinkId,
@@ -174,10 +177,11 @@ export default function RinkSchedulePage() {
       startTime,
       durationMinutes,
       timezone: club.timezone,
-      recurrence
+      recurrence,
+      repeatForeverFrequency
     }
     try {
-      if (!recurrence) {
+      if (!recurrence && !repeatForeverFrequency) {
         // Real interval-overlap check before ever calling createBooking —
         // its own transaction only locks the exact zoneId+startTime being
         // requested, so it would happily create a 'full' booking even
@@ -458,7 +462,7 @@ export default function RinkSchedulePage() {
                       {t('booking.frequencyWeekly')}
                     </label>
                   </div>
-                  <div className="flex gap-4 text-sm text-white">
+                  <div className="flex flex-wrap gap-4 text-sm text-white">
                     <label className="flex items-center gap-1.5 cursor-pointer">
                       <input type="radio" name="rs-recurrenceType" checked={recurrenceType === 'count'} onChange={() => setRecurrenceType('count')} />
                       {t('booking.recurrenceForCount')}
@@ -467,8 +471,12 @@ export default function RinkSchedulePage() {
                       <input type="radio" name="rs-recurrenceType" checked={recurrenceType === 'until'} onChange={() => setRecurrenceType('until')} />
                       {t('booking.recurrenceUntilDate')}
                     </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="rs-recurrenceType" checked={recurrenceType === 'forever'} onChange={() => setRecurrenceType('forever')} />
+                      {t('rinkSchedule.recurrenceForever')}
+                    </label>
                   </div>
-                  {recurrenceType === 'count' ? (
+                  {recurrenceType === 'count' && (
                     <div>
                       <Label className="text-white">{t('booking.numberOfOccurrences')}</Label>
                       <Input
@@ -480,7 +488,8 @@ export default function RinkSchedulePage() {
                         className="bg-background-dark border-border text-white max-w-[120px]"
                       />
                     </div>
-                  ) : (
+                  )}
+                  {recurrenceType === 'until' && (
                     <div>
                       <Label className="text-white">{t('booking.repeatUntil')}</Label>
                       <Input
@@ -492,6 +501,9 @@ export default function RinkSchedulePage() {
                         className="bg-background-dark border-border text-white"
                       />
                     </div>
+                  )}
+                  {recurrenceType === 'forever' && (
+                    <p className="text-text-muted text-xs max-w-md">{t('rinkSchedule.recurrenceForeverHint', { count: RINK_SCHEDULE_FOREVER_WINDOW })}</p>
                   )}
                 </div>
               )}
