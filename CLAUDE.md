@@ -3193,6 +3193,16 @@ already scales with the slot's own duration and two clearly-legible
 lines read better than one cramped line squeezed to fit a narrow rink
 lane.
 
+**Follow-up: the time range shrunk to just the start time.** The
+wrapping-to-two-lines tradeoff just above didn't hold up once seen live
+on the actual board — a slot box is narrow enough on a real day (several
+columns of slots sharing the week grid) that the full "06:00–07:00"
+range still didn't reliably fit even across two lines. Per explicit
+feedback, each slot now shows only `slot.startTime` — the end time was
+never load-bearing here (every slot's own box height already encodes its
+duration visually via `compressedPosition`), so dropping it is a pure
+space win with no information actually lost.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

@@ -190,7 +190,7 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                             style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%` }}
                           >
                             <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold">
-                              {slot.startTime}–{slot.endTime}
+                              {slot.startTime}
                             </div>
                             {zone && <div className="text-text-secondary text-[clamp(0.6rem,0.85vw,1rem)] truncate">{zone}</div>}
                             {slot.note && <div className="text-sky-300 text-[clamp(0.6rem,0.85vw,1rem)] truncate">{slot.note}</div>}
