@@ -10,11 +10,17 @@ import { DivisionMode } from '@/types'
 // image height) and span the full width — used by 'halfLengthwise', which
 // has no painted line to measure (no real rink marks the ice this way), so
 // it's just an even 50/50 split rather than a calibrated percentage.
-const BOUNDS: Record<DivisionMode, { axis: 'vertical' | 'horizontal'; stops: number[] }> = {
-  full: { axis: 'vertical', stops: [0, 100] },
-  half: { axis: 'vertical', stops: [0, 49.93, 100] },
-  third: { axis: 'vertical', stops: [0, 37.21, 62.65, 100] },
-  halfLengthwise: { axis: 'horizontal', stops: [0, 50, 100] }
+//
+// Segments are explicit {start, end} pairs rather than a single monotonic
+// `stops` list specifically so a mode's segments can overlap —
+// 'thirdsCombined' needs exactly that (its two zones share the middle
+// third), which a shared-boundary partition can't express.
+const BOUNDS: Record<DivisionMode, { axis: 'vertical' | 'horizontal'; segments: { start: number; end: number }[] }> = {
+  full: { axis: 'vertical', segments: [{ start: 0, end: 100 }] },
+  half: { axis: 'vertical', segments: [{ start: 0, end: 49.93 }, { start: 49.93, end: 100 }] },
+  third: { axis: 'vertical', segments: [{ start: 0, end: 37.21 }, { start: 37.21, end: 62.65 }, { start: 62.65, end: 100 }] },
+  halfLengthwise: { axis: 'horizontal', segments: [{ start: 0, end: 50 }, { start: 50, end: 100 }] },
+  thirdsCombined: { axis: 'vertical', segments: [{ start: 0, end: 62.65 }, { start: 37.21, end: 100 }] }
 }
 
 const RINK_ASPECT_RATIO = '960 / 536'
@@ -28,12 +34,8 @@ interface RinkDiagramProps {
 }
 
 export default function RinkDiagram({ mode, highlightedSlotIndex, className }: RinkDiagramProps) {
-  const { axis, stops } = BOUNDS[mode]
-  const segments = stops.slice(0, -1).map((start, i) => ({
-    slotIndex: i,
-    start,
-    end: stops[i + 1]
-  }))
+  const { axis, segments: bounds } = BOUNDS[mode]
+  const segments = bounds.map((seg, i) => ({ slotIndex: i, ...seg }))
 
   return (
     <div

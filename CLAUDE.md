@@ -2754,6 +2754,58 @@ those stay on the faster exact-match `lockedSlotsRange` check, since
 they're approximate at-a-glance indicators rather than what actually gates
 a real booking attempt.
 
+### 'thirdsCombined' — two adjacent thirds booked as one zone
+
+A club wanted two more options in `RinkSchedulePage.tsx`'s zone picker:
+"Dve tretiny k časomiere" (the timer-side pair of thirds, booked together)
+and "Dve tretiny k rolbovni" (the resurfacer-side pair) — a coarser split
+than `'third'`'s three equal pieces but finer than `'half'`, matching how
+the club actually rents out ice sometimes. Added as a new `DivisionMode`
+value, `'thirdsCombined'` (`src/types/index.ts`), with two new `Zone` docs
+per rink (`scripts/add-zones-thirds-combined.mjs`, same Admin-SDK,
+safe-to-re-run pattern as `add-zones.mjs`) — slotIndex 0 covers `'third'`
+slotIndex 0+1 (the časomiera-side pair), slotIndex 1 covers slotIndex 1+2
+(the rolbovňa-side pair).
+
+**This is the first zone whose own slices genuinely overlap other zones,
+not just share a boundary** — the two `'thirdsCombined'` zones overlap
+each other (both include the middle third) and each overlaps the plain
+`'third'` zones it spans. Every previous mode's zones were either fully
+disjoint (same mode) or deliberately never cross-checked (different
+modes — see `findOverlapConflict`'s own former doc comment, "this app has
+no stored mapping of which half corresponds to which thirds"). Since this
+overlap is real and not just theoretical, it needed an actual fix rather
+than staying a documented gap: `physicallyOverlappingZoneIds`
+(`lib/rinkConflicts.ts`) is the one explicit cross-mode overlap mapping
+this app stores, folded into `findOverlapConflict`'s existing
+`candidateZoneIds` computation — symmetric regardless of which zone is
+booked first (a plain `'third'` zone looks up which `'thirdsCombined'`
+zone(s) cover it; a `'thirdsCombined'` zone looks up the thirds and the
+other combined zone it overlaps). Since `RinkSchedulePage.tsx`'s create/
+edit forms and `BookingModal.tsx`'s customer flow all already call this
+same shared function, both staff and customers get real double-booking
+protection against this new relationship for free — no separate fix
+needed per caller.
+
+**Deliberately excluded from everywhere that would make it reachable from
+`/book`.** `AdminDaySchedulePanel.tsx`'s `ALL_MODES` (which gates which
+modes are selectable as a day's override) and `TournamentDetailPage.tsx`'s
+`FORMATS` (the manual-match format picker) both intentionally do NOT
+include `'thirdsCombined'` — if a day's public schedule could be set to
+this mode, `computeDaySchedule` would need its own overlap-aware blocking
+logic too (it currently assumes a day's zones are mutually exclusive), a
+bigger change than asked for. Reachable only through `RinkSchedulePage.tsx`,
+which already picks a zone directly, skipping `computeDaySchedule`
+entirely, same as `RinkScheduleEntry`/`TournamentMatch` always have.
+
+`RinkDiagram.tsx`'s `BOUNDS` table needed a structural change to support
+this: it used to store one monotonic `stops` array per mode (dividing
+lines shared between adjacent segments), which can't express two
+segments that overlap. Replaced with explicit per-segment `{start, end}`
+pairs — every other mode's visual bounds are unchanged (same measured
+percentages), just expressed as the segments themselves rather than
+derived from a shared boundary list.
+
 ### Alternating "striedačka" TV board + free-ice-for-rent listing
 
 A second physical kiosk screen, distinct from the hallway TV

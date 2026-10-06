@@ -220,6 +220,7 @@
     "modeHalf": "Half",
     "modeThird": "Third",
     "modeHalfLengthwise": "Lengthwise half",
+    "modeThirdsCombined": "Two combined thirds",
     "dayScheduleTitle": "Adjust a specific day",
     "applyToRange": "Apply to a range of days",
     "rangeEndDate": "Through",
