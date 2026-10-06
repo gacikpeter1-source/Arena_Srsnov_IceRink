@@ -74,7 +74,18 @@ export interface Rink {
 // additive — 'half' keeps its existing center-line meaning for every
 // already-configured zone; this is a distinct mode a rink can optionally
 // also have zones for.
-export type DivisionMode = 'full' | 'half' | 'third' | 'halfLengthwise'
+// 'thirdsCombined' — two adjacent 'third' zones booked as one unit (slotIndex
+// 0 = the "third-1"+"third-2" timer-side pair, slotIndex 1 = the
+// "third-2"+"third-3" resurfacer-side pair) — deliberately excluded from
+// every place that offers a mode to the PUBLIC /book calendar
+// (AdminDaySchedulePanel.tsx's ALL_MODES, TournamentDetailPage.tsx's
+// FORMATS): these two zones physically overlap each other (and the plain
+// 'third' zones they cover) in the shared middle third, which the usual
+// same-mode-zones-never-overlap assumption doesn't hold for — see
+// findOverlapConflict's own doc comment in lib/rinkConflicts.ts for how
+// that overlap is still kept double-booking-safe. Reachable only through
+// staff tools that pick a zone directly (RinkSchedulePage.tsx today).
+export type DivisionMode = 'full' | 'half' | 'third' | 'halfLengthwise' | 'thirdsCombined'
 
 export interface Zone {
   id: string

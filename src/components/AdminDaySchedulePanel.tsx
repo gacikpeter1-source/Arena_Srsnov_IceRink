@@ -25,12 +25,18 @@ interface AdminDaySchedulePanelProps {
   timeSlotConfigs: TimeSlotConfig[]
 }
 
+// 'thirdsCombined' deliberately excluded — its zones physically overlap
+// plain 'third' zones (see DivisionMode's own doc comment), so it's never
+// offered as a day-schedule override mode here (which would make it
+// reachable from the public /book calendar); it's only ever picked
+// directly as a zone on a staff tool like RinkSchedulePage.tsx.
 const ALL_MODES: DivisionMode[] = ['full', 'half', 'third', 'halfLengthwise']
 const MODE_LABEL_KEY: Record<DivisionMode, string> = {
   full: 'admin.modeFull',
   half: 'admin.modeHalf',
   third: 'admin.modeThird',
-  halfLengthwise: 'admin.modeHalfLengthwise'
+  halfLengthwise: 'admin.modeHalfLengthwise',
+  thirdsCombined: 'admin.modeThirdsCombined' // unused — see ALL_MODES above; present only to satisfy Record<DivisionMode, string>
 }
 
 /**

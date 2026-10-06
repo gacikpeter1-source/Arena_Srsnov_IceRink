@@ -98,6 +98,38 @@ export async function findSlotConflict(
 }
 
 /**
+ * The one explicit cross-mode overlap mapping this app stores (see
+ * DivisionMode's own doc comment in src/types/index.ts for why
+ * 'thirdsCombined' needs one at all): a 'thirdsCombined' zone physically
+ * spans two adjacent 'third' zones (slotIndex 0 covers third slotIndex
+ * 0+1, slotIndex 1 covers third slotIndex 1+2) and so also overlaps the
+ * *other* 'thirdsCombined' zone, since both include the middle third.
+ * Called with the zone actually being booked, in either direction — a
+ * plain 'third' zone looks up which 'thirdsCombined' zone(s) cover it, and
+ * a 'thirdsCombined' zone looks up which 'third' zones (and the other
+ * 'thirdsCombined' zone) it covers — so the check is symmetric regardless
+ * of which one is booked first.
+ */
+function thirdsCombinedCoverage(slotIndex: number): number[] {
+  return slotIndex === 0 ? [0, 1] : [1, 2]
+}
+
+function physicallyOverlappingZoneIds(targetZone: Zone, rinkZones: Zone[]): string[] {
+  if (targetZone.mode === 'thirdsCombined') {
+    const covered = thirdsCombinedCoverage(targetZone.slotIndex)
+    const thirds = rinkZones.filter((z) => z.mode === 'third' && covered.includes(z.slotIndex)).map((z) => z.id)
+    const otherCombined = rinkZones.filter((z) => z.mode === 'thirdsCombined' && z.id !== targetZone.id).map((z) => z.id)
+    return [...thirds, ...otherCombined]
+  }
+  if (targetZone.mode === 'third') {
+    return rinkZones
+      .filter((z) => z.mode === 'thirdsCombined' && thirdsCombinedCoverage(z.slotIndex).includes(targetZone.slotIndex))
+      .map((z) => z.id)
+  }
+  return []
+}
+
+/**
  * Real time-interval overlap check across a whole rink — unlike
  * findSlotConflict above (which only matches an *exact* zoneId+date+
  * startTime key), this catches two bookings that start at different times
@@ -114,9 +146,12 @@ export async function findSlotConflict(
  * vice-versa, since 'full' occupies the whole rink. Two zones of the same
  * split mode (e.g. two different thirds) never overlap each other by
  * construction, so they're not cross-checked — nor are two *different*
- * split modes (half vs third): this app has no stored mapping of which
- * half corresponds to which thirds, so that particular cross-check is a
- * known, documented gap rather than a guess.
+ * split modes in general (e.g. half vs third): this app has no stored
+ * mapping of which half corresponds to which thirds, so that cross-check
+ * stays a known, documented gap rather than a guess. 'thirdsCombined' is
+ * the one deliberate exception (see physicallyOverlappingZoneIds above),
+ * added specifically because that mode's own zones overlap plain 'third'
+ * zones by construction, not just coincidentally.
  */
 export async function findOverlapConflict(
   clubId: string,
@@ -129,9 +164,12 @@ export async function findOverlapConflict(
   excludeBookingId?: string
 ): Promise<SlotConflict | null> {
   const targetZone = zones.find((z) => z.id === zoneId)
-  const fullZoneIds = zones.filter((z) => z.rinkId === rinkId && z.mode === 'full').map((z) => z.id)
+  const rinkZones = zones.filter((z) => z.rinkId === rinkId)
+  const fullZoneIds = rinkZones.filter((z) => z.mode === 'full').map((z) => z.id)
   const candidateZoneIds =
-    targetZone?.mode === 'full' ? zones.filter((z) => z.rinkId === rinkId).map((z) => z.id) : [zoneId, ...fullZoneIds]
+    targetZone?.mode === 'full'
+      ? rinkZones.map((z) => z.id)
+      : [zoneId, ...fullZoneIds, ...(targetZone ? physicallyOverlappingZoneIds(targetZone, rinkZones) : [])]
 
   const newStart = timeToMinutes(startTime)
   const newEnd = newStart + durationMinutes
