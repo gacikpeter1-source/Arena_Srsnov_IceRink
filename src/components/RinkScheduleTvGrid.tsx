@@ -1,7 +1,25 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { localizedName, minutesToTime, formatRoomLine } from '@/lib/utils'
+import { localizedName, minutesToTime, stripRoomPrefix } from '@/lib/utils'
 import { Rink } from '@/types'
 import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
+
+// Shared `ch`-relative column widths for Time / Šatňa / Šatňa hostí,
+// applied identically to the per-rink header row and every event row
+// below it. `ch` (not a fixed px) is deliberate and load-bearing: each of
+// 'live'/'next'/'later' renders at a different, and for 'later' a
+// dynamically-shrinking, font-size (see the measure-and-shrink doc
+// comment below) — a fixed px width overflowed at the bigger 'live'/
+// 'next' sizes (a real bug caught live: zone badges bled outside their
+// cell), while a `ch` width scales with whichever font-size its own row
+// ends up at, the same technique the Time column already used safely
+// before this feature existed. The header renders at its own small fixed
+// size, so its columns won't line up pixel-for-pixel with every row's
+// differently-scaled columns — an accepted approximation, since the
+// header's job is just a persistent legend naming each column, not a
+// literal shared table grid.
+const COL_TIME = 'w-[5.5ch]'
+const COL_ROOM = 'w-[4.5ch]'
+const COL_AWAY_ROOM = 'w-[4.5ch]'
 
 // Any team name containing "prenájom" (rental) — "Ľad na prenájom" (whole
 // rink), "Tretina na prenájom" (one third), or any future wording staff
@@ -89,7 +107,15 @@ function renderSlotCell(
       )}
       <div className="flex flex-col gap-0.5 w-full">
         {slot.items.map((it) => {
-          const room = formatRoomLine(t, it.room, it.awayRoom)
+          // Each room/away-room's own fixed label prefix ("Šatňa"/"Šatňa
+          // hostí", see RoomPrefixInput) is stripped for display here —
+          // the column header right above already says "Šatňa", so
+          // repeating the word in every cell would be redundant. A value
+          // missing entirely (or predating the prefix feature and not
+          // matching it) falls back to an em dash, never a blank cell, so
+          // "nothing set" always reads clearly rather than looking broken.
+          const roomValue = it.room ? stripRoomPrefix(t('rinkSchedule.room'), it.room) : undefined
+          const awayRoomValue = it.awayRoom ? stripRoomPrefix(t('rinkSchedule.awayRoom'), it.awayRoom) : undefined
           // A plain ice rental ("Ľad na prenájom" — no team/trainer, just
           // open ice staff put up for anyone to rent) gets a subtly
           // different, cooler text color so it's easy to pick out from
@@ -102,17 +128,13 @@ function renderSlotCell(
               className={`flex items-center gap-2 min-w-0 font-semibold ${sizeOnlyClasses} ${colorClasses}`}
               style={variant === 'later' && laterMetrics ? { fontSize: `${laterMetrics.fontRem}rem` } : undefined}
             >
-              {/* Name / time / room each their own column (no dashes) so
-                  every row's time lines up under the next, same for room —
-                  `ch`-based widths scale with this row's own font size, so
-                  columns stay aligned at whatever size the day's density
-                  computed. */}
               <span className="flex-1 min-w-0 truncate">
                 {it.label}
                 {it.liveScore ? ` (${it.liveScore})` : ''}
               </span>
-              <span className="shrink-0 w-[5.5ch] mono text-right overflow-hidden">{minutesToTime(slot.startMin)}</span>
-              <span className="shrink-0 w-[10ch] truncate">{room ?? ''}</span>
+              <span className={`shrink-0 ${COL_TIME} mono text-right overflow-hidden`}>{minutesToTime(slot.startMin)}</span>
+              <span className={`shrink-0 ${COL_ROOM} truncate`}>{roomValue ?? '—'}</span>
+              <span className={`shrink-0 ${COL_AWAY_ROOM} truncate`}>{awayRoomValue ?? '—'}</span>
               {it.zonePart && (
                 <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1.5 leading-tight text-[0.75em] font-bold whitespace-nowrap">
                   {it.zoneLabel}
@@ -193,11 +215,31 @@ function RinkBoardColumn({
   if (slots.length === 0) return <p className="text-text-muted text-base">{t('rinkSchedule.boardNoUpcoming')}</p>
 
   return (
-    <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
-      <div ref={listRef} className="flex flex-col w-full" style={{ gap: `${gapRem}rem` }}>
-        {liveSlots.map((slot) => renderSlotCell(t, slot, 'live'))}
-        {nextSlot && renderSlotCell(t, nextSlot, 'next')}
-        {laterSlots.map((slot) => renderSlotCell(t, slot, 'later', { fontRem, padYRem }))}
+    <div className="flex-1 min-h-0 w-full flex flex-col">
+      {/* Shared column header, sized fixed (not part of the measured/
+          shrunk area below) so it stays put regardless of how far a busy
+          day's "later" tier has shrunk — see COL_TIME/COL_ROOM/
+          COL_AWAY_ROOM's own doc comment for why this only approximately
+          lines up with the rows beneath it, not pixel-for-pixel. */}
+      <div className="shrink-0 flex items-center gap-2 px-1 pb-1 text-[0.6rem] uppercase tracking-wide text-text-muted font-semibold">
+        <span className="flex-1 min-w-0 truncate">{t('rinkSchedule.teamName')}</span>
+        {/* Fixed-small header text sizes each label to its own content
+            (whitespace-nowrap, no `ch` width) rather than reusing
+            COL_TIME/COL_ROOM/COL_AWAY_ROOM — those are relative to each
+            data row's own (much bigger, or dynamically shrinking) font
+            size, which left the header's short, fixed-size labels
+            illegibly truncated. */}
+        <span className="shrink-0 whitespace-nowrap">{t('common.time')}</span>
+        <span className="shrink-0 whitespace-nowrap">{t('rinkSchedule.room')}</span>
+        <span className="shrink-0 whitespace-nowrap">{t('rinkSchedule.awayRoom')}</span>
+        <span className="shrink-0 whitespace-nowrap">{t('admin.zone')}</span>
+      </div>
+      <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
+        <div ref={listRef} className="flex flex-col w-full" style={{ gap: `${gapRem}rem` }}>
+          {liveSlots.map((slot) => renderSlotCell(t, slot, 'live'))}
+          {nextSlot && renderSlotCell(t, nextSlot, 'next')}
+          {laterSlots.map((slot) => renderSlotCell(t, slot, 'later', { fontRem, padYRem }))}
+        </div>
       </div>
     </div>
   )

@@ -2544,6 +2544,51 @@ Excel bulk importer (`parseRinkScheduleWorkbook`) — that's for recurring
 standing blocks (practices/courses), not one-off matches, which are
 already a manual-form case.
 
+**`room`/`awayRoom` input fields have their own label baked in as a fixed
+prefix, so staff only type the short suffix.** Typing the whole word
+"Šatňa"/"Šatňa hostí" every time (or skipping it, or wording it
+differently) was unnecessary — `RoomPrefixInput.tsx` renders the field as
+a non-editable label chip (reusing the same `rinkSchedule.room`/
+`rinkSchedule.awayRoom` translation strings already shown on the
+`<Label>` above it) fused to a plain text input; `withRoomPrefix`/
+`stripRoomPrefix` (`lib/utils.ts`) assemble the final stored value
+("Šatňa 5") at submit time and strip that same prefix back off when
+`RinkScheduleEditModal.tsx` pre-fills the field from an existing value —
+an older value that doesn't start with the expected prefix (predates this
+feature, or was typed freehand) simply has nothing to strip and shows as
+typed. Both `RinkSchedulePage.tsx`'s create form and the edit modal use
+it; nothing downstream changed, since the field's actual stored shape
+("Šatňa 5") is unchanged from before — only how staff arrive at it.
+
+**The TV board shows Šatňa/Šatňa hostí as their own columns, not one
+merged, often-truncated string.** `RinkScheduleTvGrid.tsx`'s event rows
+used `formatRoomLine` to squeeze both into one `w-[10ch]` slot
+("Domáci: X · Hostia: Y") — a club asked for them properly separated, so
+a line's away room isn't lost to truncation. Each rink column now shows a
+small fixed header ("Tím / skupina · Čas · Šatňa · Šatňa hostí · Zóna")
+above its live/next/later list, and every row renders `room`/`awayRoom`
+(prefix stripped via `stripRoomPrefix`, since the header already names
+the column) in their own slots, an em dash when unset rather than a blank
+cell. The header's own labels are sized to their own content
+(`whitespace-nowrap`, no fixed/`ch` width) rather than literally sharing a
+column width with the rows below: an earlier cut tried reusing the same
+`ch`-relative widths the Time column already used safely (`COL_TIME`/
+`COL_ROOM`/`COL_AWAY_ROOM`, still used by the data rows) for the header
+too, which looked fine in a static mockup but broke live in two ways once
+real font-size variation was involved — the 'live'/'next' tiers' bigger
+text overflowed a shared *fixed-px* grid column (a zone badge visibly bled
+outside its cell, caught via an actual Playwright screenshot, not just
+read from the diff), and the header's own small fixed font made that same
+`ch` width register as only a few pixels, truncating "Šatňa hostí" down to
+unreadable stubs. Settled on: data rows stay `flex` with `ch`-relative
+widths (scales correctly with whatever font-size that row/tier ends up
+at, proven safe since Time already used it before this feature existed);
+the header is a separate small fixed-size legend that approximately, not
+pixel-perfectly, lines up above them — accepted, since its only job is
+naming which column is which. This is scoped to the TV board only —
+`formatRoomLine`'s merged-string format is unchanged everywhere else it's
+used (the plain non-TV list view on this same page).
+
 **Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
 already-created single entry into a recurring one.** The entries table
 previously showed each occurrence's raw ISO date (`2026-10-19`); it now

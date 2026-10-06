@@ -25,6 +25,25 @@ export function formatRoomLine(t: (key: string, opts?: Record<string, unknown>) 
   return room ?? awayRoom
 }
 
+// Composes a room/away-room field's final stored value from its fixed
+// prefix label ("Šatňa"/"Šatňa hostí", via RoomPrefixInput) and whatever
+// short suffix staff actually typed — undefined (not "Šatňa ") when
+// nothing was typed, matching the field's existing "optional" behavior.
+export function withRoomPrefix(prefix: string, suffix: string): string | undefined {
+  const trimmed = suffix.trim()
+  return trimmed ? `${prefix} ${trimmed}` : undefined
+}
+
+// Strips a leading "<prefix> " off an existing stored room value so
+// RoomPrefixInput can be pre-filled with just the suffix when editing —
+// a value that predates this feature (or was typed freehand with
+// different wording) simply has nothing matching to strip and is shown
+// as-is.
+export function stripRoomPrefix(prefix: string, value: string): string {
+  const withSpace = `${prefix} `
+  return value.toLowerCase().startsWith(withSpace.toLowerCase()) ? value.slice(withSpace.length) : value
+}
+
 export function getWeekStart(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()
