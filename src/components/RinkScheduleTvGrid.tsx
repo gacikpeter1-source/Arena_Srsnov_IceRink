@@ -90,10 +90,10 @@ const NEXT_HIGHLIGHT_MINUTES = 45
 // (never literally vanish), not a "comfortable minimum" — the whole point of
 // the dynamic approach is that there is no fixed minimum, everything shrinks
 // as far as it needs to so every scheduled event for the day is visible.
-const LATER_FONT_MAX_REM = 1.6 // ~25.6px — bumped up from 1.45 per an
-// explicit "text is too small" request; still just a ceiling the
-// measure-and-shrink pass in RinkBoardColumn backs off from on a busy day,
-// see its own doc comment
+const LATER_FONT_MAX_REM = 1.85 // ~29.6px — bumped up again from 1.6 per an
+// explicit "there's spare room at the bottom of the screen, use it" request;
+// still just a ceiling the measure-and-shrink pass in RinkBoardColumn backs
+// off from on a busy day, see its own doc comment
 const LATER_PAD_Y_MAX_REM = 0.3
 const LATER_GAP_MAX_REM = 0.25
 const LATER_FONT_FLOOR_REM = 0.4
@@ -171,8 +171,14 @@ function renderSlotCell(
                   arbitrarily), just a more generous one. LATER_FONT_MAX_REM
                   was trimmed to leave headroom for a genuinely 3-line
                   row. */}
+              {/* Team/Skupina (Name) is deliberately the one column that's
+                  LARGER than the row's own base font (1.15em, vs. Zóna's
+                  0.6em and Time/Šatňa's 1em) — it's the single thing staff
+                  actually need to read from across the room, so it should
+                  read as the most prominent text on the board, not just
+                  "the same size as everything else". */}
               <span className={GRID_CELL}>
-                <span className="min-w-0 flex-1 line-clamp-3 leading-tight">
+                <span className="min-w-0 flex-1 line-clamp-3 leading-tight text-[1.15em]">
                   {it.label}
                   {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>

@@ -2681,6 +2681,24 @@ production data: "Tretina k časomiere"/"Polovica k Rolbovni" both render
 in full again, and every real Šatňa/Šatňa hostí value (including the
 multi-room ones) fits on one centered line.
 
+**Follow-up: Team/Skupina (Name) is now explicitly larger than every other
+column, and the overall text size grew again to use spare vertical room.**
+Seen live after the centering/narrowing pass above, the Name text read as
+*smaller* than before relative to the rest of the row — it had always
+shared the row's one base font size with Time/Šatňa/Šatňa hostí, but once
+Zóna's badge dropped to its own fixed `0.6em` ratio (see above) and
+Time/Šatňa centered into tighter columns, Name no longer stood out as the
+most important text on the board the way it should. Its inner span now
+carries its own `text-[1.15em]` ratio — above the row's `1em` base (Time/
+Šatňa/Šatňa hostí) and well above Zóna's `0.6em` — so Name is deliberately
+the single largest, most prominent column regardless of how the row's own
+base font scales. Separately, a real screenshot showed clear empty space
+at the bottom of a quieter rink column (`scale` was already sitting at the
+ceiling, 1, with room to spare) — `LATER_FONT_MAX_REM` grew again, 1.6 →
+1.85, to use that headroom; the existing measure-and-shrink pass in
+`RinkBoardColumn` still backs this new, higher ceiling off automatically
+on a busier rink/day, same as every earlier bump to this constant.
+
 **Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
 already-created single entry into a recurring one.** The entries table
 previously showed each occurrence's raw ISO date (`2026-10-19`); it now
