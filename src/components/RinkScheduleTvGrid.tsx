@@ -22,8 +22,19 @@ import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
 // regardless of font size. Time itself never truncates — `minutesToTime`
 // always produces exactly 5 characters ("16:45"), so the column is sized
 // with real margin rather than an ellipsis safety net.
-const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 100px 74px 90px 140px'
+// Šatňa/Šatňa hostí are almost always a single digit or an em dash in real
+// data (see a real day's worth of rows checked live) — narrowed to the bare
+// minimum (GRID_CELL_NARROW's tighter padding) so the Name column, the one
+// thing staff actually need to read at a glance, gets the space back. Zóna
+// stays wider than that: unlike Šatňa/Šatňa hostí it's not just "usually
+// empty, occasionally a short value" — when it IS set, it's a real zone
+// name ("Tretina k Rolbovni") that still needs genuine room to wrap without
+// being cut (a first pass at 90px clipped it mid-word with no ellipsis even
+// across all 3 allowed lines — caught live, same as every other width on
+// this board).
+const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 100px 52px 52px 125px'
 const GRID_CELL = 'flex items-center min-w-0 px-3.5'
+const GRID_CELL_NARROW = 'flex items-center min-w-0 px-1.5'
 const GRID_DIVIDER = 'border-l border-white/20'
 
 // Any team name containing "prenájom" (rental) — "Ľad na prenájom" (whole
@@ -162,10 +173,10 @@ function renderSlotCell(
                 </span>
               </span>
               <span className={`${GRID_CELL} ${GRID_DIVIDER} mono justify-end`}>{minutesToTime(slot.startMin)}</span>
-              <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>
+              <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER}`}>
                 <span className="min-w-0 flex-1 line-clamp-3 leading-tight">{roomValue ?? '—'}</span>
               </span>
-              <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>
+              <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER}`}>
                 <span className="min-w-0 flex-1 line-clamp-3 leading-tight">{awayRoomValue ?? '—'}</span>
               </span>
               <span className={`${GRID_CELL} ${GRID_DIVIDER} overflow-hidden`}>
@@ -266,12 +277,12 @@ function RinkBoardColumn({
       >
         <span className={`${GRID_CELL} truncate pr-3.5`}>{t('rinkSchedule.teamName')}</span>
         <span className={`${GRID_CELL} ${GRID_DIVIDER} justify-end`}>{t('common.time')}</span>
-        <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>{t('rinkSchedule.room')}</span>
-        {/* "Šatňa hostí" is the one header label genuinely longer than its
-            column's own (deliberately narrow, truncate-backed) data width —
-            wraps onto two lines rather than widening the column just to
-            fit one long label on a single line. */}
-        <span className={`${GRID_CELL} ${GRID_DIVIDER} leading-[1.15] whitespace-normal`}>{t('rinkSchedule.awayRoom')}</span>
+        {/* Šatňa/Šatňa hostí headers use the same narrow padding as their
+            data cells (GRID_CELL_NARROW) — both labels wrap onto two lines
+            rather than widening an otherwise near-empty column just to fit
+            a header on one line. */}
+        <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER} leading-[1.1] whitespace-normal`}>{t('rinkSchedule.room')}</span>
+        <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER} leading-[1.1] whitespace-normal`}>{t('rinkSchedule.awayRoom')}</span>
         <span className={`${GRID_CELL} ${GRID_DIVIDER} truncate`}>{t('admin.zone')}</span>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
