@@ -3534,30 +3534,34 @@ boundary on a packed day — same overlap-vs-legibility trade-off this
 app already accepts elsewhere (`findOverlapConflict`'s lane-less
 layout).
 
-**Follow-up: a club asked for the full note text whenever possible,
-not just two guaranteed lines.** A flat `min-height` tall enough for 2
-lines (the fix just above) turned out to be the wrong lever once tried
-against a genuinely busy real day: a fixed floor doesn't know how close
-the *next* slot in the same rink column actually is, so on a packed day
-it pushed several boxes tall enough to visually overlap the slot right
-below them (verified live — 11 overlapping pairs on a real Wednesday).
-Replaced with a real fix: each slot's `heightPct` is now computed from
-the gap to the *next* slot's start time in the same (rink, day) column
-(`rinkSlots`, sorted by start time) rather than from its own duration —
-a busy stretch with slots close together gets a smaller box, a quiet
-stretch gets a genuinely bigger one, and a box can never grow past where
-the next slot starts, so overlap is structurally impossible rather than
-merely unlikely. The last slot of a day (nothing below it to collide
-with) still falls back to its own duration. `SLOT_MIN_HEIGHT_PX` dropped
-to a bare 24px floor — just enough to keep a degenerate near-zero-gap
-box from vanishing, deliberately too small to override the gap-based
-height and reintroduce the overlap this replaces. The note/zone line
-itself went from a single-line `truncate` to a `line-clamp-2` wrap, so a
-slot with real room shows its full note across up to two lines instead
-of ellipsizing after the first few words — most real notes are short
-enough to fit entirely now; a longer one still degrades to an ellipsis
-after 2 lines rather than failing in either of the two ways above
-(vanishing, or overlapping a neighbor).
+**Follow-up: a club asked for the full note text whenever possible, not
+just two guaranteed lines — this went through two wrong approaches
+before landing on the right one.** A flat `min-height` tall enough for
+2 lines (the fix just above) turned out to be the wrong lever once
+tried against a genuinely busy real day: a fixed floor doesn't know how
+close the *next* slot in the same rink column actually is, so on a
+packed day it pushed several boxes tall enough to visually overlap the
+slot right below them (verified live — 11 overlapping pairs on a real
+Wednesday). The next attempt sized each slot's `heightPct` from the gap
+to the *next* slot's start time instead of its own duration — overlap
+became structurally impossible, but this traded one bug for a worse
+one: a sparse rink column (a single 1-hour slot with nothing else
+scheduled until late in the day) stretched that one real slot to fill
+the entire empty gap, rendering a giant box that looked like the whole
+day was free when only 1 hour of it actually was. Caught live against
+real production data (`main-hall` on a Saturday with exactly two 1-hour
+slots at 06:00 and 21:30 — the 06:00 box rendered nearly floor-to-ceiling).
+**A box's height must represent only its own real start-to-end
+duration, never anything derived from a neighboring slot** — reverted
+to that (`heightPct` from `slot.startTime`/`slot.endTime` alone, no
+`rinkSlots`/`next` lookup at all) and kept the `line-clamp-2` wrap
+(independent of either height approach — this part was always fine):
+a slot with genuinely few active hours around it still gets a decently
+tall box since `computeActiveHours` already compresses away unused
+hours, but it can never claim more real time than was actually
+scheduled. `SLOT_MIN_HEIGHT_PX` stayed a bare 24px floor — just enough
+to keep a genuinely tiny (e.g. 15-minute) slot from vanishing, not to
+imply any particular duration.
 
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 

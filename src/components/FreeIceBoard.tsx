@@ -26,16 +26,16 @@ const HOUR_END = 24
 // board's own 6vh header bar already uses.
 const HEADER_HEIGHT = 72
 
-// A bare floor only tall enough to keep a box from visually vanishing when
-// two slots happen to land on (almost) the same compressed position — NOT
-// sized to guarantee the note/zone line's full 2 lines (see
-// `heightPct`/`nextTopUnits` below, which size each box from the real gap
-// to the *next* slot instead, so this never has to guess). Deliberately
-// small: a flat px floor bigger than that real gap would override the
-// gap-based height and reintroduce the exact overlap this is meant to
-// prevent — tried a larger floor sized for "always fit 2 lines" first and
-// it did overlap adjacent slots on a real busy day once the floor exceeded
-// the actual room between them.
+// A bare floor only tall enough to keep a box from visually vanishing for
+// a genuinely very short real slot — NOT sized to guarantee the note/zone
+// line's full 2 lines. A box's height must never represent more than the
+// slot's own real start-to-end duration (sizing it from the gap to the
+// *next* slot was tried and tried wrong — a sparse rink column with a big
+// real gap to its next event rendered a single 1-hour slot stretched to
+// span nearly the whole day, which is exactly the kind of "longer than
+// what's actually scheduled" box this board must never show). Kept small
+// so it only ever rounds up a near-zero-duration slot, never stretches a
+// real slot past its own real duration.
 const SLOT_MIN_HEIGHT_PX = 24
 
 /**
@@ -185,29 +185,25 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                 </div>
               </div>
               <div className="flex-1 min-h-0 flex">
-                {rinks.map((rink) => {
-                  // Sorted by start time specifically so each slot's height can be
-                  // measured against the *next* one's start — the real constraint
-                  // on how tall a box can safely grow — rather than against its
-                  // own duration, which says nothing about how close the next
-                  // event actually is (a 1-hour slot immediately followed by
-                  // another has far less real room than one with a quiet gap
-                  // after it, even though both report the same "duration").
-                  const rinkSlots = [...daySlots.filter((s) => s.rinkId === rink.id)].sort(
-                    (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
-                  )
-                  return (
+                {rinks.map((rink) => (
                   <div key={rink.id} className="flex-1 min-w-0 relative border-l border-border/30 first:border-l-0" style={hourLineBackground}>
-                    {rinkSlots.map((slot, i) => {
+                    {daySlots
+                      .filter((s) => s.rinkId === rink.id)
+                      .map((slot) => {
+                        // Height is always the slot's own real start-to-end
+                        // duration — never sized from how far away the next
+                        // slot happens to be. An earlier cut tried the latter
+                        // (to guarantee room for the note text) and it
+                        // genuinely overlapped a real busy day, so it was
+                        // replaced with a flat min-height instead — but even
+                        // the gap-based version had the opposite failure on a
+                        // *quiet* column: a single 1-hour slot with nothing
+                        // else scheduled until late in the day stretched to
+                        // fill that entire empty gap, showing far more "free
+                        // ice" than was actually scheduled. A box must never
+                        // claim more time than the real slot it represents.
                         const topUnits = compressedPosition(timeToMinutes(slot.startTime), activeHours, false)
-                        const next = rinkSlots[i + 1]
-                        // The last slot of the day has nothing below it to
-                        // overlap, so it falls back to its own real duration
-                        // (same as every slot used to compute height) instead
-                        // of an arbitrary "rest of the column" stretch.
-                        const endUnits = next
-                          ? compressedPosition(timeToMinutes(next.startTime), activeHours, false)
-                          : compressedPosition(timeToMinutes(slot.endTime), activeHours, true)
+                        const endUnits = compressedPosition(timeToMinutes(slot.endTime), activeHours, true)
                         const topPct = (topUnits / hourUnits) * 100
                         const heightPct = ((endUnits - topUnits) / hourUnits) * 100
                         const zone = zoneLabel(slot.zoneId)
@@ -220,18 +216,12 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                             <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold leading-tight">
                               {slot.startTime}
                             </div>
-                            {/* Letting the note/zone line wrap onto up to 2 lines (instead
-                                of a single-line `truncate`) shows the full text for nearly
-                                every real note — long ones are rare. Safe to let it grow that
-                                much because `heightPct` above is now sized from the real gap
-                                to the *next* slot's start, not this slot's own duration — a
-                                busy stretch with slots close together simply gets less room
-                                per box (and `line-clamp-2` + `overflow-hidden` gracefully cut
-                                the rare case that still doesn't fit), while a quiet stretch
-                                gets a genuinely bigger box with room for the full text. An
-                                earlier cut used a flat `min-height` tall enough for 2 lines
-                                regardless of the next slot's position, which did overlap on a
-                                real busy day once that floor exceeded the actual gap. */}
+                            {/* Wraps onto up to 2 lines rather than a single-line
+                                `truncate` — shows the full note/zone text for most
+                                real notes, which are short, while `line-clamp-2` +
+                                the box's own `overflow-hidden` still gracefully cut
+                                a longer one rather than overflowing past the box's
+                                real-duration height. */}
                             {(zone || slot.note) && (
                               // Note comes first (not zone) so if 2 lines still isn't enough
                               // room, it's the secondary zone detail that gets cut, not the
@@ -246,8 +236,7 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                         )
                       })}
                   </div>
-                  )
-                })}
+                ))}
               </div>
             </div>
           )
