@@ -3534,6 +3534,31 @@ boundary on a packed day — same overlap-vs-legibility trade-off this
 app already accepts elsewhere (`findOverlapConflict`'s lane-less
 layout).
 
+**Follow-up: a club asked for the full note text whenever possible,
+not just two guaranteed lines.** A flat `min-height` tall enough for 2
+lines (the fix just above) turned out to be the wrong lever once tried
+against a genuinely busy real day: a fixed floor doesn't know how close
+the *next* slot in the same rink column actually is, so on a packed day
+it pushed several boxes tall enough to visually overlap the slot right
+below them (verified live — 11 overlapping pairs on a real Wednesday).
+Replaced with a real fix: each slot's `heightPct` is now computed from
+the gap to the *next* slot's start time in the same (rink, day) column
+(`rinkSlots`, sorted by start time) rather than from its own duration —
+a busy stretch with slots close together gets a smaller box, a quiet
+stretch gets a genuinely bigger one, and a box can never grow past where
+the next slot starts, so overlap is structurally impossible rather than
+merely unlikely. The last slot of a day (nothing below it to collide
+with) still falls back to its own duration. `SLOT_MIN_HEIGHT_PX` dropped
+to a bare 24px floor — just enough to keep a degenerate near-zero-gap
+box from vanishing, deliberately too small to override the gap-based
+height and reintroduce the overlap this replaces. The note/zone line
+itself went from a single-line `truncate` to a `line-clamp-2` wrap, so a
+slot with real room shows its full note across up to two lines instead
+of ellipsizing after the first few words — most real notes are short
+enough to fit entirely now; a longer one still degrades to an ellipsis
+after 2 lines rather than failing in either of the two ways above
+(vanishing, or overlapping a neighbor).
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

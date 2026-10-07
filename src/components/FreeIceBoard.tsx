@@ -26,21 +26,17 @@ const HOUR_END = 24
 // board's own 6vh header bar already uses.
 const HEADER_HEIGHT = 72
 
-// A slot's `height` is computed as a % of the compressed active-hours axis
-// (see compressedPosition below), so on a day where many hours are active
-// a short, real-duration slot can compute to only a handful of real pixels
-// tall — not enough room for the time line + the combined zone/note line
-// beneath it even after combining those two onto one line (see the note
-// just below). `overflow-hidden` then silently clips whichever line runs
-// out of vertical room, same failure mode the single-line-vs-two-line fix
-// already solved once for *width* truncation, just now for height. A flat
-// CSS `min-height` (not a %, which can't guarantee an absolute floor across
-// different screens) guarantees every box — however short its computed
-// duration-based height comes out — has room for both lines; a real TV
-// screen trades a little visual overlap between adjacent short slots for
-// never silently losing text, same trade-off `findOverlapConflict`'s own
-// lane-less layout here already accepts in principle.
-const SLOT_MIN_HEIGHT_PX = 52
+// A bare floor only tall enough to keep a box from visually vanishing when
+// two slots happen to land on (almost) the same compressed position — NOT
+// sized to guarantee the note/zone line's full 2 lines (see
+// `heightPct`/`nextTopUnits` below, which size each box from the real gap
+// to the *next* slot instead, so this never has to guess). Deliberately
+// small: a flat px floor bigger than that real gap would override the
+// gap-based height and reintroduce the exact overlap this is meant to
+// prevent — tried a larger floor sized for "always fit 2 lines" first and
+// it did overlap adjacent slots on a real busy day once the floor exceeded
+// the actual room between them.
+const SLOT_MIN_HEIGHT_PX = 24
 
 /**
  * Which whole hours, across the entire visible week, actually have at
@@ -189,13 +185,29 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                 </div>
               </div>
               <div className="flex-1 min-h-0 flex">
-                {rinks.map((rink) => (
+                {rinks.map((rink) => {
+                  // Sorted by start time specifically so each slot's height can be
+                  // measured against the *next* one's start — the real constraint
+                  // on how tall a box can safely grow — rather than against its
+                  // own duration, which says nothing about how close the next
+                  // event actually is (a 1-hour slot immediately followed by
+                  // another has far less real room than one with a quiet gap
+                  // after it, even though both report the same "duration").
+                  const rinkSlots = [...daySlots.filter((s) => s.rinkId === rink.id)].sort(
+                    (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+                  )
+                  return (
                   <div key={rink.id} className="flex-1 min-w-0 relative border-l border-border/30 first:border-l-0" style={hourLineBackground}>
-                    {daySlots
-                      .filter((s) => s.rinkId === rink.id)
-                      .map((slot) => {
+                    {rinkSlots.map((slot, i) => {
                         const topUnits = compressedPosition(timeToMinutes(slot.startTime), activeHours, false)
-                        const endUnits = compressedPosition(timeToMinutes(slot.endTime), activeHours, true)
+                        const next = rinkSlots[i + 1]
+                        // The last slot of the day has nothing below it to
+                        // overlap, so it falls back to its own real duration
+                        // (same as every slot used to compute height) instead
+                        // of an arbitrary "rest of the column" stretch.
+                        const endUnits = next
+                          ? compressedPosition(timeToMinutes(next.startTime), activeHours, false)
+                          : compressedPosition(timeToMinutes(slot.endTime), activeHours, true)
                         const topPct = (topUnits / hourUnits) * 100
                         const heightPct = ((endUnits - topUnits) / hourUnits) * 100
                         const zone = zoneLabel(slot.zoneId)
@@ -208,24 +220,23 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                             <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold leading-tight">
                               {slot.startTime}
                             </div>
-                            {/* Zone and note used to be two separate lines — on a real
-                                1-hour slot in a busy day, the compressed grid's box often
-                                isn't tall enough for all three lines (time + zone + note),
-                                and `overflow-hidden` silently drops whichever line runs out
-                                of room rather than truncating it — a real screenshot showed
-                                a slot's price/restriction note (e.g. "80 e tretina")
-                                vanishing completely even though the zone line above it still
-                                fit. Combined onto one truncating line instead: needing room
-                                for only two lines total (time + this one) reliably fits
-                                where three didn't, and a genuine overflow now degrades to an
-                                ellipsis rather than disappearing outright. */}
+                            {/* Letting the note/zone line wrap onto up to 2 lines (instead
+                                of a single-line `truncate`) shows the full text for nearly
+                                every real note — long ones are rare. Safe to let it grow that
+                                much because `heightPct` above is now sized from the real gap
+                                to the *next* slot's start, not this slot's own duration — a
+                                busy stretch with slots close together simply gets less room
+                                per box (and `line-clamp-2` + `overflow-hidden` gracefully cut
+                                the rare case that still doesn't fit), while a quiet stretch
+                                gets a genuinely bigger box with room for the full text. An
+                                earlier cut used a flat `min-height` tall enough for 2 lines
+                                regardless of the next slot's position, which did overlap on a
+                                real busy day once that floor exceeded the actual gap. */}
                             {(zone || slot.note) && (
-                              // Note comes first (not zone) specifically so a narrow
-                              // day column's `truncate` cuts the zone part, not the
-                              // price/restriction note — the note is the detail staff
-                              // actually asked to see on a glance, the zone is the
-                              // secondary one.
-                              <div className="text-[clamp(0.55rem,0.8vw,0.95rem)] truncate leading-tight">
+                              // Note comes first (not zone) so if 2 lines still isn't enough
+                              // room, it's the secondary zone detail that gets cut, not the
+                              // price/restriction note staff actually asked to see in full.
+                              <div className="text-[clamp(0.55rem,0.8vw,0.95rem)] leading-tight line-clamp-2">
                                 {slot.note && <span className="text-sky-300">{slot.note}</span>}
                                 {zone && slot.note && <span className="text-text-muted"> · </span>}
                                 {zone && <span className="text-text-secondary">{zone}</span>}
@@ -235,7 +246,8 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                         )
                       })}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )
