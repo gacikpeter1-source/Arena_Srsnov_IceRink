@@ -31,6 +31,7 @@
     "rinkSchedule": "Rozvrh ihriska",
     "manageRinkSchedule": "Spravovať rozvrh",
     "manageFreeIce": "Spravovať voľné ľady",
+    "cognitiveTraining": "Kognitívny tréning",
     "manageTournaments": "Spravovať turnaje",
     "subscription": "Cenník / Môj plán",
     "website": "Webová stránka",
@@ -698,6 +699,40 @@
         "description": "Plánovanie turnajov (skupiny, vyraďovací pavúk, kombinácia oboch), live skóre a obrazovka pre divákov, QR kódy, hromadný import rozpisu.",
         "price": "Cena podľa dohody — vhodné aj ako jednorazová aktivácia na obdobie, keď turnaj skutočne prebieha."
       }
+    }
+  },
+  "cognitiveTraining": {
+    "title": "Kognitívny tréning",
+    "chooseGame": "Vyberte hru",
+    "prepare": "Pripraviť",
+    "start": "Štart",
+    "end": "Ukončiť cvičenie",
+    "pause": "Pauza",
+    "finished": "Hotovo",
+    "players": "Hráči",
+    "playerNamePlaceholder": "Meno hráča",
+    "addPlayer": "Pridať",
+    "correct": "Správne",
+    "incorrect": "Nesprávne",
+    "correctAnswer": "Správna odpoveď",
+    "pairingIntro": "Na TV/notebooku zadajte tento kód alebo naskenujte QR kód:",
+    "games": {
+      "randomNumber": {
+        "displayName": "Náhodné číslo",
+        "taskCount": "Počet úloh",
+        "taskDurationSeconds": "Trvanie úlohy (s)",
+        "pauseDurationSeconds": "Pauza medzi úlohami (s)",
+        "min": "Minimum",
+        "max": "Maximum"
+      }
+    },
+    "tv": {
+      "enterCode": "Zadajte párovací kód",
+      "connect": "Pripojiť",
+      "codeNotFound": "Kód nebol nájdený alebo cvičenie už skončilo.",
+      "waitingForStart": "Čaká sa, kým tréner spustí cvičenie...",
+      "fullscreen": "Celá obrazovka",
+      "exitFullscreen": "Ukončiť celú obrazovku"
     }
   }
 }

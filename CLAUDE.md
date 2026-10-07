@@ -3563,6 +3563,172 @@ scheduled. `SLOT_MIN_HEIGHT_PX` stayed a bare 24px floor — just enough
 to keep a genuinely tiny (e.g. 15-minute) slot from vanishing, not to
 imply any particular duration.
 
+## Cognitive training ("Kognitívny tréning")
+
+A fourth, independent planning domain (alongside Training Reservations,
+Tournaments, and Rink team schedule) — but unlike those, this one is not
+primarily about scheduling: players solve tasks shown on a big screen
+(TV/laptop at rinkside) during physical exercise, while the trainer's own
+phone shows the same timer/task plus the correct answer, and logs each
+player's result. Players never have an account anywhere in this app —
+same as `TrainingWalkIn` — they're identified by a plain free-text name
+the trainer types in.
+
+**This is the first — and, by design, the only — foundation pass.**
+Per explicit instruction, this ships the engine, the sync mechanism, and
+one trivial demo game ("náhodné číslo 1-20") purely to prove the TV/phone
+synchronization actually works end to end; no real training game content
+exists yet.
+
+**A "game" is a plugin, not a built-in concept.** Adding one means adding
+exactly two small registrations, never touching the engine:
+- `functions/src/cognitiveGames/registry.ts` — a pure, dependency-free
+  generator (`{ id, generate(config, rng) }`) that turns a trainer's
+  config into a list of `{content, correctAnswer, durationMs}` tasks. This
+  has to live server-side (see "why generation is server-side" below), and
+  `functions/` is a separate TypeScript project from `src/` that can't
+  import across that boundary (same reason `zonedTimeToUtc` has a
+  standalone ported copy in `functions/src/index.ts`) — so there's no
+  shared "game" package, just two registries agreeing on the same `id`
+  string.
+- `src/cognitiveTraining/gameRegistry.ts` — the matching frontend module
+  (`{ id, displayName, defaultConfig, ConfigForm, TvRenderer,
+  TrainerRenderer }`): the trainer's config form, what the TV shows for a
+  task's `content` (never the answer), and what the trainer's phone shows
+  (content **and** the correct answer together).
+
+Neither `CognitiveTrainingPage.tsx` (trainer) nor `CognitiveTvPage.tsx`
+(TV) ever needs to change to add a game — they only ever call through
+`gameRegistry.ts` by whatever `gameId` the session names.
+
+**Why plan generation has to be server-side, not just "for robustness."**
+The real constraint is that Firestore security rules are document-level,
+not field-level — there's no way to make one document's `content` public
+while keeping that same document's `correctAnswer` private. So a
+session's plan is generated once, server-side, by the
+`startCognitiveSession` Cloud Function (triggered when the trainer
+presses Start), and immediately split into two documents:
+- `cognitiveSessions/{id}` — public read (the TV has no login):
+  `clubId, trainerId, gameId, config, pairingCode, status
+  ('draft'|'started'|'finished'|'cancelled'), phases: CognitivePhase[],
+  startAt, totalDurationMs, endedAt?`. `CognitivePhase` is `{index,
+  type:'task'|'pause', durationMs, content}` — content only, by
+  construction, never an answer.
+- `cognitiveSessionAnswers/{id}` (same id as its session) — readable only
+  by the owning trainer or ice-rink staff: `{trainerId, answers: {index,
+  correctAnswer}[]}`, index-aligned to the session's own `phases`.
+
+`functions/src/cognitiveGames/engine.ts`'s `buildPlanFromTasks` is the one
+shared, non-game-specific piece that interleaves a pause between tasks
+(no pause after the last one) and does this public/private split — every
+game's generator only ever has to produce its own tasks.
+
+**Synchronization — every device counts down to one shared instant, then
+never needs the network again.** This directly targets "slow stadium
+wifi": once `startCognitiveSession` writes `startAt` (`serverNow +
+COGNITIVE_COUNTDOWN_MS`, 3s — duplicated as a constant in both
+`functions/src/index.ts` and `src/lib/cognitiveTraining/phase.ts`, same
+ported-copy reasoning as above) and the full `phases` list, every
+connected device (TV, phone) computes its own current state purely from
+local time against that one instant — `computeCurrentPhase(phases,
+startAtMs, nowMs)` in `phase.ts` (half-open phase boundaries; `countdown`
+before `startAt`, then `phase`/`finished`) needs no Firestore read at all
+to render the right thing on every frame. This is also why a dropped
+connection mid-exercise is a non-issue: nothing about the countdown or
+task progression depends on a live connection once `startAt`/`phases`
+have been read once.
+
+Each device still needs to know the server's clock, though — relying on
+its own `Date.now()` unmodified would desync two devices with different
+clock drift. `measureClockOffsetMs()` (`clockSync.ts`) calls the
+`cognitiveServerTime` callable (a plain `onCall`, not a raw `onRequest` —
+deliberately reusing the exact same already-initialized Functions SDK
+pattern every other Cloud Function call in this app uses, e.g.
+`deleteStaffAccountCallable`; a callable works fine for the TV's
+unauthenticated caller too, since `request.auth` is simply unused there)
+several times in a row and keeps the round trip with the lowest latency
+(NTP-style), rather than averaging all of them — a slow/congested sample
+is exactly the one whose "the server received this halfway through the
+round trip" assumption is least reliable. `localNowMs(clockOffsetMs)`
+applies that offset to the device's own `Date.now()` everywhere a "now"
+is needed.
+
+**Re-paired before every single exercise, not once per practice.**
+Earlier design considered a persistent TV-to-trainer pairing that outlives
+one exercise bout, so a coach running several short drills back to back
+wouldn't have to re-enter a code each time — rejected per explicit
+direction in favor of the simpler shape: `CognitiveSession.pairingCode` (a
+fresh 6-digit code, `createDraftCognitiveSession` in
+`lib/cognitiveTraining/sessions.ts`) identifies only the session that
+currently owns it (`fetchCognitiveSessionByCode` only ever matches
+`status in ['draft','started']`), and a new session for the next exercise
+gets a new code. This fits the stated flow directly: "keď sa spustí
+cvičenie všetky zariadenia dostanú naraz pokyn na countdown" doesn't
+actually need a standing pairing — the TV just needs to connect to
+*this* session before (or, for a device that joins late, any time
+during) the exercise, same as it would with a persistent pairing.
+
+**TV screen** (`CognitiveTvPage.tsx`, public, no login — routes
+`/treningy/kognitivny-tv` for a typed code and
+`/treningy/kognitivny-tv/:code` for a scanned QR, both added to
+`App.tsx`'s TV-chrome-stripping path list, same treatment as
+`/rozvrh/strieda`): once paired, polls the session doc every 2.5s purely
+to notice a `status` change (started/finished/cancelled, or a
+freshly-generated plan) — never to drive the visible countdown itself,
+which always comes from `computeCurrentPhase`. Requests a Wake Lock
+(`navigator.wakeLock`, re-acquired on `visibilitychange` since the
+browser always releases it when a tab is hidden) and offers a fullscreen
+toggle (`requestFullscreen`/`exitFullscreen`). The big timer sits at the
+top of the screen per explicit spec ("Veľká časomiera hore"), with the
+task content (`game.TvRenderer`) getting the real visual weight below it;
+a pause phase swaps the whole page to a warning-colored background.
+Adjustable font size is a plain `transform: scale()` on the content
+wrapper (A-/A+ buttons, 0.5-2.5× range) rather than a per-game `fontScale`
+prop — keeps the game-renderer contract (`{content}` only) simple
+regardless of how any given game chooses to size its own elements.
+
+**Trainer screen** (`CognitiveTrainingPage.tsx`, `/admin/treningy/kognitivny`,
+gated strictly to `staff.isTrainer` — unlike every other link in
+`HeaderMenu.tsx`'s training-domain block, which also allows plain
+`assistant`/`owner`/`superadmin`, since a non-trainer staff member has no
+reason to run a cognitive drill): pick a game + its config, create a
+draft (shows the pairing code + QR, reusing the existing
+`generateQrDataUrl` helper from `lib/qrcode.ts`), press Start, then watch
+the identical timer/task the TV shows plus the correct answer
+(`game.TrainerRenderer`). A minimal per-player result log
+(`cognitiveResults`, one doc per player per session) lets the trainer tap
+Correct/Incorrect against whichever task is currently active — a
+free-text player name field with a `<datalist>` of recently-used names,
+same autocomplete-not-registry convention `RinkScheduleEntry.teamName`/
+`TrainerIceLogEntry.trainerName` already use elsewhere in this app.
+Ending the exercise early (`endCognitiveSessionEarly`) sets `status` to
+`'finished'`/`'cancelled'` (depending on whether it had actually started)
+so an already-polling TV notices and stops rendering further phases
+regardless of what the time-based computation would otherwise show.
+
+**Demo game**: `randomNumber` (`functions/src/cognitiveGames/randomNumber.ts`
++ `src/cognitiveTraining/games/randomNumber/`) — a configurable count of
+tasks, each a random integer in a configurable range, shown for a
+configurable duration with a configurable pause between. `content` and
+`correctAnswer` are the same value here (nothing to hide) — this is
+deliberate: it lets the game double as an end-to-end test of the
+public/private document split without needing a game where the two
+genuinely differ.
+
+**Tests** (`npm test`, Vitest — newly added to this project, which had no
+test runner at all before this; `vitest.config.ts` at the repo root
+covers both `src/**/*.test.ts` and `functions/src/**/*.test.ts`, since
+vitest doesn't care about the src/functions project-boundary that
+matters for *building*/deploying — `functions/tsconfig.json` explicitly
+excludes `*.test.ts` so these never end up in the actual deploy output
+or need `vitest` as a real dependency of that project):
+`functions/src/cognitiveGames/randomNumber.test.ts` (a seeded
+mulberry32 PRNG, injected via the generator's own `rng` parameter, for
+reproducible assertions — production always calls it with real
+`Math.random`) and `engine.test.ts` (pause interleaving, index alignment,
+edge cases) cover plan generation; `src/lib/cognitiveTraining/phase.test.ts`
+covers `computeCurrentPhase`'s countdown/phase-boundary/finished behavior.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 

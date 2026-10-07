@@ -807,3 +807,100 @@ export interface TournamentMatch {
   createdBy: string
   createdAt: Date
 }
+
+// ---------------------------------------------------------------------
+// Cognitive training ("Kognitívny tréning") — players solve tasks shown
+// on a TV during physical exercise; the trainer sees the correct answer
+// on their phone and records results. Players never have an account
+// anywhere in this app — same as TrainingWalkIn, they're identified by a
+// plain free-text name the trainer types in, not a login.
+//
+// A "game" is a self-contained plugin, not a built-in concept: adding one
+// means registering a generator (functions/src/cognitiveGames/registry.ts
+// — pure, dependency-free TS, since it must run inside the
+// startCognitiveSession Cloud Function) and a matching frontend module
+// (src/cognitiveTraining/gameRegistry.ts — config form + TV/trainer
+// renderers) under the same gameId. Neither registry, nor this file, nor
+// the session/sync engine below ever needs to change to add a new game.
+// ---------------------------------------------------------------------
+
+// One phase of a generated exercise plan — either a task to solve or a
+// rest/pause between tasks. `content` is whatever a game's TV/trainer
+// renderer needs to display the task itself (shape is entirely up to the
+// game — e.g. the demo game's content is `{ number: 14 }`); deliberately
+// NEVER includes the correct answer — see CognitiveSessionAnswers below
+// for why that has to live in a separate, privately-readable document
+// rather than just another field here (Firestore security rules can't
+// restrict which FIELDS of a public document are readable, only whether
+// the whole document is readable at all).
+export interface CognitivePhase {
+  index: number
+  type: 'task' | 'pause'
+  durationMs: number
+  content: unknown // unused/omitted for a 'pause' phase
+}
+
+// A single run of one game, created by a trainer. Publicly readable (the
+// TV has no login) but — critically — never carries a correct answer
+// anywhere on it; see CognitiveSessionAnswers.
+//
+// `pairingCode` only identifies the CURRENTLY ACTIVE session, not a
+// standing pairing — re-paired per exercise (fetchCognitiveSessionByCode
+// only ever matches a 'draft'/'started' session), per explicit product
+// direction: simpler than a persistent TV-to-trainer pairing that outlives
+// a single exercise, and "all devices get the start signal at once" (the
+// shared startAt below) doesn't actually need one.
+export interface CognitiveSession {
+  id: string
+  clubId: string
+  trainerId: string
+  gameId: string
+  // Whatever shape that gameId's generator config form produces —
+  // intentionally untyped here since it's entirely game-specific.
+  config: Record<string, unknown>
+  pairingCode: string
+  // 'draft': created (game+config chosen), not started yet, no plan.
+  // 'started': startCognitiveSession ran — phases/startAt are set and
+  // every device now runs purely off its own clock, no further writes
+  // needed for the exercise to play out correctly (resilient to a
+  // mid-exercise connectivity drop, per the stadium-wifi requirement).
+  // 'finished': totalDurationMs has elapsed since startAt.
+  // 'cancelled': the trainer stopped it early (endedAt set).
+  status: 'draft' | 'started' | 'finished' | 'cancelled'
+  // Set together, only once, when the trainer presses Start.
+  phases?: CognitivePhase[]
+  // The server-chosen instant (now + COGNITIVE_COUNTDOWN_MS) every
+  // connected device counts down to and then starts phase 0 from — not
+  // each device's own "now", precisely so a weak/dropped connection after
+  // this point can't desync the countdown or the exercise itself.
+  startAt?: Date
+  totalDurationMs?: number
+  // Set if the trainer ends the exercise before totalDurationMs elapses.
+  endedAt?: Date
+  createdAt: Date
+}
+
+// The correct answer for each phase of a CognitiveSession's plan — a
+// SEPARATE document (same id as its session) specifically so firestore.rules
+// can make it readable only by the owning trainer/staff while the session
+// doc itself stays public for the TV. `answers[i].index` lines up with
+// `CognitiveSession.phases[i].index`.
+export interface CognitiveSessionAnswers {
+  id: string
+  trainerId: string // denormalized for the ownership check in firestore.rules
+  answers: { index: number; correctAnswer: unknown }[]
+}
+
+// A trainer's recorded result for one player in one session — deliberately
+// minimal for this pass (per-task correct/incorrect only). `playerName` is
+// plain free text (no club-wide player registry, same reasoning
+// RinkScheduleEntry.teamName and TrainerIceLogEntry.trainerName already
+// use), autocompleted client-side from previously-used names.
+export interface CognitiveResult {
+  id: string
+  clubId: string
+  sessionId: string
+  playerName: string
+  perTask: { index: number; correct: boolean }[]
+  createdAt: Date
+}

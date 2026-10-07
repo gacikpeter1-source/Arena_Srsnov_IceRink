@@ -139,6 +139,19 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               {t('nav.manageFreeIce')}
             </Link>
           )}
+          {/* Strictly isTrainer, unlike every other link in this block —
+              per explicit product direction, "len pre používateľov s rolou
+              tréner" (a plain assistant/owner/superadmin, with no isTrainer
+              flag, doesn't run cognitive-training drills). */}
+          {staff?.isTrainer && (
+            <Link
+              to="/admin/treningy/kognitivny"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-primary hover:text-primary-gold hover:bg-background-dark"
+            >
+              {t('nav.cognitiveTraining')}
+            </Link>
+          )}
           <Link
             to="/turnaje"
             onClick={() => setOpen(false)}
