@@ -3492,6 +3492,28 @@ never load-bearing here (every slot's own box height already encodes its
 duration visually via `compressedPosition`), so dropping it is a pure
 space win with no information actually lost.
 
+**Fixed: a slot's price/restriction note sometimes didn't render at
+all.** `slot.note` (e.g. "80 e tretina", the free-text price/zone-
+restriction field — see the data model section above) and the zone
+label were two separate stacked lines under the time, each on its own
+`truncate` line. A real screenshot showed a 1-hour slot with both a zone
+label AND a note (`"Tretina k časomiere"` + `"80 e tretina"`) rendering
+only the zone line — the note wasn't truncated, it was fully gone,
+because the box (sized from its duration against the compressed time
+axis, same as always) wasn't tall enough for all three lines (time +
+zone + note) and the cell's `overflow-hidden` silently drops whatever
+doesn't fit rather than clipping it visibly. Combined zone and note onto
+one `truncate` line (separated by " · ") so a slot only ever needs two
+lines total (time + this one) — reliably fits where three didn't, and a
+genuine overflow now degrades to an ellipsis instead of disappearing
+outright. The note is ordered *before* the zone on that combined line
+(not after) specifically so a narrow day column's `truncate` cuts the
+zone part first — the note (price/restriction) is the detail this board
+exists to show at a glance, the zone is secondary. Re-verified live
+against real production data: a slot with both now shows its full note
+text ("80 e tretina · …", zone truncated), where it previously showed
+no note at all.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
