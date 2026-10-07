@@ -26,6 +26,18 @@ const HOUR_END = 24
 // board's own 6vh header bar already uses.
 const HEADER_HEIGHT = 72
 
+// A bare floor only tall enough to keep a box from visually vanishing for
+// a genuinely very short real slot — NOT sized to guarantee the note/zone
+// line's full 2 lines. A box's height must never represent more than the
+// slot's own real start-to-end duration (sizing it from the gap to the
+// *next* slot was tried and tried wrong — a sparse rink column with a big
+// real gap to its next event rendered a single 1-hour slot stretched to
+// span nearly the whole day, which is exactly the kind of "longer than
+// what's actually scheduled" box this board must never show). Kept small
+// so it only ever rounds up a near-zero-duration slot, never stretches a
+// real slot past its own real duration.
+const SLOT_MIN_HEIGHT_PX = 24
+
 /**
  * Which whole hours, across the entire visible week, actually have at
  * least one slot touching them. Hours nobody uses (a quiet midday
@@ -178,6 +190,18 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                     {daySlots
                       .filter((s) => s.rinkId === rink.id)
                       .map((slot) => {
+                        // Height is always the slot's own real start-to-end
+                        // duration — never sized from how far away the next
+                        // slot happens to be. An earlier cut tried the latter
+                        // (to guarantee room for the note text) and it
+                        // genuinely overlapped a real busy day, so it was
+                        // replaced with a flat min-height instead — but even
+                        // the gap-based version had the opposite failure on a
+                        // *quiet* column: a single 1-hour slot with nothing
+                        // else scheduled until late in the day stretched to
+                        // fill that entire empty gap, showing far more "free
+                        // ice" than was actually scheduled. A box must never
+                        // claim more time than the real slot it represents.
                         const topUnits = compressedPosition(timeToMinutes(slot.startTime), activeHours, false)
                         const endUnits = compressedPosition(timeToMinutes(slot.endTime), activeHours, true)
                         const topPct = (topUnits / hourUnits) * 100
@@ -187,29 +211,22 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                           <div
                             key={slot.id}
                             className="absolute left-0.5 right-0.5 rounded border border-primary/50 bg-primary/10 px-1.5 py-1 overflow-hidden leading-tight"
-                            style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%` }}
+                            style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%`, minHeight: SLOT_MIN_HEIGHT_PX }}
                           >
                             <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold leading-tight">
                               {slot.startTime}
                             </div>
-                            {/* Zone and note used to be two separate lines — on a real
-                                1-hour slot in a busy day, the compressed grid's box often
-                                isn't tall enough for all three lines (time + zone + note),
-                                and `overflow-hidden` silently drops whichever line runs out
-                                of room rather than truncating it — a real screenshot showed
-                                a slot's price/restriction note (e.g. "80 e tretina")
-                                vanishing completely even though the zone line above it still
-                                fit. Combined onto one truncating line instead: needing room
-                                for only two lines total (time + this one) reliably fits
-                                where three didn't, and a genuine overflow now degrades to an
-                                ellipsis rather than disappearing outright. */}
+                            {/* Wraps onto up to 2 lines rather than a single-line
+                                `truncate` — shows the full note/zone text for most
+                                real notes, which are short, while `line-clamp-2` +
+                                the box's own `overflow-hidden` still gracefully cut
+                                a longer one rather than overflowing past the box's
+                                real-duration height. */}
                             {(zone || slot.note) && (
-                              // Note comes first (not zone) specifically so a narrow
-                              // day column's `truncate` cuts the zone part, not the
-                              // price/restriction note — the note is the detail staff
-                              // actually asked to see on a glance, the zone is the
-                              // secondary one.
-                              <div className="text-[clamp(0.55rem,0.8vw,0.95rem)] truncate leading-tight">
+                              // Note comes first (not zone) so if 2 lines still isn't enough
+                              // room, it's the secondary zone detail that gets cut, not the
+                              // price/restriction note staff actually asked to see in full.
+                              <div className="text-[clamp(0.55rem,0.8vw,0.95rem)] leading-tight line-clamp-2">
                                 {slot.note && <span className="text-sky-300">{slot.note}</span>}
                                 {zone && slot.note && <span className="text-text-muted"> · </span>}
                                 {zone && <span className="text-text-secondary">{zone}</span>}

@@ -3514,6 +3514,55 @@ against real production data: a slot with both now shows its full note
 text ("80 e tretina · …", zone truncated), where it previously showed
 no note at all.
 
+**Follow-up: the same note could still get clipped vertically, not just
+horizontally.** Combining zone+note onto one line fixed the 3-line-
+doesn't-fit case, but a slot's box height is still computed as a % of
+the day's own *compressed* active-hours axis (`computeActiveHours`/
+`compressedPosition` above) — on a day where many hours are active, a
+short real-duration slot can come out only a few pixels tall, not
+enough room for even the two lines (time + combined note line) this fix
+reduced it to. Seen live on the real deployed kiosk screen, not just a
+dev-server verification: the note text itself rendered (confirming the
+earlier width fix had genuinely shipped), but was cut off at the bottom
+of its own box. `SLOT_MIN_HEIGHT_PX` (52) is a flat CSS `min-height`
+layered on top of the existing `height: ${pct}%` — a % alone can't
+guarantee an absolute pixel floor across different screens, so this
+guarantees every box has room for both lines regardless of how short
+its computed duration-based height comes out, at the cost of a short
+slot's box sometimes visually extending a little past its "real" time
+boundary on a packed day — same overlap-vs-legibility trade-off this
+app already accepts elsewhere (`findOverlapConflict`'s lane-less
+layout).
+
+**Follow-up: a club asked for the full note text whenever possible, not
+just two guaranteed lines — this went through two wrong approaches
+before landing on the right one.** A flat `min-height` tall enough for
+2 lines (the fix just above) turned out to be the wrong lever once
+tried against a genuinely busy real day: a fixed floor doesn't know how
+close the *next* slot in the same rink column actually is, so on a
+packed day it pushed several boxes tall enough to visually overlap the
+slot right below them (verified live — 11 overlapping pairs on a real
+Wednesday). The next attempt sized each slot's `heightPct` from the gap
+to the *next* slot's start time instead of its own duration — overlap
+became structurally impossible, but this traded one bug for a worse
+one: a sparse rink column (a single 1-hour slot with nothing else
+scheduled until late in the day) stretched that one real slot to fill
+the entire empty gap, rendering a giant box that looked like the whole
+day was free when only 1 hour of it actually was. Caught live against
+real production data (`main-hall` on a Saturday with exactly two 1-hour
+slots at 06:00 and 21:30 — the 06:00 box rendered nearly floor-to-ceiling).
+**A box's height must represent only its own real start-to-end
+duration, never anything derived from a neighboring slot** — reverted
+to that (`heightPct` from `slot.startTime`/`slot.endTime` alone, no
+`rinkSlots`/`next` lookup at all) and kept the `line-clamp-2` wrap
+(independent of either height approach — this part was always fine):
+a slot with genuinely few active hours around it still gets a decently
+tall box since `computeActiveHours` already compresses away unused
+hours, but it can never claim more real time than was actually
+scheduled. `SLOT_MIN_HEIGHT_PX` stayed a bare 24px floor — just enough
+to keep a genuinely tiny (e.g. 15-minute) slot from vanishing, not to
+imply any particular duration.
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
