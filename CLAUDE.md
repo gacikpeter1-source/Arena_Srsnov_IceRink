@@ -2633,6 +2633,54 @@ wrap (a first attempt at 90px clipped "Tretina k Rolbovni" mid-word even
 across all 3 lines, caught the same live-screenshot way as every other
 width on this board), so it kept its own, wider 125px.
 
+**Follow-up: Čas/Šatňa/Šatňa hostí centered and narrowed further, Zóna
+narrowed too, and the overall text size bumped up.** Seeing the board on
+the real bench TV (not just a screenshot) surfaced three more requests at
+once: Time/Šatňa/Šatňa hostí's text sat left-aligned inside already-narrow
+columns, reading as uneven; the text overall was too small to read
+comfortably from across the room; and Zóna, which had been widened to
+125px specifically to fit a long zone name, now looked disproportionately
+wide next to Šatňa/Šatňa hostí's 52px once seen live. `GRID_CELL_CENTER`
+(`justify-center`, tighter `px-1` padding) replaces `GRID_CELL`/
+`GRID_CELL_NARROW` for Time/Šatňa/Šatňa hostí in both the header and every
+data row — Time dropped its `mono justify-end` right-alignment for the
+same centering, and Šatňa/Šatňa hostí's `line-clamp-3` was trimmed to
+`line-clamp-2` (two lines is plenty once centered and given a bit more
+room; see widths below) with `text-center` added so a wrapped second line
+still centers under the first. Real production data turned up genuine
+multi-room values this pass had to account for — "3 a 4", "1 a 2", "1 a 6"
+(a slot held by more than one room at once), not just a single digit or an
+em dash as the original narrowing pass assumed — so Šatňa/Šatňa hostí
+widened slightly to 64px (from 52px) specifically to keep those fitting on
+one line at the larger font rather than wrapping. `LATER_FONT_MAX_REM`
+went from 1.45 to 1.6 and the 'next'/'live' tier clamps were bumped to
+match (`1rem–1.3rem`/`0.8rem–1.05rem`) for the actual "text too small"
+ask — the existing measure-and-shrink pass in `RinkBoardColumn` still
+backs this ceiling off on a genuinely busy day, so raising it only costs
+screen space on a quiet one, never breaks a packed one.
+
+Narrowing Zóna to free up space for Name (125px → 108px) while the base
+font was simultaneously growing broke the one thing the earlier 125px
+width was specifically sized for: a real screenshot showed "Tretina k
+časomiere" clipping mid-word past the 3-line cap again, the exact failure
+the original 90px→125px widening had already fixed once. Fixing it for
+real this time took two changes together, not just a wider column: the
+zone badge's own font ratio dropped from `text-[0.7em]` to `text-[0.6em]`
+(decoupling the badge's size from the row's now-larger base font, so
+growing `LATER_FONT_MAX_REM` doesn't also grow the badge past what its
+column can hold) and the Zóna cell switched from `GRID_CELL`'s generous
+`px-3.5` padding to the same tight `px-1` `GRID_CELL_CENTER`-style padding
+(plus `justify-center`) the other three narrowed columns now use — `px-3.5`
+was always meant for the wide Name column, and applying it to a narrow
+144-character-at-most badge column wasted real width that mattered once
+Zóna itself got narrower. `GRID_TEMPLATE_COLUMNS` is now
+`'minmax(0,1fr) 86px 64px 64px 108px'` (down from
+`'minmax(0,1fr) 100px 52px 52px 125px'` overall, despite Šatňa/Šatňa
+hostí's own small increase) — re-verified live against the same real
+production data: "Tretina k časomiere"/"Polovica k Rolbovni" both render
+in full again, and every real Šatňa/Šatňa hostí value (including the
+multi-room ones) fits on one centered line.
+
 **Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
 already-created single entry into a recurring one.** The entries table
 previously showed each occurrence's raw ISO date (`2026-10-19`); it now
