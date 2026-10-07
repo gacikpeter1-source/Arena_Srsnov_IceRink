@@ -189,11 +189,32 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                             className="absolute left-0.5 right-0.5 rounded border border-primary/50 bg-primary/10 px-1.5 py-1 overflow-hidden leading-tight"
                             style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%` }}
                           >
-                            <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold">
+                            <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold leading-tight">
                               {slot.startTime}
                             </div>
-                            {zone && <div className="text-text-secondary text-[clamp(0.6rem,0.85vw,1rem)] truncate">{zone}</div>}
-                            {slot.note && <div className="text-sky-300 text-[clamp(0.6rem,0.85vw,1rem)] truncate">{slot.note}</div>}
+                            {/* Zone and note used to be two separate lines — on a real
+                                1-hour slot in a busy day, the compressed grid's box often
+                                isn't tall enough for all three lines (time + zone + note),
+                                and `overflow-hidden` silently drops whichever line runs out
+                                of room rather than truncating it — a real screenshot showed
+                                a slot's price/restriction note (e.g. "80 e tretina")
+                                vanishing completely even though the zone line above it still
+                                fit. Combined onto one truncating line instead: needing room
+                                for only two lines total (time + this one) reliably fits
+                                where three didn't, and a genuine overflow now degrades to an
+                                ellipsis rather than disappearing outright. */}
+                            {(zone || slot.note) && (
+                              // Note comes first (not zone) specifically so a narrow
+                              // day column's `truncate` cuts the zone part, not the
+                              // price/restriction note — the note is the detail staff
+                              // actually asked to see on a glance, the zone is the
+                              // secondary one.
+                              <div className="text-[clamp(0.55rem,0.8vw,0.95rem)] truncate leading-tight">
+                                {slot.note && <span className="text-sky-300">{slot.note}</span>}
+                                {zone && slot.note && <span className="text-text-muted"> · </span>}
+                                {zone && <span className="text-text-secondary">{zone}</span>}
+                              </div>
+                            )}
                           </div>
                         )
                       })}
