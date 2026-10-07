@@ -35,7 +35,10 @@ import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
 // ("Tretina k Rolbovni") that still needs room to wrap without being cut (an
 // earlier, even-narrower 90px attempt clipped it mid-word with no ellipsis
 // even across all 3 lines — caught live, same as every other width here).
-const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 86px 64px 64px 108px'
+// Narrowed again, 108px -> 98px, to give Name still more room on a busy
+// rink — the badge's own font ratio dropped to match (0.52em, see below),
+// otherwise the same real zone names clip again at this width.
+const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 86px 64px 64px 98px'
 const GRID_CELL = 'flex items-center min-w-0 px-3.5'
 const GRID_CELL_CENTER = 'flex items-center justify-center min-w-0 px-1'
 const GRID_DIVIDER = 'border-l border-white/20'
@@ -203,7 +206,7 @@ function renderSlotCell(
                   // or a long zone name ("Tretina k časomiere") clips
                   // mid-word past the 3-line cap, caught live the same way
                   // as every other width on this board.
-                  <span className="min-w-0 flex-1 line-clamp-3 rounded border border-current px-1.5 py-0.5 leading-tight text-[0.6em] font-bold text-center">
+                  <span className="min-w-0 flex-1 line-clamp-3 rounded border border-current px-1.5 py-0.5 leading-tight text-[0.52em] font-bold text-center">
                     {it.zoneLabel}
                   </span>
                 )}
@@ -269,8 +272,24 @@ function RinkBoardColumn({
     const available = container.clientHeight
     const needed = list.scrollHeight
     if (needed > available + 1 && scale > 0.05) {
-      const ratio = (available / needed) * 0.96
+      const ratio = (available / needed) * 0.97
       setScale((s) => Math.max(0.05, Math.min(1, s * ratio)))
+    } else if (needed < available * 0.92 && scale < 1) {
+      // Two sibling rink columns can land at very different scales purely
+      // because one has more rows than the other — a quieter column
+      // shouldn't just sit on whatever smaller scale an earlier, busier
+      // measurement left it at once there's real spare room below its last
+      // cell (caught live: Hala 1's text read visibly smaller than Hala
+      // 2's on the same real screen). Grows back toward the ceiling in
+      // small, damped steps (half the measured slack each pass) rather
+      // than jumping straight to the naive available/needed ratio — scale
+      // only affects the "later" cells' height, not the fixed-size live/
+      // next cells also inside `needed`, so that naive ratio would
+      // overshoot; damping lets repeated effect re-runs (same mechanism
+      // the shrink branch already relies on) converge without oscillating.
+      const slack = available / needed
+      const growRatio = 1 + (slack - 1) * 0.5
+      setScale((s) => Math.max(0.05, Math.min(1, s * growRatio)))
     }
     // Deliberately keyed on [items, scale], not left dependency-less: the
     // parent recomputes `items` as a brand-new array every render (every

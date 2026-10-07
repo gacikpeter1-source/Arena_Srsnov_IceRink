@@ -2699,6 +2699,40 @@ ceiling, 1, with room to spare) — `LATER_FONT_MAX_REM` grew again, 1.6 →
 `RinkBoardColumn` still backs this new, higher ceiling off automatically
 on a busier rink/day, same as every earlier bump to this constant.
 
+**Follow-up: the measure-and-shrink pass now grows back, not just
+shrinks — fixing two sibling rink columns visibly reading at different
+sizes side by side.** A real bench-TV photo showed Hala 1's text
+noticeably smaller than Hala 2's, with real blank space left over below
+Hala 1's last cell — the measure-and-shrink effect in `RinkBoardColumn`
+had only ever shrunk `scale` down on overflow, never grown it back up,
+so once an earlier, busier measurement (or one with more line-wrapping)
+left a column below its `LATER_FONT_MAX_REM` ceiling, nothing pulled it
+back toward 1 even after conditions eased — only a brand-new `items`
+reference (the next poll) reset it to 1 and let it re-measure from
+scratch, and even then it would re-shrink to the same point if the
+underlying cause (see below) was still there. The effect's single
+`if (overflow)` branch gained an `else if (real spare room)` branch that
+grows `scale` back toward 1, damped to half the measured slack per pass
+(not a single jump to the naive `available/needed` ratio) since `scale`
+only resizes the "later" cells, not the fixed-size live/next cells also
+counted in `needed` — the same repeated-effect-rerun convergence the
+shrink branch already relied on handles the rest over a few renders.
+
+The other contributing cause was fixed directly rather than just
+papered over by the grow-back: Zóna narrowed again (108px → 98px) and
+its badge's own font ratio dropped again (`0.6em` → `0.52em`, decoupling
+it a little further from the row's base font) specifically to give Name
+more width on a column with several multi-word team names — less
+wrapping there means a shorter natural row height, which is what let
+Hala 1 reach a scale close to Hala 2's in the first place rather than
+just converging to a smaller shared ceiling. Re-verified live against
+real production data at the narrower width: "Tretina k časomiere" still
+renders in full (confirmed both visually and via `textContent`), and a
+direct computed-style comparison between the two rink columns' "later"
+row font-size came out at 26.97px vs. 29.6px (full ceiling) — close
+enough to read as the same size side by side, down from a difference
+visible to the naked eye in a real photo.
+
 **Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
 already-created single entry into a recurring one.** The entries table
 previously showed each occurrence's raw ISO date (`2026-10-19`); it now
