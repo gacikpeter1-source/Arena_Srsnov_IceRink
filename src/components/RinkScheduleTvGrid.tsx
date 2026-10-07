@@ -22,7 +22,7 @@ import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
 // regardless of font size. Time itself never truncates — `minutesToTime`
 // always produces exactly 5 characters ("16:45"), so the column is sized
 // with real margin rather than an ellipsis safety net.
-const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 100px 74px 90px 112px'
+const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 100px 74px 90px 140px'
 const GRID_CELL = 'flex items-center min-w-0 px-3.5'
 const GRID_DIVIDER = 'border-l border-white/20'
 
@@ -76,7 +76,8 @@ const NEXT_HIGHLIGHT_MINUTES = 45
 // (never literally vanish), not a "comfortable minimum" — the whole point of
 // the dynamic approach is that there is no fixed minimum, everything shrinks
 // as far as it needs to so every scheduled event for the day is visible.
-const LATER_FONT_MAX_REM = 1.875 // 30px
+const LATER_FONT_MAX_REM = 1.45 // ~23.2px — trimmed to leave headroom for a
+// wrapped (up to 3-line) name/room value, see renderSlotCell
 const LATER_PAD_Y_MAX_REM = 0.3
 const LATER_GAP_MAX_REM = 0.25
 const LATER_FONT_FLOOR_REM = 0.4
@@ -94,7 +95,7 @@ function renderSlotCell(
         ? 'border-status-danger bg-status-danger/15'
         : 'border-status-warning bg-status-warning/15'
   const sizeOnlyClasses =
-    variant === 'next' ? 'text-[clamp(0.95rem,1.6vw,1.3rem)]' : variant === 'live' ? 'text-[clamp(0.8rem,1.15vw,1rem)]' : ''
+    variant === 'next' ? 'text-[clamp(0.85rem,1.4vw,1.15rem)]' : variant === 'live' ? 'text-[clamp(0.7rem,1vw,0.9rem)]' : ''
   // Every cell sizes to its own content (shrink-0) — a "later" cell never
   // flex-grows to fill leftover height, so one lone event never balloons
   // into a screen-filling box; its font/padding just scale within the
@@ -136,33 +137,44 @@ function renderSlotCell(
                 ...(variant === 'later' && laterMetrics ? { fontSize: `${laterMetrics.fontRem}rem` } : undefined)
               }}
             >
-              {/* Each truncating cell wraps its text in a second, non-flex
-                  inner span (min-w-0 + flex-1 so it actually fills, and can
-                  shrink within, the outer flex cell). `truncate` directly on
-                  a `display:flex` element with a raw text child doesn't
-                  reliably clip in practice — a real screenshot showed a long
-                  team name overflowing straight through the Time column
-                  instead of ellipsizing, even though its grid cell measured
-                  the expected 262px with the expected 14px padding. The
-                  outer span stays flex only for centering/padding/the
-                  divider border; the inner span is the actual truncation
-                  boundary. */}
+              {/* Each cell wraps its text in a second, non-flex inner span
+                  (min-w-0 + flex-1 so it actually fills, and can shrink
+                  within, the outer flex cell) — a `display:flex` element
+                  wrapping raw text directly doesn't reliably clip/clamp in
+                  practice, a real screenshot once showed a long team name
+                  overflowing straight through the Time column instead.
+                  `line-clamp-3` (not `truncate`): a name/room value wraps
+                  across up to three lines rather than being cut to a
+                  single-line ellipsis — staff need to actually read the
+                  full value, not just recognize it was cut short. A real
+                  club name ("Tréning amatérskych hokejistov") or zone label
+                  ("Tretina k Rolbovni") still didn't fully fit at 2 lines,
+                  caught live the same way as the rest of this board's
+                  sizing; 3 lines is still a bound (not unlimited wrapping,
+                  so one outlier value can't blow out a row's height
+                  arbitrarily), just a more generous one. LATER_FONT_MAX_REM
+                  was trimmed to leave headroom for a genuinely 3-line
+                  row. */}
               <span className={GRID_CELL}>
-                <span className="min-w-0 flex-1 truncate">
+                <span className="min-w-0 flex-1 line-clamp-3 leading-tight">
                   {it.label}
                   {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>
               </span>
               <span className={`${GRID_CELL} ${GRID_DIVIDER} mono justify-end`}>{minutesToTime(slot.startMin)}</span>
               <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>
-                <span className="min-w-0 flex-1 truncate">{roomValue ?? '—'}</span>
+                <span className="min-w-0 flex-1 line-clamp-3 leading-tight">{roomValue ?? '—'}</span>
               </span>
               <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>
-                <span className="min-w-0 flex-1 truncate">{awayRoomValue ?? '—'}</span>
+                <span className="min-w-0 flex-1 line-clamp-3 leading-tight">{awayRoomValue ?? '—'}</span>
               </span>
               <span className={`${GRID_CELL} ${GRID_DIVIDER} overflow-hidden`}>
                 {it.zonePart && (
-                  <span className="max-w-full inline-block overflow-hidden text-ellipsis whitespace-nowrap rounded border border-current px-1.5 leading-tight text-[0.75em] font-bold">
+                  // Same min-w-0 + flex-1 fix as the Name/Šatňa cells above —
+                  // without an explicit flex-grown width, -webkit-line-clamp
+                  // (a legacy box model) can't reliably tell where to wrap a
+                  // badge that's otherwise just sized to its own content.
+                  <span className="min-w-0 flex-1 line-clamp-3 rounded border border-current px-1.5 py-0.5 leading-tight text-[0.7em] font-bold">
                     {it.zoneLabel}
                   </span>
                 )}
