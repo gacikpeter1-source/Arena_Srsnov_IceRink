@@ -26,6 +26,22 @@ const HOUR_END = 24
 // board's own 6vh header bar already uses.
 const HEADER_HEIGHT = 72
 
+// A slot's `height` is computed as a % of the compressed active-hours axis
+// (see compressedPosition below), so on a day where many hours are active
+// a short, real-duration slot can compute to only a handful of real pixels
+// tall — not enough room for the time line + the combined zone/note line
+// beneath it even after combining those two onto one line (see the note
+// just below). `overflow-hidden` then silently clips whichever line runs
+// out of vertical room, same failure mode the single-line-vs-two-line fix
+// already solved once for *width* truncation, just now for height. A flat
+// CSS `min-height` (not a %, which can't guarantee an absolute floor across
+// different screens) guarantees every box — however short its computed
+// duration-based height comes out — has room for both lines; a real TV
+// screen trades a little visual overlap between adjacent short slots for
+// never silently losing text, same trade-off `findOverlapConflict`'s own
+// lane-less layout here already accepts in principle.
+const SLOT_MIN_HEIGHT_PX = 52
+
 /**
  * Which whole hours, across the entire visible week, actually have at
  * least one slot touching them. Hours nobody uses (a quiet midday
@@ -187,7 +203,7 @@ export default function FreeIceBoard({ slots, rinks, zones, lang }: FreeIceBoard
                           <div
                             key={slot.id}
                             className="absolute left-0.5 right-0.5 rounded border border-primary/50 bg-primary/10 px-1.5 py-1 overflow-hidden leading-tight"
-                            style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%` }}
+                            style={{ top: `${topPct}%`, height: `${Math.max(heightPct, 2)}%`, minHeight: SLOT_MIN_HEIGHT_PX }}
                           >
                             <div className="text-primary mono text-[clamp(0.8rem,1.1vw,1.3rem)] font-bold leading-tight">
                               {slot.startTime}

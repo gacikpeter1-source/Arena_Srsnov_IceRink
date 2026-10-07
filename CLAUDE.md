@@ -3514,6 +3514,26 @@ against real production data: a slot with both now shows its full note
 text ("80 e tretina · …", zone truncated), where it previously showed
 no note at all.
 
+**Follow-up: the same note could still get clipped vertically, not just
+horizontally.** Combining zone+note onto one line fixed the 3-line-
+doesn't-fit case, but a slot's box height is still computed as a % of
+the day's own *compressed* active-hours axis (`computeActiveHours`/
+`compressedPosition` above) — on a day where many hours are active, a
+short real-duration slot can come out only a few pixels tall, not
+enough room for even the two lines (time + combined note line) this fix
+reduced it to. Seen live on the real deployed kiosk screen, not just a
+dev-server verification: the note text itself rendered (confirming the
+earlier width fix had genuinely shipped), but was cut off at the bottom
+of its own box. `SLOT_MIN_HEIGHT_PX` (52) is a flat CSS `min-height`
+layered on top of the existing `height: ${pct}%` — a % alone can't
+guarantee an absolute pixel floor across different screens, so this
+guarantees every box has room for both lines regardless of how short
+its computed duration-based height comes out, at the cost of a short
+slot's box sometimes visually extending a little past its "real" time
+boundary on a packed day — same overlap-vs-legibility trade-off this
+app already accepts elsewhere (`findOverlapConflict`'s lane-less
+layout).
+
 ## Branding assets
 PWA/app icons (favicon, apple-touch-icon, icon-192/512, maskable 
 variants) are derived from the club's official mascot graphic (cropped 
