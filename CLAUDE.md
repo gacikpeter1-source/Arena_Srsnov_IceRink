@@ -2608,6 +2608,31 @@ own slots, an em dash when unset rather than a blank cell. Scoped to the
 TV board only — `formatRoomLine`'s merged-string format is unchanged
 everywhere else it's used (the plain non-TV list view on this same page).
 
+**Follow-up: long names/zone labels wrap up to 3 lines instead of being
+cut off, and Šatňa/Šatňa hostí got narrower still.** `truncate`'s
+single-line ellipsis (from iteration 3 above) turned out to lose real
+content on a real screen — two actual production values, the team name
+"Tréning amatérskych hokejistov" and the zone label "Tretina k
+Rolbovni", didn't fit on one line even at the grid's existing widths,
+confirmed via a close-up element screenshot showing a literal mid-word
+cut with no ellipsis character. Switched every `truncate` on the Name,
+Šatňa, Šatňa hostí, and Zóna inner spans to `line-clamp-3` (plain
+Tailwind, no plugin needed on this project's Tailwind 3.4) and trimmed
+`LATER_FONT_MAX_REM` down from 1.875 to 1.45 and the 'next'/'live' tier
+font clamps slightly, to leave the extra line(s) headroom — re-verified
+both real values now render in full. Separately, per an explicit
+"narrow the columns that are usually empty, give the name more room"
+request: `GRID_CELL_NARROW` (tighter `px-1.5` padding vs. `GRID_CELL`'s
+`px-3.5`) is now used for just the Šatňa/Šatňa hostí cells, and
+`GRID_TEMPLATE_COLUMNS` shrank those two columns to 52px each
+(`'minmax(0,1fr) 100px 52px 52px 125px'`) — safe because a real day's
+data shows those two are almost always a single digit or an em dash.
+Zóna deliberately did NOT shrink to match — unlike Šatňa/Šatňa hostí,
+when it's set it's a real zone name that still needs genuine room to
+wrap (a first attempt at 90px clipped "Tretina k Rolbovni" mid-word even
+across all 3 lines, caught the same live-screenshot way as every other
+width on this board), so it kept its own, wider 125px.
+
 **Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
 already-created single entry into a recurring one.** The entries table
 previously showed each occurrence's raw ISO date (`2026-10-19`); it now
