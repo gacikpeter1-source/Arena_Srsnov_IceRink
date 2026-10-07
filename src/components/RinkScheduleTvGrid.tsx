@@ -22,19 +22,22 @@ import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
 // regardless of font size. Time itself never truncates — `minutesToTime`
 // always produces exactly 5 characters ("16:45"), so the column is sized
 // with real margin rather than an ellipsis safety net.
-// Šatňa/Šatňa hostí are almost always a single digit or an em dash in real
-// data (see a real day's worth of rows checked live) — narrowed to the bare
-// minimum (GRID_CELL_NARROW's tighter padding) so the Name column, the one
-// thing staff actually need to read at a glance, gets the space back. Zóna
-// stays wider than that: unlike Šatňa/Šatňa hostí it's not just "usually
-// empty, occasionally a short value" — when it IS set, it's a real zone
-// name ("Tretina k Rolbovni") that still needs genuine room to wrap without
-// being cut (a first pass at 90px clipped it mid-word with no ellipsis even
-// across all 3 allowed lines — caught live, same as every other width on
-// this board).
-const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 100px 52px 52px 125px'
+// Time/Šatňa/Šatňa hostí are all short, bounded-length values (Time is
+// always exactly 5 characters; Šatňa/Šatňa hostí are almost always a single
+// digit or an em dash, confirmed against a real day's worth of rows) — all
+// three are centered (GRID_CELL_CENTER) and narrowed to just enough room for
+// that short content, rather than Time's earlier generous 100px or
+// Šatňa/Šatňa hostí's own left-aligned layout, freeing real width back for
+// the Name column. Zóna narrowed too (125px → 95px) for the same reason —
+// seen live on a real screen, its badges were already rendering narrower
+// than their column, wasting space — but kept a genuine `line-clamp-3`
+// (not centered/single-line) since when it IS set it's a real zone name
+// ("Tretina k Rolbovni") that still needs room to wrap without being cut (an
+// earlier, even-narrower 90px attempt clipped it mid-word with no ellipsis
+// even across all 3 lines — caught live, same as every other width here).
+const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 86px 64px 64px 108px'
 const GRID_CELL = 'flex items-center min-w-0 px-3.5'
-const GRID_CELL_NARROW = 'flex items-center min-w-0 px-1.5'
+const GRID_CELL_CENTER = 'flex items-center justify-center min-w-0 px-1'
 const GRID_DIVIDER = 'border-l border-white/20'
 
 // Any team name containing "prenájom" (rental) — "Ľad na prenájom" (whole
@@ -87,8 +90,10 @@ const NEXT_HIGHLIGHT_MINUTES = 45
 // (never literally vanish), not a "comfortable minimum" — the whole point of
 // the dynamic approach is that there is no fixed minimum, everything shrinks
 // as far as it needs to so every scheduled event for the day is visible.
-const LATER_FONT_MAX_REM = 1.45 // ~23.2px — trimmed to leave headroom for a
-// wrapped (up to 3-line) name/room value, see renderSlotCell
+const LATER_FONT_MAX_REM = 1.6 // ~25.6px — bumped up from 1.45 per an
+// explicit "text is too small" request; still just a ceiling the
+// measure-and-shrink pass in RinkBoardColumn backs off from on a busy day,
+// see its own doc comment
 const LATER_PAD_Y_MAX_REM = 0.3
 const LATER_GAP_MAX_REM = 0.25
 const LATER_FONT_FLOOR_REM = 0.4
@@ -106,7 +111,7 @@ function renderSlotCell(
         ? 'border-status-danger bg-status-danger/15'
         : 'border-status-warning bg-status-warning/15'
   const sizeOnlyClasses =
-    variant === 'next' ? 'text-[clamp(0.85rem,1.4vw,1.15rem)]' : variant === 'live' ? 'text-[clamp(0.7rem,1vw,0.9rem)]' : ''
+    variant === 'next' ? 'text-[clamp(1rem,1.6vw,1.3rem)]' : variant === 'live' ? 'text-[clamp(0.8rem,1.15vw,1.05rem)]' : ''
   // Every cell sizes to its own content (shrink-0) — a "later" cell never
   // flex-grows to fill leftover height, so one lone event never balloons
   // into a screen-filling box; its font/padding just scale within the
@@ -172,20 +177,27 @@ function renderSlotCell(
                   {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>
               </span>
-              <span className={`${GRID_CELL} ${GRID_DIVIDER} mono justify-end`}>{minutesToTime(slot.startMin)}</span>
-              <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER}`}>
-                <span className="min-w-0 flex-1 line-clamp-3 leading-tight">{roomValue ?? '—'}</span>
+              <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} mono`}>{minutesToTime(slot.startMin)}</span>
+              <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER}`}>
+                <span className="min-w-0 flex-1 line-clamp-2 leading-tight text-center">{roomValue ?? '—'}</span>
               </span>
-              <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER}`}>
-                <span className="min-w-0 flex-1 line-clamp-3 leading-tight">{awayRoomValue ?? '—'}</span>
+              <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER}`}>
+                <span className="min-w-0 flex-1 line-clamp-2 leading-tight text-center">{awayRoomValue ?? '—'}</span>
               </span>
-              <span className={`${GRID_CELL} ${GRID_DIVIDER} overflow-hidden`}>
+              <span className={`flex items-center justify-center min-w-0 px-1 ${GRID_DIVIDER} overflow-hidden`}>
                 {it.zonePart && (
                   // Same min-w-0 + flex-1 fix as the Name/Šatňa cells above —
                   // without an explicit flex-grown width, -webkit-line-clamp
                   // (a legacy box model) can't reliably tell where to wrap a
                   // badge that's otherwise just sized to its own content.
-                  <span className="min-w-0 flex-1 line-clamp-3 rounded border border-current px-1.5 py-0.5 leading-tight text-[0.7em] font-bold">
+                  // A smaller, fixed 0.6em ratio (down from 0.7em) keeps the
+                  // badge's own text decoupled from the row's base font size
+                  // — the narrowed 108px column (down from 125px) needs the
+                  // badge to stay compact even as LATER_FONT_MAX_REM grows,
+                  // or a long zone name ("Tretina k časomiere") clips
+                  // mid-word past the 3-line cap, caught live the same way
+                  // as every other width on this board.
+                  <span className="min-w-0 flex-1 line-clamp-3 rounded border border-current px-1.5 py-0.5 leading-tight text-[0.6em] font-bold text-center">
                     {it.zoneLabel}
                   </span>
                 )}
@@ -276,13 +288,13 @@ function RinkBoardColumn({
         style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}
       >
         <span className={`${GRID_CELL} truncate pr-3.5`}>{t('rinkSchedule.teamName')}</span>
-        <span className={`${GRID_CELL} ${GRID_DIVIDER} justify-end`}>{t('common.time')}</span>
-        {/* Šatňa/Šatňa hostí headers use the same narrow padding as their
-            data cells (GRID_CELL_NARROW) — both labels wrap onto two lines
-            rather than widening an otherwise near-empty column just to fit
-            a header on one line. */}
-        <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER} leading-[1.1] whitespace-normal`}>{t('rinkSchedule.room')}</span>
-        <span className={`${GRID_CELL_NARROW} ${GRID_DIVIDER} leading-[1.1] whitespace-normal`}>{t('rinkSchedule.awayRoom')}</span>
+        <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} text-center`}>{t('common.time')}</span>
+        {/* Šatňa/Šatňa hostí headers use the same centered alignment as
+            their data cells (GRID_CELL_CENTER) — both labels wrap onto two
+            lines rather than widening an otherwise narrow column just to
+            fit a header on one line. */}
+        <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} leading-[1.1] whitespace-normal text-center`}>{t('rinkSchedule.room')}</span>
+        <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} leading-[1.1] whitespace-normal text-center`}>{t('rinkSchedule.awayRoom')}</span>
         <span className={`${GRID_CELL} ${GRID_DIVIDER} truncate`}>{t('admin.zone')}</span>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
