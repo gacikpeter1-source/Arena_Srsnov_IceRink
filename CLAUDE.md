@@ -2564,30 +2564,49 @@ it; nothing downstream changed, since the field's actual stored shape
 merged, often-truncated string.** `RinkScheduleTvGrid.tsx`'s event rows
 used `formatRoomLine` to squeeze both into one `w-[10ch]` slot
 ("Domáci: X · Hostia: Y") — a club asked for them properly separated, so
-a line's away room isn't lost to truncation. Each rink column now shows a
-small fixed header ("Tím / skupina · Čas · Šatňa · Šatňa hostí · Zóna")
-above its live/next/later list, and every row renders `room`/`awayRoom`
-(prefix stripped via `stripRoomPrefix`, since the header already names
-the column) in their own slots, an em dash when unset rather than a blank
-cell. The header's own labels are sized to their own content
-(`whitespace-nowrap`, no fixed/`ch` width) rather than literally sharing a
-column width with the rows below: an earlier cut tried reusing the same
-`ch`-relative widths the Time column already used safely (`COL_TIME`/
-`COL_ROOM`/`COL_AWAY_ROOM`, still used by the data rows) for the header
-too, which looked fine in a static mockup but broke live in two ways once
-real font-size variation was involved — the 'live'/'next' tiers' bigger
-text overflowed a shared *fixed-px* grid column (a zone badge visibly bled
-outside its cell, caught via an actual Playwright screenshot, not just
-read from the diff), and the header's own small fixed font made that same
-`ch` width register as only a few pixels, truncating "Šatňa hostí" down to
-unreadable stubs. Settled on: data rows stay `flex` with `ch`-relative
-widths (scales correctly with whatever font-size that row/tier ends up
-at, proven safe since Time already used it before this feature existed);
-the header is a separate small fixed-size legend that approximately, not
-pixel-perfectly, lines up above them — accepted, since its only job is
-naming which column is which. This is scoped to the TV board only —
-`formatRoomLine`'s merged-string format is unchanged everywhere else it's
-used (the plain non-TV list view on this same page).
+a line's away room isn't lost to truncation. This went through three real
+iterations, each one caught live via an actual Playwright screenshot, not
+just read from the diff:
+
+1. **`ch`-relative flex widths**, matching how the Time column already
+   worked — broke at the 'live'/'next' tiers' bigger font (a zone badge
+   visibly bled outside its cell) and left the header's own small fixed
+   font computing a totally different pixel width than any data row, so
+   nothing actually lined up — Time and Šatňa read as nearly touching on
+   a real screen even though each had its own "gap".
+2. **A single shared CSS Grid**, `GRID_TEMPLATE_COLUMNS` — one literal
+   fixed-px template string (`minmax(0,1fr) 100px 74px 90px 112px`:
+   Team | Time | Šatňa | Šatňa hostí | Zóna) applied identically, via
+   inline `style`, to the header row and *every* event row regardless of
+   tier/font-size, each column separated by a real `border-l` divider
+   with 14px padding on both sides (`GRID_CELL`/`GRID_DIVIDER`). Sized
+   generously for the largest ('next') font so Time — always exactly 5
+   characters from `minutesToTime`, so it never needs to truncate — never
+   overflows; every other cell carries `truncate` as a safety net.
+   Šatňa hostí's header label is the one case genuinely longer than its
+   (deliberately narrow, data-driven) column, so it wraps onto two lines
+   rather than widening the column just to fit one long label.
+3. **Fixing a real truncation bug the grid version introduced**: each
+   grid cell was a `flex items-center` span (for vertical centering)
+   directly wrapping `truncate`'s raw text — `overflow:hidden` +
+   `text-overflow:ellipsis` doesn't reliably clip a `display:flex`
+   element's own direct text content in practice, so a long team name
+   ("Bulls krajná tretina") rendered in full and visually overlapped
+   straight into the Time column instead of ellipsizing, even though
+   `getBoundingClientRect` confirmed the cell's width/padding were
+   exactly as intended. Fixed by wrapping the actual text in a second,
+   non-flex inner span (`min-w-0 flex-1 truncate`) — the outer span stays
+   `flex` purely for centering/padding/the divider border, the inner span
+   is the real truncation boundary. The Zóna badge needed the same
+   treatment, and switched from `inline-flex` to `inline-block` (it only
+   ever centers plain text, never needed flex) plus `max-w-full` so it
+   clips to its own cell too instead of overflowing.
+
+Every row renders `room`/`awayRoom` (prefix stripped via
+`stripRoomPrefix`, since the header already names the column) in their
+own slots, an em dash when unset rather than a blank cell. Scoped to the
+TV board only — `formatRoomLine`'s merged-string format is unchanged
+everywhere else it's used (the plain non-TV list view on this same page).
 
 **Date column reformatted to d.m.yyyy; a quick "Opakovať" button turns an
 already-created single entry into a recurring one.** The entries table

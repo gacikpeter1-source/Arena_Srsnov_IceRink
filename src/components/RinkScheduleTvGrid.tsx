@@ -3,23 +3,28 @@ import { localizedName, minutesToTime, stripRoomPrefix } from '@/lib/utils'
 import { Rink } from '@/types'
 import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
 
-// Shared `ch`-relative column widths for Time / Šatňa / Šatňa hostí,
-// applied identically to the per-rink header row and every event row
-// below it. `ch` (not a fixed px) is deliberate and load-bearing: each of
-// 'live'/'next'/'later' renders at a different, and for 'later' a
-// dynamically-shrinking, font-size (see the measure-and-shrink doc
-// comment below) — a fixed px width overflowed at the bigger 'live'/
-// 'next' sizes (a real bug caught live: zone badges bled outside their
-// cell), while a `ch` width scales with whichever font-size its own row
-// ends up at, the same technique the Time column already used safely
-// before this feature existed. The header renders at its own small fixed
-// size, so its columns won't line up pixel-for-pixel with every row's
-// differently-scaled columns — an accepted approximation, since the
-// header's job is just a persistent legend naming each column, not a
-// literal shared table grid.
-const COL_TIME = 'w-[5.5ch]'
-const COL_ROOM = 'w-[4.5ch]'
-const COL_AWAY_ROOM = 'w-[4.5ch]'
+// One shared CSS Grid template — Team | Time | Šatňa | Šatňa hostí | Zóna —
+// applied identically, as a literal fixed-px string, to the per-rink header
+// row AND every event row beneath it, regardless of which tier
+// ('live'/'next'/a dynamically-shrinking 'later') that row renders at. An
+// earlier cut used `ch`-relative widths instead (scaling with each row's
+// own font-size, the same technique the Time column alone used safely
+// before this feature existed) specifically so a shared *fixed-px* grid
+// wouldn't overflow at the bigger 'live'/'next' sizes — but that meant the
+// header's own small fixed font computed a completely different pixel
+// width than any data row's, so Time/Šatňa/Šatňa hostí never actually
+// lined up between rows, or against the header, reading as cramped
+// (caught live: a real screenshot showed Time and Šatňa's values almost
+// touching). Fixed px columns, sized generously for the *largest* font
+// tier ('next', up to ~1.3rem) with `truncate` as a safety net on every
+// non-time cell, solve both problems at once: every row's columns land in
+// exactly the same place, and nothing can ever bleed outside its cell
+// regardless of font size. Time itself never truncates — `minutesToTime`
+// always produces exactly 5 characters ("16:45"), so the column is sized
+// with real margin rather than an ellipsis safety net.
+const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 100px 74px 90px 112px'
+const GRID_CELL = 'flex items-center min-w-0 px-3.5'
+const GRID_DIVIDER = 'border-l border-white/20'
 
 // Any team name containing "prenájom" (rental) — "Ľad na prenájom" (whole
 // rink), "Tretina na prenájom" (one third), or any future wording staff
@@ -125,21 +130,43 @@ function renderSlotCell(
           return (
             <div
               key={it.id}
-              className={`flex items-center gap-2 min-w-0 font-semibold ${sizeOnlyClasses} ${colorClasses}`}
-              style={variant === 'later' && laterMetrics ? { fontSize: `${laterMetrics.fontRem}rem` } : undefined}
+              className={`grid items-stretch font-semibold ${sizeOnlyClasses} ${colorClasses}`}
+              style={{
+                gridTemplateColumns: GRID_TEMPLATE_COLUMNS,
+                ...(variant === 'later' && laterMetrics ? { fontSize: `${laterMetrics.fontRem}rem` } : undefined)
+              }}
             >
-              <span className="flex-1 min-w-0 truncate">
-                {it.label}
-                {it.liveScore ? ` (${it.liveScore})` : ''}
-              </span>
-              <span className={`shrink-0 ${COL_TIME} mono text-right overflow-hidden`}>{minutesToTime(slot.startMin)}</span>
-              <span className={`shrink-0 ${COL_ROOM} truncate`}>{roomValue ?? '—'}</span>
-              <span className={`shrink-0 ${COL_AWAY_ROOM} truncate`}>{awayRoomValue ?? '—'}</span>
-              {it.zonePart && (
-                <span className="shrink-0 inline-flex items-center justify-center rounded border border-current px-1.5 leading-tight text-[0.75em] font-bold whitespace-nowrap">
-                  {it.zoneLabel}
+              {/* Each truncating cell wraps its text in a second, non-flex
+                  inner span (min-w-0 + flex-1 so it actually fills, and can
+                  shrink within, the outer flex cell). `truncate` directly on
+                  a `display:flex` element with a raw text child doesn't
+                  reliably clip in practice — a real screenshot showed a long
+                  team name overflowing straight through the Time column
+                  instead of ellipsizing, even though its grid cell measured
+                  the expected 262px with the expected 14px padding. The
+                  outer span stays flex only for centering/padding/the
+                  divider border; the inner span is the actual truncation
+                  boundary. */}
+              <span className={GRID_CELL}>
+                <span className="min-w-0 flex-1 truncate">
+                  {it.label}
+                  {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>
-              )}
+              </span>
+              <span className={`${GRID_CELL} ${GRID_DIVIDER} mono justify-end`}>{minutesToTime(slot.startMin)}</span>
+              <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>
+                <span className="min-w-0 flex-1 truncate">{roomValue ?? '—'}</span>
+              </span>
+              <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>
+                <span className="min-w-0 flex-1 truncate">{awayRoomValue ?? '—'}</span>
+              </span>
+              <span className={`${GRID_CELL} ${GRID_DIVIDER} overflow-hidden`}>
+                {it.zonePart && (
+                  <span className="max-w-full inline-block overflow-hidden text-ellipsis whitespace-nowrap rounded border border-current px-1.5 leading-tight text-[0.75em] font-bold">
+                    {it.zoneLabel}
+                  </span>
+                )}
+              </span>
             </div>
           )
         })}
@@ -218,21 +245,22 @@ function RinkBoardColumn({
     <div className="flex-1 min-h-0 w-full flex flex-col">
       {/* Shared column header, sized fixed (not part of the measured/
           shrunk area below) so it stays put regardless of how far a busy
-          day's "later" tier has shrunk — see COL_TIME/COL_ROOM/
-          COL_AWAY_ROOM's own doc comment for why this only approximately
-          lines up with the rows beneath it, not pixel-for-pixel. */}
-      <div className="shrink-0 flex items-center gap-2 px-1 pb-1 text-[0.6rem] uppercase tracking-wide text-text-muted font-semibold">
-        <span className="flex-1 min-w-0 truncate">{t('rinkSchedule.teamName')}</span>
-        {/* Fixed-small header text sizes each label to its own content
-            (whitespace-nowrap, no `ch` width) rather than reusing
-            COL_TIME/COL_ROOM/COL_AWAY_ROOM — those are relative to each
-            data row's own (much bigger, or dynamically shrinking) font
-            size, which left the header's short, fixed-size labels
-            illegibly truncated. */}
-        <span className="shrink-0 whitespace-nowrap">{t('common.time')}</span>
-        <span className="shrink-0 whitespace-nowrap">{t('rinkSchedule.room')}</span>
-        <span className="shrink-0 whitespace-nowrap">{t('rinkSchedule.awayRoom')}</span>
-        <span className="shrink-0 whitespace-nowrap">{t('admin.zone')}</span>
+          day's "later" tier has shrunk — uses the exact same
+          GRID_TEMPLATE_COLUMNS as every row below, so each label sits
+          genuinely above its own column rather than just approximately. */}
+      <div
+        className="shrink-0 grid items-stretch pb-1 text-[0.6rem] uppercase tracking-wide text-text-muted font-semibold"
+        style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}
+      >
+        <span className={`${GRID_CELL} truncate pr-3.5`}>{t('rinkSchedule.teamName')}</span>
+        <span className={`${GRID_CELL} ${GRID_DIVIDER} justify-end`}>{t('common.time')}</span>
+        <span className={`${GRID_CELL} ${GRID_DIVIDER}`}>{t('rinkSchedule.room')}</span>
+        {/* "Šatňa hostí" is the one header label genuinely longer than its
+            column's own (deliberately narrow, truncate-backed) data width —
+            wraps onto two lines rather than widening the column just to
+            fit one long label on a single line. */}
+        <span className={`${GRID_CELL} ${GRID_DIVIDER} leading-[1.15] whitespace-normal`}>{t('rinkSchedule.awayRoom')}</span>
+        <span className={`${GRID_CELL} ${GRID_DIVIDER} truncate`}>{t('admin.zone')}</span>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
         <div ref={listRef} className="flex flex-col w-full" style={{ gap: `${gapRem}rem` }}>
