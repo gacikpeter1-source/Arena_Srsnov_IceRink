@@ -2918,6 +2918,79 @@ never read again once that booking id no longer resolves to anything,
 same "orphaned docs left in place, harmless" precedent this codebase
 already accepts elsewhere (e.g. old `divisionRules` docs).
 
+### Informational entries — a schedule entry with NO real ice reservation behind it
+
+A club asked for a way to write a planning note onto a day/time that's
+already fully occupied — e.g. a second team's own standing note next to a
+slot that already has every zone taken — without weakening the rule every
+other entry on this page still follows ("Every entry always blocks real
+ice", see the Fáza 1 section above). Per explicit product direction, this
+landed as a single opt-in checkbox on the create form rather than any
+change to existing behavior: `RinkScheduleEntry.isInformational` (`src/
+types/index.ts`) marks an entry created with **neither** `bookingId` nor
+`seriesId` — `createRinkScheduleEntry` (`lib/rinkSchedule.ts`), given
+`informational: true`, skips `createBooking` entirely and just writes the
+entry doc directly with whatever rink/zone/date/time/team/room values were
+typed, regardless of what else already occupies that slot.
+
+**One-off only, deliberately, for this first pass.** The "Opakovať túto
+rezerváciu" (repeat) checkbox is hidden entirely once "Informatívna
+udalosť" is checked (and checking the latter forces `repeat` back off) —
+a recurring informational series would need its own, parallel way to
+compute and edit individual occurrences, since the existing recurring
+machinery (`fetchRinkScheduleOccurrences`, `rescheduleRinkScheduleOccurrence`,
+per-occurrence room overrides, ...) all derive an occurrence's current
+date/time/rink/zone from a real `Booking` doc sharing a `seriesId` —
+an informational entry has no `Booking` at all for that to read. Left for
+a later pass if a club actually asks for it.
+
+**Display reuses an existing fallback path, not a new one.**
+`fetchRinkScheduleOccurrences` already returns `[]` for an entry with
+neither `bookingId` nor `seriesId` (previously only reachable when a
+single entry's one booking had been cancelled out from under it), and
+`RinkSchedulePage.tsx`'s `visibleEntries` computation already falls back
+to matching the entry's own stored `date`/`startTime`/`rinkId`/`teamName`
+against the active filters whenever an entry has zero live occurrences —
+both needed no changes at all. The one thing that did need a branch: that
+zero-occurrences table row used to always render a muted "Žiadne
+nadchádzajúce termíny" placeholder (correct for the cancelled-booking
+case, since there's genuinely nothing left to show), which would have
+been wrong for an informational entry — it always has real data, just
+never a `Booking` to read it from. `RinkSchedulePage.tsx` now checks
+`entry.isInformational` first and, when set, renders the entry's own
+fields as a normal-looking row (date/time/rink/zone/team/rooms) with a
+small "(informatívna)" badge next to the team name, and only a Delete
+button — no Edit/Opakovať/Zrušiť termín, since none of those operate on a
+real booking that doesn't exist here. Deleting one is a plain `deleteDoc`
+by construction (`deleteRinkScheduleEntry` already no-ops its
+booking-cancellation step when both fields are unset, needing no change),
+shown behind its own confirm message (`confirmDeleteInformational`) since
+the existing one wrongly says "this also cancels the ice reservation it
+created."
+
+**Conflict checking is skipped entirely for this one creation path** — no
+proactive `findOverlapConflict` call, no conflict banner, no replace-flow
+— exactly the point of the feature. `createRinkScheduleEntry` is also the
+one path on this page that neither throws nor can throw
+`SlotUnavailableError`, so `handleSubmit`'s existing conflict-replace
+branches simply aren't reached when `isInformational` is set.
+
+**Cleanup job extended to cover the one case it explicitly didn't
+before.** `cleanupFinishedRinkScheduleEntries` (`functions/src/
+index.ts`) used to end with "an entry with neither field set shouldn't
+exist — not this job's problem to fix" — true until this feature, which
+makes that case a deliberate, permanent one. Added a branch ahead of that
+comment: for an `isInformational` entry, compute its own end instant from
+`date`/`startTime`/`durationMinutes` via the same per-club timezone
+lookup (`makeTimezoneLookup`) and `zonedTimeToUtc` conversion the
+`FreeIceSlot` cleanup job already uses for the same "no `startAtUtc` to
+read, nothing to derive one from" reason, and delete the entry doc alone
+(no `Booking` to delete alongside it) once that's past the same
+`RINK_SCHEDULE_CLEANUP_DELAY_HOURS` grace window every other single-
+occurrence entry already gets — so an informational entry ages out of
+the schedule the same way a real one does, rather than silently
+accumulating forever as the one case this job used to shrug off.
+
 ### Tournament ↔ rink schedule conflicts
 
 Both domains reserve real ice through the exact same `createBooking`/

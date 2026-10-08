@@ -311,6 +311,22 @@ export interface RinkScheduleEntry {
   // that job knows the interval between occurrences.
   repeatForever?: boolean
   frequency?: SeriesFrequency
+  // A one-off entry created deliberately WITHOUT a real Booking behind it
+  // — staff explicitly chose to write it into the schedule at its exact
+  // day/time even though the ice is already occupied (another entry, or
+  // every zone on that rink already taken), per an explicit "informatívna
+  // udalosť" request. Neither `bookingId` nor `seriesId` is ever set on
+  // an entry like this — fetchRinkScheduleOccurrences then has nothing to
+  // fetch, so `date`/`startTime`/`durationMinutes`/`rinkId`/`zoneId` above
+  // (normally just "how the entry was first set up," stale the moment a
+  // real occurrence is edited — see fetchRinkScheduleOccurrences' own doc
+  // comment) are the entry's ONLY source of truth here, and stay that way
+  // forever since there's no occurrence to edit independently of them.
+  // Deliberately NOT supported as a recurring series in this first pass —
+  // a genuinely informational series would need its own, parallel way to
+  // compute/edit individual occurrences (no Booking docs to derive them
+  // from at all), a bigger piece of design left for later if asked for.
+  isInformational?: boolean
   createdAt: Date
 }
 

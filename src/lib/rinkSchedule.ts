@@ -14,12 +14,17 @@ import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
 
 // A staff/trainer schedule of standing team-practice/public-skating
 // blocks — see CLAUDE.md's "Rink team schedule" section for the full
-// rationale. Every entry always blocks real ice via the exact same
-// createBooking/createBookingSeries transaction the customer-facing
+// rationale. Every ordinary entry always blocks real ice via the exact
+// same createBooking/createBookingSeries transaction the customer-facing
 // booking flow uses, so it can never silently double-book a zone/time a
 // customer (or another entry) already holds — a collision throws the
 // same SlotUnavailableError (see lib/bookings.ts) that flow already
 // surfaces, and the caller (RinkSchedulePage.tsx) shows it the same way.
+// The one deliberate exception is an `isInformational` entry (see its own
+// doc comment on the type) — created with `informational: true` below,
+// which skips createBooking/the conflict check entirely so staff can
+// write a planning note onto an already-full day/time without it
+// colliding with anything.
 
 // How many real future occurrences a `repeatForever` entry keeps alive at
 // once — kept in sync with functions/src/index.ts's own copy of this
@@ -52,6 +57,12 @@ export interface CreateRinkScheduleEntryInput {
   // Set instead of `recurrence` for a daily/weekly repeat with no end at
   // all — see RinkScheduleEntry.repeatForever's own doc comment.
   repeatForeverFrequency?: SeriesFrequency
+  // See RinkScheduleEntry.isInformational's own doc comment — when set,
+  // this entry is written directly with no createBooking call at all (so
+  // no conflict check, no slot lock, nothing for `recurrence`/
+  // `repeatForeverFrequency` above to even apply to; the caller is
+  // expected not to set either alongside this).
+  informational?: boolean
 }
 
 export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInput): Promise<string> {
@@ -69,6 +80,11 @@ export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInpu
     startTime: input.startTime,
     durationMinutes: input.durationMinutes,
     createdAt: serverTimestamp()
+  }
+
+  if (input.informational) {
+    await setDoc(entryRef, { ...base, isInformational: true })
+    return entryRef.id
   }
 
   if (input.recurrence) {

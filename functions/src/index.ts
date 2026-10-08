@@ -245,6 +245,7 @@ function bookingEndMillis(booking: Record<string, unknown>): number | null {
 export const cleanupFinishedRinkScheduleEntries = onSchedule("every 30 minutes", async () => {
   const db = getFirestore();
   const cutoff = Date.now() - RINK_SCHEDULE_CLEANUP_DELAY_HOURS * 60 * 60 * 1000;
+  const timezoneFor = makeTimezoneLookup(db);
 
   const entriesSnap = await db.collection("rinkScheduleEntries").get();
 
@@ -325,8 +326,25 @@ export const cleanupFinishedRinkScheduleEntries = onSchedule("every 30 minutes",
       }
       continue;
     }
-    // An entry with neither field set shouldn't exist — not this job's
-    // problem to fix, so it's left alone rather than guessed at.
+    if (entry.isInformational === true) {
+      // Deliberately no Booking at all (see RinkScheduleEntry.isInformational's
+      // own doc comment in src/types/index.ts) — just the entry doc itself,
+      // aged out the same RINK_SCHEDULE_CLEANUP_DELAY_HOURS after its own
+      // stored date/startTime/durationMinutes, computed here (not read off
+      // a startAtUtc field, since there's no Booking to have stamped one)
+      // via the same per-club timezone lookup/conversion the FreeIceSlot
+      // cleanup job below already uses for the same reason.
+      const timeZone = await timezoneFor(entry.clubId as string);
+      const endMillis = zonedTimeToUtc(entry.date as string, entry.startTime as string, timeZone).getTime() + (entry.durationMinutes as number) * 60_000;
+      if (endMillis <= cutoff) {
+        await queueDelete(entryDoc.ref);
+        deletedEntries++;
+      }
+      continue;
+    }
+
+    // An entry with none of the above fields set shouldn't exist — not
+    // this job's problem to fix, so it's left alone rather than guessed at.
   }
 
   if (opsInBatch > 0) {
