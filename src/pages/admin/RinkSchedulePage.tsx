@@ -69,6 +69,12 @@ export default function RinkSchedulePage() {
   const [date, setDate] = useState(formatDateISO(new Date()))
   const [startTime, setStartTime] = useState('17:00')
   const [durationMinutes, setDurationMinutes] = useState(60)
+  // See RinkScheduleEntry.isInformational's own doc comment — a one-off
+  // entry deliberately created with NO real Booking behind it, so it can
+  // be written onto an already-full day/time. Mutually exclusive with the
+  // repeat checkbox below (one-off only for now, see CLAUDE.md), so
+  // checking this one forces `repeat` off and hides that section entirely.
+  const [isInformational, setIsInformational] = useState(false)
   const [repeat, setRepeat] = useState(false)
   const [frequency, setFrequency] = useState<SeriesFrequency>('weekly')
   const [recurrenceType, setRecurrenceType] = useState<'count' | 'until' | 'forever'>('count')
@@ -131,7 +137,9 @@ export default function RinkSchedulePage() {
   // CLAUDE.md's "Tournament ↔ rink schedule conflicts" section). Debounced
   // since it fires on every keystroke in the time/duration fields.
   useEffect(() => {
-    if (!club || !rinkId || !zoneId || !date || !startTime || !durationMinutes) {
+    // An informational entry deliberately never checks for conflicts — the
+    // whole point is to allow it onto an already-occupied day/time.
+    if (isInformational || !club || !rinkId || !zoneId || !date || !startTime || !durationMinutes) {
       setConflict(null)
       return
     }
@@ -145,7 +153,7 @@ export default function RinkSchedulePage() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [club, rinkId, zoneId, zones, date, startTime, durationMinutes])
+  }, [club, rinkId, zoneId, zones, date, startTime, durationMinutes, isInformational])
 
   const handleFrequencyChange = (next: SeriesFrequency) => {
     setFrequency(next)
@@ -158,12 +166,12 @@ export default function RinkSchedulePage() {
     setCreating(true)
     setError(null)
     const recurrence: SeriesRecurrence | undefined =
-      repeat && recurrenceType !== 'forever'
+      !isInformational && repeat && recurrenceType !== 'forever'
         ? recurrenceType === 'count'
           ? { type: 'count', frequency, count }
           : { type: 'until', frequency, endDate: untilDate }
         : undefined
-    const repeatForeverFrequency = repeat && recurrenceType === 'forever' ? frequency : undefined
+    const repeatForeverFrequency = !isInformational && repeat && recurrenceType === 'forever' ? frequency : undefined
     const entryInput = {
       clubId: club.id,
       rinkId,
@@ -179,9 +187,21 @@ export default function RinkSchedulePage() {
       durationMinutes,
       timezone: club.timezone,
       recurrence,
-      repeatForeverFrequency
+      repeatForeverFrequency,
+      informational: isInformational
     }
     try {
+      if (isInformational) {
+        // No createBooking call at all — skip the overlap check/conflict-
+        // replace flow entirely, since colliding with something else is
+        // exactly what this is for.
+        await createRinkScheduleEntry(entryInput)
+        setTeamName('')
+        setRoom('')
+        setAwayRoom('')
+        refresh()
+        return
+      }
       if (!recurrence && !repeatForeverFrequency) {
         // Real interval-overlap check before ever calling createBooking —
         // its own transaction only locks the exact zoneId+startTime being
@@ -256,7 +276,8 @@ export default function RinkSchedulePage() {
   }
 
   const handleDelete = async (entry: RinkScheduleEntry & { id: string }) => {
-    if (!confirm(t('rinkSchedule.confirmDelete'))) return
+    const confirmMessage = entry.isInformational ? t('rinkSchedule.confirmDeleteInformational') : t('rinkSchedule.confirmDelete')
+    if (!confirm(confirmMessage)) return
     setBusyId(entry.id)
     try {
       await deleteRinkScheduleEntry(entry)
@@ -447,6 +468,23 @@ export default function RinkSchedulePage() {
 
             <div className="sm:col-span-4 border-t border-border pt-3">
               <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isInformational}
+                  onChange={(e) => {
+                    setIsInformational(e.target.checked)
+                    if (e.target.checked) setRepeat(false)
+                  }}
+                  className="h-4 w-4"
+                />
+                {t('rinkSchedule.informationalEvent')}
+              </label>
+              <p className="text-text-muted text-xs mt-1 max-w-md">{t('rinkSchedule.informationalEventHint')}</p>
+            </div>
+
+            {!isInformational && (
+            <div className="sm:col-span-4 border-t border-border pt-3">
+              <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
                 <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} className="h-4 w-4" />
                 {t('booking.repeatBooking')}
               </label>
@@ -509,6 +547,7 @@ export default function RinkSchedulePage() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="sm:col-span-4">
               <Button type="submit" disabled={creating} className="bg-primary hover:bg-primary-gold text-primary-foreground">
@@ -616,6 +655,35 @@ export default function RinkSchedulePage() {
                   {scheduleRows.map(({ key, entry, occurrence }) => {
                     const isSeries = !!entry.seriesId
                     if (!occurrence) {
+                      // An isInformational entry always lands here (it never
+                      // has a real occurrence to show in the first place —
+                      // see fetchRinkScheduleOccurrences), unlike every other
+                      // zero-occurrence case below it, which means "this
+                      // entry's booking is gone" — so its own stored date/
+                      // time/rink/zone are shown as real data, not a "no
+                      // occurrences" placeholder, with a small badge marking
+                      // it as not a real ice reservation.
+                      if (entry.isInformational) {
+                        return (
+                          <tr key={key} className="border-b border-border">
+                            <td className="py-2 pr-3 mono">{formatDMY(entry.date)}</td>
+                            <td className="py-2 pr-3 mono text-primary">{entry.startTime}</td>
+                            <td className="py-2 pr-3">{rinkNameById.get(entry.rinkId) ?? entry.rinkId}</td>
+                            <td className="py-2 pr-3">{zoneNameById.get(entry.zoneId) ?? entry.zoneId}</td>
+                            <td className="py-2 pr-3 text-white">
+                              {entry.teamName}
+                              <span className="ml-2 text-primary text-xs whitespace-nowrap">({t('rinkSchedule.informationalBadge')})</span>
+                            </td>
+                            <td className="py-2 pr-3 text-text-secondary">{entry.room ?? '—'}</td>
+                            <td className="py-2 pr-3 text-text-secondary">{entry.awayRoom ?? '—'}</td>
+                            <td className="py-2 pr-3">
+                              <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                                {t('common.delete')}
+                              </Button>
+                            </td>
+                          </tr>
+                        )
+                      }
                       return (
                         <tr key={key} className="border-b border-border">
                           <td className="py-2 pr-3 mono text-text-muted" colSpan={4}>{t('rinkSchedule.noOccurrences')}</td>
