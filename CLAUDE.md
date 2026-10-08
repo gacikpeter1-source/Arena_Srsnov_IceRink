@@ -3674,6 +3674,17 @@ three Tailwind steps** (`text-sm` → `text-xl`), per explicit request —
 shared by both `/rozvrh?display=tv` and this page, so it got bigger on
 both screens at once.
 
+**Follow-up: the phone number moved onto the same line as the price
+rows, instead of its own line below them.** The footer's price list and
+"Tel.: ..." line were originally two stacked elements (a `flex flex-wrap`
+row for `PRICE_ROWS`, a separate `<p>` underneath for the phone) — per
+explicit feedback that this read as two lines when one was wanted, the
+phone is now just one more `<span>` inside the same `flex flex-wrap`
+container the price rows already use, so it wraps onto the price rows'
+own line (or flows onto a second line only if the row genuinely doesn't
+fit, same as any other wrapped item) rather than always being forced
+onto its own row.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

@@ -115,17 +115,15 @@ export default function RinkScheduleAlternatingBoardPage() {
           sizing already adapt to whatever vertical room is actually left,
           so neither cycling view needed any change to make room for this. */}
       <div className="shrink-0 flex items-center justify-between gap-4 rounded-xl border border-border bg-background-card px-4" style={{ height: '9vh' }}>
-        <div className="min-w-0 flex flex-col justify-center gap-1">
-          <div className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5">
-            {PRICE_ROWS.map((row) => (
-              <span key={row.label} className="text-[clamp(0.6rem,1vw,0.95rem)] font-semibold text-text-secondary whitespace-nowrap">
-                {row.label}: <span className="text-primary">{row.price}</span>
-              </span>
-            ))}
-          </div>
-          <p className="text-[clamp(0.65rem,1.1vw,1.05rem)] text-text-secondary whitespace-nowrap">
-            Tel.: <span className="text-white font-semibold">{club?.contact?.phone || FALLBACK_PHONE}</span>
-          </p>
+        <div className="min-w-0 flex flex-wrap items-baseline gap-x-5 gap-y-0.5">
+          {PRICE_ROWS.map((row) => (
+            <span key={row.label} className="text-[clamp(0.6rem,1vw,0.95rem)] font-semibold text-text-secondary whitespace-nowrap">
+              {row.label}: <span className="text-primary">{row.price}</span>
+            </span>
+          ))}
+          <span className="text-[clamp(0.6rem,1vw,0.95rem)] font-semibold text-text-secondary whitespace-nowrap">
+            Tel.: <span className="text-white">{club?.contact?.phone || FALLBACK_PHONE}</span>
+          </span>
         </div>
         {qrDataUrl && (
           <img
