@@ -3,42 +3,22 @@ import { localizedName, minutesToTime, stripRoomPrefix } from '@/lib/utils'
 import { Rink } from '@/types'
 import { BoardItem } from '@/hooks/useRinkScheduleBoardData'
 
-// One shared CSS Grid template — Team | Time | Šatňa | Šatňa hostí | Zóna —
-// applied identically, as a literal fixed-px string, to the per-rink header
-// row AND every event row beneath it, regardless of which tier
-// ('live'/'next'/a dynamically-shrinking 'later') that row renders at. An
-// earlier cut used `ch`-relative widths instead (scaling with each row's
-// own font-size, the same technique the Time column alone used safely
-// before this feature existed) specifically so a shared *fixed-px* grid
-// wouldn't overflow at the bigger 'live'/'next' sizes — but that meant the
-// header's own small fixed font computed a completely different pixel
-// width than any data row's, so Time/Šatňa/Šatňa hostí never actually
-// lined up between rows, or against the header, reading as cramped
-// (caught live: a real screenshot showed Time and Šatňa's values almost
-// touching). Fixed px columns, sized generously for the *largest* font
-// tier ('next', up to ~1.3rem) with `truncate` as a safety net on every
-// non-time cell, solve both problems at once: every row's columns land in
-// exactly the same place, and nothing can ever bleed outside its cell
-// regardless of font size. Time itself never truncates — `minutesToTime`
-// always produces exactly 5 characters ("16:45"), so the column is sized
-// with real margin rather than an ellipsis safety net.
-// Time/Šatňa/Šatňa hostí are all short, bounded-length values (Time is
-// always exactly 5 characters; Šatňa/Šatňa hostí are almost always a single
-// digit or an em dash, confirmed against a real day's worth of rows) — all
-// three are centered (GRID_CELL_CENTER) and narrowed to just enough room for
-// that short content, rather than Time's earlier generous 100px or
-// Šatňa/Šatňa hostí's own left-aligned layout, freeing real width back for
-// the Name column. Zóna narrowed too (125px → 95px) for the same reason —
-// seen live on a real screen, its badges were already rendering narrower
-// than their column, wasting space — but kept a genuine `line-clamp-3`
-// (not centered/single-line) since when it IS set it's a real zone name
-// ("Tretina k Rolbovni") that still needs room to wrap without being cut (an
-// earlier, even-narrower 90px attempt clipped it mid-word with no ellipsis
-// even across all 3 lines — caught live, same as every other width here).
-// Narrowed again, 108px -> 98px, to give Name still more room on a busy
-// rink — the badge's own font ratio dropped to match (0.52em, see below),
-// otherwise the same real zone names clip again at this width.
-const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 86px 64px 64px 98px'
+// One shared CSS Grid template — Team | Time | Šatňa — applied identically,
+// as a literal fixed-px string, to the per-rink header row AND every event
+// row beneath it, regardless of which tier ('live'/'next'/a dynamically-
+// shrinking 'later') that row renders at. Fixed px columns, sized
+// generously for the *largest* font tier ('next', up to ~1.3rem) with
+// `truncate`/`line-clamp` as a safety net on every non-time cell, so every
+// row's columns land in exactly the same place and nothing can ever bleed
+// outside its cell regardless of font size. Time itself never truncates —
+// `minutesToTime` always produces exactly 5 characters ("16:45"), so the
+// column is sized with real margin rather than an ellipsis safety net.
+// Šatňa hostí (away room) and Zóna were both dropped from this board
+// entirely per explicit request — staff found them unnecessary clutter on
+// the TV screen specifically; both remain shown on the plain non-TV list
+// further down the same page (that list is untouched, see
+// RinkScheduleBoardPage.tsx's own rendering).
+const GRID_TEMPLATE_COLUMNS = 'minmax(0,1fr) 90px 90px'
 const GRID_CELL = 'flex items-center min-w-0 px-3.5'
 const GRID_CELL_CENTER = 'flex items-center justify-center min-w-0 px-1'
 const GRID_DIVIDER = 'border-l border-white/20'
@@ -132,15 +112,14 @@ function renderSlotCell(
       )}
       <div className="flex flex-col gap-0.5 w-full">
         {slot.items.map((it) => {
-          // Each room/away-room's own fixed label prefix ("Šatňa"/"Šatňa
-          // hostí", see RoomPrefixInput) is stripped for display here —
-          // the column header right above already says "Šatňa", so
-          // repeating the word in every cell would be redundant. A value
-          // missing entirely (or predating the prefix feature and not
-          // matching it) falls back to an em dash, never a blank cell, so
-          // "nothing set" always reads clearly rather than looking broken.
+          // The room's own fixed label prefix ("Šatňa", see
+          // RoomPrefixInput) is stripped for display here — the column
+          // header right above already says "Šatňa", so repeating the
+          // word in every cell would be redundant. A value missing
+          // entirely (or predating the prefix feature and not matching
+          // it) falls back to an em dash, never a blank cell, so "nothing
+          // set" always reads clearly rather than looking broken.
           const roomValue = it.room ? stripRoomPrefix(t('rinkSchedule.room'), it.room) : undefined
-          const awayRoomValue = it.awayRoom ? stripRoomPrefix(t('rinkSchedule.awayRoom'), it.awayRoom) : undefined
           // A plain ice rental ("Ľad na prenájom" — no team/trainer, just
           // open ice staff put up for anyone to rent) gets a subtly
           // different, cooler text color so it's easy to pick out from
@@ -175,11 +154,11 @@ function renderSlotCell(
                   was trimmed to leave headroom for a genuinely 3-line
                   row. */}
               {/* Team/Skupina (Name) is deliberately the one column that's
-                  LARGER than the row's own base font (1.15em, vs. Zóna's
-                  0.6em and Time/Šatňa's 1em) — it's the single thing staff
-                  actually need to read from across the room, so it should
-                  read as the most prominent text on the board, not just
-                  "the same size as everything else". */}
+                  LARGER than the row's own base font (1.15em, vs.
+                  Time/Šatňa's 1em) — it's the single thing staff actually
+                  need to read from across the room, so it should read as
+                  the most prominent text on the board, not just "the same
+                  size as everything else". */}
               <span className={GRID_CELL}>
                 <span className="min-w-0 flex-1 line-clamp-3 leading-tight text-[1.15em]">
                   {it.label}
@@ -189,27 +168,6 @@ function renderSlotCell(
               <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} mono`}>{minutesToTime(slot.startMin)}</span>
               <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER}`}>
                 <span className="min-w-0 flex-1 line-clamp-2 leading-tight text-center">{roomValue ?? '—'}</span>
-              </span>
-              <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER}`}>
-                <span className="min-w-0 flex-1 line-clamp-2 leading-tight text-center">{awayRoomValue ?? '—'}</span>
-              </span>
-              <span className={`flex items-center justify-center min-w-0 px-1 ${GRID_DIVIDER} overflow-hidden`}>
-                {it.zonePart && (
-                  // Same min-w-0 + flex-1 fix as the Name/Šatňa cells above —
-                  // without an explicit flex-grown width, -webkit-line-clamp
-                  // (a legacy box model) can't reliably tell where to wrap a
-                  // badge that's otherwise just sized to its own content.
-                  // A smaller, fixed 0.6em ratio (down from 0.7em) keeps the
-                  // badge's own text decoupled from the row's base font size
-                  // — the narrowed 108px column (down from 125px) needs the
-                  // badge to stay compact even as LATER_FONT_MAX_REM grows,
-                  // or a long zone name ("Tretina k časomiere") clips
-                  // mid-word past the 3-line cap, caught live the same way
-                  // as every other width on this board.
-                  <span className="min-w-0 flex-1 line-clamp-3 rounded border border-current px-1.5 py-0.5 leading-tight text-[0.52em] font-bold text-center">
-                    {it.zoneLabel}
-                  </span>
-                )}
               </span>
             </div>
           )
@@ -314,13 +272,10 @@ function RinkBoardColumn({
       >
         <span className={`${GRID_CELL} truncate pr-3.5`}>{t('rinkSchedule.teamName')}</span>
         <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} text-center`}>{t('common.time')}</span>
-        {/* Šatňa/Šatňa hostí headers use the same centered alignment as
-            their data cells (GRID_CELL_CENTER) — both labels wrap onto two
-            lines rather than widening an otherwise narrow column just to
-            fit a header on one line. */}
+        {/* Šatňa's header uses the same centered alignment as its data
+            cells (GRID_CELL_CENTER) — wraps onto two lines rather than
+            widening an otherwise narrow column just to fit on one line. */}
         <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} leading-[1.1] whitespace-normal text-center`}>{t('rinkSchedule.room')}</span>
-        <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} leading-[1.1] whitespace-normal text-center`}>{t('rinkSchedule.awayRoom')}</span>
-        <span className={`${GRID_CELL} ${GRID_DIVIDER} truncate`}>{t('admin.zone')}</span>
       </div>
       <div ref={containerRef} className="flex-1 min-h-0 w-full overflow-hidden">
         <div ref={listRef} className="flex flex-col w-full" style={{ gap: `${gapRem}rem` }}>
