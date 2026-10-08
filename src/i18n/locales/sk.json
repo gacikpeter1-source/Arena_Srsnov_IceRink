@@ -719,7 +719,7 @@
     "games": {
       "randomNumber": {
         "displayName": "Náhodné číslo",
-        "taskCount": "Počet úloh",
+        "taskCount": "Interval",
         "taskDurationSeconds": "Trvanie úlohy (s)",
         "pauseDurationSeconds": "Pauza medzi úlohami (s)",
         "min": "Minimum",
