@@ -721,11 +721,11 @@
         "displayName": "Náhodné číslo",
         "taskCount": "Interval",
         "taskDurationSeconds": "Trvanie úlohy (s)",
-        "pauseDurationSeconds": "Pauza medzi úlohami (s)",
-        "min": "Minimum",
+        "pauseDurationSeconds": "Pauza medzi intervalmi (s)",
+        "min": "Rozsah čísel od",
         "minHint": "Najmenšie číslo, ktoré sa môže objaviť (napr. 1).",
-        "max": "Maximum",
-        "maxHint": "Najväčšie číslo, ktoré sa môže objaviť (napr. 20). Hráč vidí náhodné číslo medzi Minimum a Maximum."
+        "max": "Rozsah čísel do",
+        "maxHint": "Najväčšie číslo, ktoré sa môže objaviť (napr. 20). Hráč vidí náhodné číslo v tomto rozsahu."
       }
     },
     "tv": {
