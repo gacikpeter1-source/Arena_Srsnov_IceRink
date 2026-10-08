@@ -10,5 +10,10 @@
     "skipLibCheck": true
   },
   "compileOnSave": true,
-  "include": ["src"]
+  "include": ["src"],
+  // Test files are only ever run by vitest (from the repo root, using the
+  // root node_modules — see vitest.config.ts) — they must never be part
+  // of the actual `npm run build`/deploy output, and depend on a `vitest`
+  // package this project's own package.json deliberately doesn't list.
+  "exclude": ["src/**/*.test.ts"]
 }

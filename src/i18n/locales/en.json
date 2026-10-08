@@ -31,6 +31,7 @@
     "rinkSchedule": "Rink schedule",
     "manageRinkSchedule": "Manage rink schedule",
     "manageFreeIce": "Manage free ice rentals",
+    "cognitiveTraining": "Cognitive training",
     "manageTournaments": "Manage tournaments",
     "subscription": "Pricing / My plan",
     "website": "Website",
@@ -698,6 +699,40 @@
         "description": "Tournament planning (groups, knockout bracket, or a combination), live scoreboard and spectator screen, QR codes, bulk schedule import.",
         "price": "Price by agreement — also suits a one-off activation just for when a tournament is actually running."
       }
+    }
+  },
+  "cognitiveTraining": {
+    "title": "Cognitive training",
+    "chooseGame": "Choose a game",
+    "prepare": "Prepare",
+    "start": "Start",
+    "end": "End exercise",
+    "pause": "Pause",
+    "finished": "Done",
+    "players": "Players",
+    "playerNamePlaceholder": "Player name",
+    "addPlayer": "Add",
+    "correct": "Correct",
+    "incorrect": "Incorrect",
+    "correctAnswer": "Correct answer",
+    "pairingIntro": "On the TV/laptop, enter this code or scan the QR code:",
+    "games": {
+      "randomNumber": {
+        "displayName": "Random number",
+        "taskCount": "Number of tasks",
+        "taskDurationSeconds": "Task duration (s)",
+        "pauseDurationSeconds": "Pause between tasks (s)",
+        "min": "Minimum",
+        "max": "Maximum"
+      }
+    },
+    "tv": {
+      "enterCode": "Enter the pairing code",
+      "connect": "Connect",
+      "codeNotFound": "Code not found, or the exercise has already ended.",
+      "waitingForStart": "Waiting for the trainer to start the exercise...",
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen"
     }
   }
 }

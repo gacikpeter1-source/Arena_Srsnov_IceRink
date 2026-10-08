@@ -13,6 +13,7 @@ import TournamentSchedulePage from './pages/TournamentSchedulePage'
 import TvCodeRedirectPage from './pages/TvCodeRedirectPage'
 import RinkScheduleBoardPage from './pages/RinkScheduleBoardPage'
 import RinkScheduleAlternatingBoardPage from './pages/RinkScheduleAlternatingBoardPage'
+import CognitiveTvPage from './pages/CognitiveTvPage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
@@ -37,6 +38,7 @@ const AdminSubscriptionPage = lazy(() => import('./pages/admin/AdminSubscription
 const QrScanPage = lazy(() => import('./pages/admin/QrScanPage'))
 const RinkSchedulePage = lazy(() => import('./pages/admin/RinkSchedulePage'))
 const FreeIceSlotsPage = lazy(() => import('./pages/admin/FreeIceSlotsPage'))
+const CognitiveTrainingPage = lazy(() => import('./pages/admin/CognitiveTrainingPage'))
 
 function Footer() {
   const { t } = useTranslation()
@@ -65,8 +67,12 @@ export default function App() {
   // /rozvrh/strieda (the players'-bench alternating board) has no non-kiosk
   // variant at all — unlike /turnaje and /rozvrh, which only strip chrome
   // behind ?display=tv, this path is always a kiosk screen.
+  // /treningy/kognitivny-tv(/:code) is likewise always a kiosk screen —
+  // same reasoning as /rozvrh/strieda — hence startsWith rather than an
+  // exact match, since the :code variant has a dynamic path segment.
   const isTvScreen =
     location.pathname === '/rozvrh/strieda' ||
+    location.pathname.startsWith('/treningy/kognitivny-tv') ||
     (['/turnaje', '/rozvrh'].includes(location.pathname) && new URLSearchParams(location.search).get('display') === 'tv')
 
   return (
@@ -108,6 +114,8 @@ export default function App() {
           <Route path="/tv/:code" element={<TvCodeRedirectPage />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/rozvrh/strieda" element={<RinkScheduleAlternatingBoardPage />} />
+          <Route path="/treningy/kognitivny-tv" element={<CognitiveTvPage />} />
+          <Route path="/treningy/kognitivny-tv/:code" element={<CognitiveTvPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route path="/admin/signup" element={<AdminSignupPage />} />
           <Route path="/admin/signup-trainer" element={<TrainerSignupPage />} />
@@ -207,6 +215,16 @@ export default function App() {
               <ProtectedRoute>
                 <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
                   <FreeIceSlotsPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/treningy/kognitivny"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="content-container py-12 text-center text-text-muted">{t('common.loading')}</div>}>
+                  <CognitiveTrainingPage />
                 </Suspense>
               </ProtectedRoute>
             }

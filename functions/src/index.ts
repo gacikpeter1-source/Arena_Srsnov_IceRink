@@ -14,6 +14,8 @@ import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import * as nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
+import { getGameGenerator } from "./cognitiveGames/registry";
+import { buildPlanFromTasks, totalPlanDurationMs } from "./cognitiveGames/engine";
 
 initializeApp();
 
@@ -124,6 +126,99 @@ export const deleteStaffAccount = onCall(async (request) => {
     // gone; a missing/already-deleted Auth user at this point isn't fatal.
     logger.warn("Auth user delete failed after staff doc delete", { targetUid, err: String(err) });
   }
+});
+
+// ---------------------------------------------------------------------
+// Cognitive training ("Kognitívny tréning") — see src/types/index.ts for
+// the full data-model rationale. Two callables:
+// ---------------------------------------------------------------------
+
+// A plain onCall (not a raw onRequest endpoint) purely so the client can
+// reuse the exact same already-initialized Functions SDK/httpsCallable
+// pattern every other Cloud Function call in this app already uses (see
+// deleteStaffAccountCallable in lib/staff.ts) — callable functions work
+// fine for an unauthenticated caller (the TV has no login; request.auth
+// is simply unused here), so a one-off raw-HTTP endpoint wasn't needed
+// just for this. The client calls this several times in a row (see
+// measureClockOffsetMs in lib/cognitiveTraining/clockSync.ts) and keeps
+// whichever round trip had the lowest latency, NTP-style.
+export const cognitiveServerTime = onCall(() => {
+  return { now: Date.now() };
+});
+
+// Chosen once, server-side, specifically so it's never out of sync with
+// the identical constant in src/lib/cognitiveTraining/phase.ts (functions/
+// is a separate TypeScript project from src/ and can't import across that
+// boundary — same "ported copy" precedent as zonedTimeToUtc elsewhere in
+// this file). Keep both in sync if this ever changes.
+const COGNITIVE_COUNTDOWN_MS = 3000;
+const COGNITIVE_DEFAULT_PAUSE_SECONDS = 5;
+
+// Generates a session's whole exercise plan up front — the one piece of
+// this feature that MUST run server-side rather than on the trainer's own
+// device, since the plan's correct answers have to end up in a document
+// only the owning trainer/staff can read back (cognitiveSessionAnswers),
+// which the client itself can never be trusted to split correctly on its
+// own. Requires the caller to actually be the session's own trainer (not
+// just "a trainer") — re-derived here rather than trusted from the client,
+// since the Admin SDK write below bypasses firestore.rules entirely, same
+// reasoning deleteStaffAccount already documents.
+export const startCognitiveSession = onCall(async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+
+  const sessionId = request.data?.sessionId;
+  if (typeof sessionId !== "string" || !sessionId) {
+    throw new HttpsError("invalid-argument", "Missing sessionId.");
+  }
+
+  const db = getFirestore();
+  const staffSnap = await db.doc(`staff/${callerUid}`).get();
+  if (staffSnap.data()?.isTrainer !== true) {
+    throw new HttpsError("permission-denied", "Only a trainer can start a cognitive training session.");
+  }
+
+  const sessionRef = db.doc(`cognitiveSessions/${sessionId}`);
+  const sessionSnap = await sessionRef.get();
+  if (!sessionSnap.exists) {
+    throw new HttpsError("not-found", "Session not found.");
+  }
+  const session = sessionSnap.data() as { trainerId?: string; status?: string; gameId?: string; config?: Record<string, unknown> };
+  if (session.trainerId !== callerUid) {
+    throw new HttpsError("permission-denied", "Not your session.");
+  }
+  if (session.status !== "draft") {
+    throw new HttpsError("failed-precondition", "Session already started.");
+  }
+
+  const generator = getGameGenerator(session.gameId ?? "");
+  if (!generator) {
+    throw new HttpsError("invalid-argument", `Unknown gameId: ${session.gameId}`);
+  }
+
+  const config = session.config ?? {};
+  const pauseDurationMs = (Number(config.pauseDurationSeconds) || COGNITIVE_DEFAULT_PAUSE_SECONDS) * 1000;
+  const tasks = generator.generate(config, Math.random);
+  const { phases, answers } = buildPlanFromTasks(tasks, pauseDurationMs);
+  const totalDurationMs = totalPlanDurationMs(phases);
+  const startAtMs = Date.now() + COGNITIVE_COUNTDOWN_MS;
+
+  const batch = db.batch();
+  batch.update(sessionRef, {
+    status: "started",
+    phases,
+    startAt: Timestamp.fromMillis(startAtMs),
+    totalDurationMs
+  });
+  batch.set(db.doc(`cognitiveSessionAnswers/${sessionId}`), {
+    trainerId: callerUid,
+    answers
+  });
+  await batch.commit();
+
+  return { startAtMs, phases, totalDurationMs };
 });
 
 // Permanently deletes finished rink-schedule bookings (see CLAUDE.md's

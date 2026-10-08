@@ -443,6 +443,45 @@ service cloud.firestore {
       allow create, update, delete: if isTrainer() || isStaffMember();
     }
 
+    // ---------------------------------------------------------------
+    // Cognitive training ("Kognitívny tréning") — see src/types/index.ts
+    // for the full data model rationale. The TV screen has no login, so
+    // `cognitiveSessions` is public-read like every other kiosk-facing
+    // collection — but it never carries a correct answer, which is what
+    // lets it stay public at all; see cognitiveSessionAnswers below.
+    // ---------------------------------------------------------------
+
+    // Draft creation (picking a game+config, generating a pairingCode) and
+    // the actual plan (phases/startAt, written by the startCognitiveSession
+    // Cloud Function via the Admin SDK, which bypasses these rules) both
+    // only ever need the owning trainer — isStaffMember() can't manage
+    // someone else's session the way it can for tournaments/rink-schedule,
+    // since there's no "shared club effort" reasoning here, just one
+    // trainer running their own drill.
+    match /cognitiveSessions/{sessionId} {
+      allow read: if true;
+      allow create: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
+      allow update: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      allow delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+    }
+
+    // The correct answers for a session's plan — deliberately NOT public:
+    // only the owning trainer (or ice-rink staff, same "owner/superadmin
+    // can act on anyone's stuff" pattern used elsewhere) can read this
+    // back. Written only by the startCognitiveSession Cloud Function
+    // (Admin SDK), so no client write rule is needed at all.
+    match /cognitiveSessionAnswers/{sessionId} {
+      allow read: if (isTrainer() && resource.data.trainerId == request.auth.uid) || isStaffMember();
+    }
+
+    // A trainer's recorded per-player results for a session — same
+    // ownership shape as the answers above, but client-writable since
+    // there's no server-generated content to protect here.
+    match /cognitiveResults/{resultId} {
+      allow read: if isTrainer() || isStaffMember();
+      allow create, update, delete: if isTrainer() || isStaffMember();
+    }
+
     // Mail queue for the Firebase "Trigger Email from Firestore" extension.
     // Anyone may enqueue a notification; only the extension (which bypasses
     // rules) reads or deletes.
