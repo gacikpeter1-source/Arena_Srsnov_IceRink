@@ -50,7 +50,25 @@ export default function FreeIceSlotsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Quick filters over the list below — independent of the create-form's
+  // own rinkId/zoneId/date state above, same "picking a filter never
+  // changes what the form is about to submit" convention
+  // RinkSchedulePage.tsx's own filters already established. Rink/date/zone
+  // are all exact matches (unlike that page's free-text time/name filters)
+  // since a club owner here is narrowing by a fixed id, not searching.
+  const [filterRinkId, setFilterRinkId] = useState('')
+  const [filterDate, setFilterDate] = useState('')
+  const [filterZoneId, setFilterZoneId] = useState('')
+  const hasActiveFilter = !!(filterRinkId || filterDate || filterZoneId)
+
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
+  // Scoped to the picked filter rink, same as AdminDashboardPage.tsx's own
+  // zone filter — excludes legacy Zone docs with no rinkId at all (orphans
+  // predating the multiple-rinks feature, see CLAUDE.md), since grouping by
+  // rink assumes every zone has one.
+  const zonesForFilterRink = zones
+    .filter((z) => z.rinkId && (!filterRinkId || z.rinkId === filterRinkId))
+    .sort((a, b) => (a.rinkId === b.rinkId ? a.slotIndex - b.slotIndex : a.rinkId.localeCompare(b.rinkId)))
   const alternatingUrl = `${window.location.origin}/rozvrh/strieda`
   const [alternatingUrlCopied, setAlternatingUrlCopied] = useState(false)
   const handleCopyAlternatingUrl = async () => {
@@ -167,6 +185,13 @@ export default function FreeIceSlotsPage() {
 
   const rinkNameById = new Map(rinks.map((r) => [r.id, localizedName(r, i18n.language)]))
   const zoneNameById = new Map(zones.map((z) => [z.id, localizedName(z, i18n.language)]))
+
+  const visibleSlots = slots.filter((s) => {
+    if (filterRinkId && s.rinkId !== filterRinkId) return false
+    if (filterDate && s.date !== filterDate) return false
+    if (filterZoneId && s.zoneId !== filterZoneId) return false
+    return true
+  })
 
   // "Streda" / "Wednesday" — localized to whichever language the admin UI
   // is currently in (unlike the TV-board day names elsewhere in this app,
@@ -288,10 +313,65 @@ export default function FreeIceSlotsPage() {
           <CardTitle className="text-white text-lg">{t('freeIce.listTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
+          {!loading && slots.length > 0 && (
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-3 mb-4 pb-4 border-b border-border">
+              <div className="min-w-[160px]">
+                <Label className="text-white">{t('admin.rink')}</Label>
+                <select
+                  value={filterRinkId}
+                  onChange={(e) => {
+                    setFilterRinkId(e.target.value)
+                    setFilterZoneId('')
+                  }}
+                  className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+                >
+                  <option value="" className="bg-background-dark text-white">{t('booking.allRinks')}</option>
+                  {activeRinks.map((r) => (
+                    <option key={r.id} value={r.id} className="bg-background-dark text-white">{localizedName(r, i18n.language)}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-[170px]">
+                <Label className="text-white">{t('common.date')}</Label>
+                <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="bg-background-dark border-border text-white" />
+              </div>
+              <div className="min-w-[160px]">
+                <Label className="text-white">{t('admin.zone')}</Label>
+                <select
+                  value={filterZoneId}
+                  onChange={(e) => setFilterZoneId(e.target.value)}
+                  className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+                >
+                  <option value="" className="bg-background-dark text-white">{t('admin.allZones')}</option>
+                  {zonesForFilterRink.map((z) => (
+                    <option key={z.id} value={z.id} className="bg-background-dark text-white">
+                      {filterRinkId ? localizedName(z, i18n.language) : `${rinkNameById.get(z.rinkId) ?? z.rinkId} · ${localizedName(z, i18n.language)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {hasActiveFilter && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilterRinkId('')
+                    setFilterDate('')
+                    setFilterZoneId('')
+                  }}
+                >
+                  {t('rinkSchedule.clearFilters')}
+                </Button>
+              )}
+            </div>
+          )}
           {loading ? (
             <p className="text-text-muted">{t('common.loading')}</p>
           ) : slots.length === 0 ? (
             <p className="text-text-muted text-sm">{t('freeIce.none')}</p>
+          ) : visibleSlots.length === 0 ? (
+            <p className="text-text-muted text-sm">{t('rinkSchedule.noneFiltered')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -308,7 +388,7 @@ export default function FreeIceSlotsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {slots.map((slot) => {
+                  {visibleSlots.map((slot) => {
                     const booking = bookingFor(slot)
                     return (
                       <tr key={slot.id} className="border-b border-border">
