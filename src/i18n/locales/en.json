@@ -723,7 +723,9 @@
         "taskDurationSeconds": "Task duration (s)",
         "pauseDurationSeconds": "Pause between tasks (s)",
         "min": "Minimum",
-        "max": "Maximum"
+        "minHint": "The smallest number that can appear (e.g. 1).",
+        "max": "Maximum",
+        "maxHint": "The largest number that can appear (e.g. 20). The player sees a random number between Minimum and Maximum."
       }
     },
     "tv": {

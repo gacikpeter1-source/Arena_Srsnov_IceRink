@@ -723,7 +723,9 @@
         "taskDurationSeconds": "Trvanie úlohy (s)",
         "pauseDurationSeconds": "Pauza medzi úlohami (s)",
         "min": "Minimum",
-        "max": "Maximum"
+        "minHint": "Najmenšie číslo, ktoré sa môže objaviť (napr. 1).",
+        "max": "Maximum",
+        "maxHint": "Najväčšie číslo, ktoré sa môže objaviť (napr. 20). Hráč vidí náhodné číslo medzi Minimum a Maximum."
       }
     },
     "tv": {

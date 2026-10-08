@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +31,16 @@ const defaultConfig: RandomNumberConfig = {
   max: 20
 }
 
+// Preset choices (seconds) for the two duration fields, shown as a plain
+// rolldown <select> rather than a free-typed number — per explicit
+// product direction, unlike taskCount/min/max which stay free-typed
+// (see NumberField above). The currently-stored value is always included
+// even if it isn't one of these presets (e.g. a session created before
+// this change), so the select never silently jumps to a different value
+// just because it rendered.
+const TASK_DURATION_PRESETS_SECONDS = [1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
+const PAUSE_DURATION_PRESETS_SECONDS = [0, 2, 3, 5, 10, 15, 20, 30, 45, 60]
+
 // Every component below is only ever referenced as a property of the
 // `randomNumberModule` object at the bottom of this file, never exported
 // directly — react-refresh's lint rule still flags each one, since the
@@ -38,30 +49,134 @@ const defaultConfig: RandomNumberConfig = {
 // disable comment AuthContext.tsx/button.tsx already use for a mixed
 // component+non-component export, just one per component here since
 // there are several.
+// A plain controlled `<input type="number" value={n} onChange={...
+// Number(e.target.value)}>` can never actually show an empty box while the
+// trainer is retyping a value — clearing the field makes `e.target.value`
+// `''`, `Number('')` is `0` (not NaN), so the box is immediately forced
+// back to showing "0" on every keystroke instead of staying blank. This
+// keeps its own local text while the trainer is actively editing (so
+// clearing/retyping behaves like any normal text field) and only commits
+// a real number upward once it parses to a valid one >= min; on blur, an
+// empty or invalid box snaps back to the last valid value so the form
+// never ends up holding something unusable.
+// eslint-disable-next-line react-refresh/only-export-components
+function NumberField({
+  id,
+  label,
+  value,
+  min,
+  onCommit
+}: {
+  id: string
+  label: string
+  value: number
+  min: number
+  onCommit: (n: number) => void
+}) {
+  const [text, setText] = useState(String(value))
+
+  useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commitIfValid = (raw: string) => {
+    const parsed = Number(raw)
+    if (raw.trim() !== '' && Number.isFinite(parsed) && parsed >= min) {
+      onCommit(parsed)
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        min={min}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value)
+          commitIfValid(e.target.value)
+        }}
+        onBlur={() => setText(String(value))}
+      />
+    </div>
+  )
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+function DurationSelectField({
+  id,
+  label,
+  value,
+  presets,
+  onCommit
+}: {
+  id: string
+  label: string
+  value: number
+  presets: number[]
+  onCommit: (n: number) => void
+}) {
+  const options = presets.includes(value) ? presets : [...presets, value].sort((a, b) => a - b)
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onCommit(Number(e.target.value))}
+        className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
+      >
+        {options.map((seconds) => (
+          <option key={seconds} value={seconds} className="bg-background-dark text-white">
+            {seconds}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 function ConfigForm({ value, onChange }: { value: RandomNumberConfig; onChange: (v: RandomNumberConfig) => void }) {
   const { t } = useTranslation()
 
-  const field = (key: keyof RandomNumberConfig, labelKey: string, min = 1) => (
-    <div className="space-y-1">
-      <Label htmlFor={`rn-${key}`}>{t(labelKey)}</Label>
-      <Input
-        id={`rn-${key}`}
-        type="number"
-        min={min}
-        value={value[key]}
-        onChange={(e) => onChange({ ...value, [key]: Number(e.target.value) })}
-      />
-    </div>
+  const numberField = (key: keyof RandomNumberConfig, labelKey: string, min = 1) => (
+    <NumberField
+      id={`rn-${key}`}
+      label={t(labelKey)}
+      value={value[key]}
+      min={min}
+      onCommit={(n) => onChange({ ...value, [key]: n })}
+    />
   )
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {field('taskCount', 'cognitiveTraining.games.randomNumber.taskCount')}
-      {field('taskDurationSeconds', 'cognitiveTraining.games.randomNumber.taskDurationSeconds')}
-      {field('pauseDurationSeconds', 'cognitiveTraining.games.randomNumber.pauseDurationSeconds', 0)}
-      {field('min', 'cognitiveTraining.games.randomNumber.min')}
-      {field('max', 'cognitiveTraining.games.randomNumber.max')}
+      {numberField('taskCount', 'cognitiveTraining.games.randomNumber.taskCount')}
+      <DurationSelectField
+        id="rn-taskDurationSeconds"
+        label={t('cognitiveTraining.games.randomNumber.taskDurationSeconds')}
+        value={value.taskDurationSeconds}
+        presets={TASK_DURATION_PRESETS_SECONDS}
+        onCommit={(n) => onChange({ ...value, taskDurationSeconds: n })}
+      />
+      <DurationSelectField
+        id="rn-pauseDurationSeconds"
+        label={t('cognitiveTraining.games.randomNumber.pauseDurationSeconds')}
+        value={value.pauseDurationSeconds}
+        presets={PAUSE_DURATION_PRESETS_SECONDS}
+        onCommit={(n) => onChange({ ...value, pauseDurationSeconds: n })}
+      />
+      <div className="space-y-1">
+        {numberField('min', 'cognitiveTraining.games.randomNumber.min')}
+        <p className="text-xs text-text-muted">{t('cognitiveTraining.games.randomNumber.minHint')}</p>
+      </div>
+      <div className="space-y-1">
+        {numberField('max', 'cognitiveTraining.games.randomNumber.max')}
+        <p className="text-xs text-text-muted">{t('cognitiveTraining.games.randomNumber.maxHint')}</p>
+      </div>
     </div>
   )
 }
