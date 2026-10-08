@@ -460,9 +460,9 @@ service cloud.firestore {
     // trainer running their own drill.
     match /cognitiveSessions/{sessionId} {
       allow read: if true;
-      allow create: if isTrainer() && request.resource.data.trainerId == request.auth.uid;
-      allow update: if isTrainer() && resource.data.trainerId == request.auth.uid;
-      allow delete: if isTrainer() && resource.data.trainerId == request.auth.uid;
+      allow create: if (isTrainer() || isOwnerOrAbove()) && request.resource.data.trainerId == request.auth.uid;
+      allow update: if (isTrainer() || isOwnerOrAbove()) && resource.data.trainerId == request.auth.uid;
+      allow delete: if (isTrainer() || isOwnerOrAbove()) && resource.data.trainerId == request.auth.uid;
     }
 
     // The correct answers for a session's plan — deliberately NOT public:

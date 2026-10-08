@@ -139,11 +139,14 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               {t('nav.manageFreeIce')}
             </Link>
           )}
-          {/* Strictly isTrainer, unlike every other link in this block —
-              per explicit product direction, "len pre používateľov s rolou
-              tréner" (a plain assistant/owner/superadmin, with no isTrainer
-              flag, doesn't run cognitive-training drills). */}
-          {staff?.isTrainer && (
+          {/* isTrainer, OR owner/superadmin — narrower than every other
+              link in this block (which also allows a plain assistant):
+              per explicit product direction a plain assistant with no
+              isTrainer flag has no reason to run a cognitive-training
+              drill, but an owner/superadmin gets the same "full control"
+              extension the training domain's own session-creation tool
+              already grants them (see TrainerDashboardPage.tsx). */}
+          {(staff?.isTrainer || staff?.role === 'owner' || staff?.role === 'superadmin') && (
             <Link
               to="/admin/treningy/kognitivny"
               onClick={() => setOpen(false)}
