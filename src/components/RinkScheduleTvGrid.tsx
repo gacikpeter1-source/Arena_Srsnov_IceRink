@@ -310,7 +310,7 @@ export default function RinkScheduleTvGrid({ activeRinks, itemsByRink, nowMin, l
     <>
       {activeRinks.map((rink) => (
         <div key={rink.id} className="flex-1 min-w-0 flex flex-col rounded-2xl border border-border bg-background-card p-2 gap-1">
-          <h2 className="shrink-0 text-white text-sm font-bold text-center truncate">{localizedName(rink, lang)}</h2>
+          <h2 className="shrink-0 text-white text-xl font-bold text-center truncate">{localizedName(rink, lang)}</h2>
           <RinkBoardColumn items={itemsByRink.get(rink.id) ?? []} nowMin={nowMin} t={t} />
         </div>
       ))}

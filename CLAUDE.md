@@ -3636,6 +3636,44 @@ scheduled. `SLOT_MIN_HEIGHT_PX` stayed a bare 24px floor — just enough
 to keep a genuinely tiny (e.g. 15-minute) slot from vanishing, not to
 imply any particular duration.
 
+**A fixed rate-card + contact + self-QR footer, scoped to the
+striedačka board only.** A club wanted a standing price list (whole
+rink, half, edge third, middle third), a phone number, and a QR code
+visible on `/rozvrh/strieda` specifically — not `/rozvrh?display=tv`,
+which only ever shows the live schedule, never the free-ice board this
+footer's "čo najmenej zasahovať do zobrazenia rozvrhu A zobrazenia
+voľnej ľady" (interfere as little as possible with *both* displays)
+request is actually about. `RinkScheduleAlternatingBoardPage.tsx` gained
+a `shrink-0` footer row (`height: '9vh'`) as a third sibling in the
+page's outer flex column, alongside the existing header and the
+`flex-1` cycling-slides area — not an overlay on top of either slide,
+so it never obscures them, and shrinking the cycling area's own
+available height needed no changes on either child: `RinkScheduleTvGrid`'s
+measure-and-shrink pass and `FreeIceBoard`'s percentage-based sizing both
+already adapt to whatever vertical room is actually left.
+
+The four price rows (`PRICE_ROWS`) and the phone's fallback value are
+plain hardcoded Slovak strings in the component — same "fixed kiosk
+copy, not something a viewer picks a language for" reasoning every
+other TV-board string here already follows (day names, "Práve sa hrá",
+...), and there's no structured per-zone price field anywhere in this
+app's data model to read them from instead (see the payment-scaffold
+section) — this is a standing rate card, not per-slot `FreeIceSlot.note`
+copy. The phone number itself prefers `club.contact.phone` (already a
+real field, editable via the admin "Club settings" panel) over the
+hardcoded fallback, so a club updating their number there doesn't also
+need a code change here. The QR (`generateQrDataUrl`, same helper every
+other TV-board QR in this app uses) points at this exact page's own URL
+(`/rozvrh/strieda`) — a visitor can scan it to open the identical
+cycling board on their own phone, same "preview link to this screen"
+reasoning the tournament/rink-schedule TV boards' own corner QR codes
+already follow.
+
+**`RinkScheduleTvGrid.tsx`'s "Hala 1"/"Hala 2" rink-column heading grew
+three Tailwind steps** (`text-sm` → `text-xl`), per explicit request —
+shared by both `/rozvrh?display=tv` and this page, so it got bigger on
+both screens at once.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,
