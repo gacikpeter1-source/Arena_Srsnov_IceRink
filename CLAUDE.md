@@ -29,6 +29,25 @@ fresh, independent codebase, only conventions are reused.
 - PWA-ready from day one (manifest + service worker) for future 
   Capacitor wrap → App Store / Google Play
 
+**Fixed: a fresh/direct visit to any deep client-side route 404'd on
+Vercel.** The repo had no `vercel.json` at all, so Vercel's zero-config
+Vite deployment only serves a real static file (or 404s) for a path it
+doesn't recognize — a true cold request for, say, `/rozvrh/strieda`
+(scanning a QR code with no prior visit to the site, so no service
+worker yet installed to intercept the navigation and fall back to the
+cached app shell) never reaches React Router at all, since there's no
+`index.html` on disk at that path. Reported as a club-owned TV board's
+own footer QR code "not existing" on a phone that had never opened the
+site before — any never-before-visited route (confirmation/cancel
+links, every QR code in the app, a bookmarked admin page) was equally
+exposed, this was just the one someone happened to test cold. Fixed
+with a standard root `vercel.json` rewrite
+(`{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}`) —
+Vercel's rewrite rules only apply when no static file already matches
+the request path, so this doesn't shadow real assets
+(`manifest.webmanifest`, `sw.js`, icons, etc.), it only catches paths
+that only React Router knows how to handle.
+
 ## Key requirements
 - No login — booking form captures name + phone/email, returns a 
   confirmation code for self-service view/cancel
