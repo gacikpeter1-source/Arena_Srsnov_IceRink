@@ -176,8 +176,10 @@ export const startCognitiveSession = onCall(async (request) => {
 
   const db = getFirestore();
   const staffSnap = await db.doc(`staff/${callerUid}`).get();
-  if (staffSnap.data()?.isTrainer !== true) {
-    throw new HttpsError("permission-denied", "Only a trainer can start a cognitive training session.");
+  const staffData = staffSnap.data();
+  const isOwnerOrSuperadmin = staffData?.role === "owner" || staffData?.role === "superadmin";
+  if (staffData?.isTrainer !== true && !isOwnerOrSuperadmin) {
+    throw new HttpsError("permission-denied", "Only a trainer (or owner/superadmin) can start a cognitive training session.");
   }
 
   const sessionRef = db.doc(`cognitiveSessions/${sessionId}`);

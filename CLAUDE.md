@@ -3688,10 +3688,18 @@ prop — keeps the game-renderer contract (`{content}` only) simple
 regardless of how any given game chooses to size its own elements.
 
 **Trainer screen** (`CognitiveTrainingPage.tsx`, `/admin/treningy/kognitivny`,
-gated strictly to `staff.isTrainer` — unlike every other link in
-`HeaderMenu.tsx`'s training-domain block, which also allows plain
-`assistant`/`owner`/`superadmin`, since a non-trainer staff member has no
-reason to run a cognitive drill): pick a game + its config, create a
+gated to `staff.isTrainer` OR `owner`/`superadmin` — narrower than every
+other link in `HeaderMenu.tsx`'s training-domain block, which also allows
+a plain `assistant`: a non-trainer `assistant` still has no reason to run
+a cognitive drill, but an `owner`/`superadmin` gets the same "full
+control" extension the training domain's own session-creation tool
+already grants them, see `TrainerDashboardPage.tsx`'s
+`isOwnerOrSuperadmin`. Enforced in three places, not just the header
+link: the page's own `<Navigate>` guard, the `cognitiveSessions`
+Firestore rules (`isTrainer() || isOwnerOrAbove()`), and
+`startCognitiveSession` itself re-deriving the same check server-side
+since its Admin SDK write bypasses rules entirely): pick a game + its
+config, create a
 draft (shows the pairing code + QR, reusing the existing
 `generateQrDataUrl` helper from `lib/qrcode.ts`), press Start, then watch
 the identical timer/task the TV shows plus the correct answer

@@ -87,7 +87,13 @@ export default function CognitiveTrainingPage() {
     return computeCurrentPhase(session.phases, startAt, localNowMs(clockOffsetMs))
   }, [session, clockOffsetMs, nowTick])
 
-  if (staff && !staff.isTrainer) {
+  // isTrainer, OR owner/superadmin (same "full control" extension the
+  // training domain's own session-creation tool already grants them —
+  // see TrainerDashboardPage.tsx's isOwnerOrSuperadmin) — a plain
+  // assistant with no isTrainer flag still has no reason to run a
+  // cognitive drill, so that case alone stays blocked.
+  const isOwnerOrSuperadmin = staff?.role === 'owner' || staff?.role === 'superadmin'
+  if (staff && !staff.isTrainer && !isOwnerOrSuperadmin) {
     return <Navigate to="/admin" replace />
   }
 
