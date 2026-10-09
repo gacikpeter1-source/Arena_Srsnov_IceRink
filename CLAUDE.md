@@ -3719,6 +3719,36 @@ corner shrank to match (`clamp(48px,7vh,86px)` → `clamp(36px,5vh,56px)`)
 — net effect: bigger, more legible text in a noticeably smaller footer
 strip, leaving more vertical room for the two cycling slides above it.
 
+**Follow-up: the footer's own QR code was too small for a phone camera to
+actually decode — fixed without making it any bigger on screen.** A real
+phone struggled to scan the corner QR at its existing `clamp(36px,5vh,
+56px)` display size; per an explicit "nechcem aby zaberal viac miesta"
+constraint, the fix couldn't just enlarge it. What actually determines
+scannability at a fixed tiny display size is the QR's own module grid —
+fewer, coarser modules read far more reliably at a small physical size
+than many fine ones, regardless of the box's pixel dimensions. Two
+independent levers, both shrinking that grid for the same encoded
+intent:
+- **A new short alias route, `/s` → `/rozvrh/strieda`** (`App.tsx`), the
+  same fixed-alias pattern `/tv` → `/rozvrh?display=tv` already
+  established for this exact "one board, no per-instance code needed"
+  case — the QR now encodes `${origin}/s` instead of the much longer
+  `${origin}/rozvrh/strieda`, meaning less data to encode and so a
+  smaller QR version/module count for the same error tolerance.
+- **`generateQrDataUrl` (`lib/qrcode.ts`) gained an opt-in
+  `errorCorrectionLevel` parameter** (default untouched — every other
+  caller across the app, e.g. booking confirmation emails and the
+  tournament/admin QR panels, keeps the library's own default 'M', since
+  those are viewed closer up or printed larger and weren't the reported
+  problem) — only this striedačka corner QR passes `'L'` (lowest
+  redundancy), which lets the library pick a coarser module grid for the
+  same short string.
+- The `<img>` also gained `imageRendering: 'pixelated'` so the browser's
+  downscale from the generated 512px source to the tiny on-screen box
+  keeps each module's edges sharp rather than anti-aliased/blurred —
+  blurred edges are exactly what a camera's own decoder struggles with
+  most at a small physical size.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

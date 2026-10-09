@@ -79,7 +79,12 @@ export default function RinkScheduleAlternatingBoardPage() {
   }, [intervalSeconds])
 
   useEffect(() => {
-    generateQrDataUrl(`${window.location.origin}/rozvrh/strieda`).then(setQrDataUrl)
+    // Encodes the short /s alias (not the full /rozvrh/strieda path) with a
+    // lower error-correction level — both shrink the QR's own module grid
+    // for the same tiny on-screen size, which is what actually determines
+    // whether a phone camera can resolve it, not the display size itself
+    // (see lib/qrcode.ts's doc comment).
+    generateQrDataUrl(`${window.location.origin}/s`, { errorCorrectionLevel: 'L' }).then(setQrDataUrl)
   }, [])
 
   return (
@@ -136,7 +141,7 @@ export default function RinkScheduleAlternatingBoardPage() {
             src={qrDataUrl}
             alt="QR"
             className="shrink-0 rounded bg-white p-1"
-            style={{ width: 'clamp(36px, 5vh, 56px)', height: 'clamp(36px, 5vh, 56px)' }}
+            style={{ width: 'clamp(36px, 5vh, 56px)', height: 'clamp(36px, 5vh, 56px)', imageRendering: 'pixelated' }}
           />
         )}
       </div>
