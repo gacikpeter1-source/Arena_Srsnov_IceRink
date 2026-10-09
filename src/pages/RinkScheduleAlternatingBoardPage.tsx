@@ -4,7 +4,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useRinkScheduleBoardData } from '@/hooks/useRinkScheduleBoardData'
 import { fetchUpcomingFreeIceSlots } from '@/lib/freeIceSlots'
 import { formatDateISO } from '@/lib/utils'
-import { generateQrDataUrl } from '@/lib/qrcode'
 import { FreeIceSlot } from '@/types'
 import RinkScheduleTvGrid from '@/components/RinkScheduleTvGrid'
 import FreeIceBoard from '@/components/FreeIceBoard'
@@ -60,10 +59,6 @@ export default function RinkScheduleAlternatingBoardPage() {
   const { club, zones, now, nowMin, activeRinks, itemsByRink } = useRinkScheduleBoardData(i18n.language)
   const [freeSlots, setFreeSlots] = useState<(FreeIceSlot & { id: string })[]>([])
   const [slide, setSlide] = useState<0 | 1>(0)
-  // QR points back at this same striedačka screen, so a visitor can open
-  // the identical cycling board on their own phone — same "preview link"
-  // reasoning every other TV-board QR in this app already follows.
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!club) return
@@ -77,15 +72,6 @@ export default function RinkScheduleAlternatingBoardPage() {
     const timer = setInterval(() => setSlide((s) => (s === 0 ? 1 : 0)), intervalSeconds * 1000)
     return () => clearInterval(timer)
   }, [intervalSeconds])
-
-  useEffect(() => {
-    // Encodes the short /s alias (not the full /rozvrh/strieda path) with a
-    // lower error-correction level — both shrink the QR's own module grid
-    // for the same tiny on-screen size, which is what actually determines
-    // whether a phone camera can resolve it, not the display size itself
-    // (see lib/qrcode.ts's doc comment).
-    generateQrDataUrl(`${window.location.origin}/s`, { errorCorrectionLevel: 'L' }).then(setQrDataUrl)
-  }, [])
 
   return (
     <div className="h-full w-full bg-background-dark flex flex-col p-3 gap-2 text-white">
@@ -119,14 +105,20 @@ export default function RinkScheduleAlternatingBoardPage() {
           own measure-and-shrink pass and FreeIceBoard's percentage-based
           sizing already adapt to whatever vertical room is actually left,
           so neither cycling view needed any change to make room for this.
-          `flex-1 justify-between` on the text row (added per a "spans the
-          whole width, not bunched to the left" follow-up) spreads the
-          price/phone items evenly across the full row instead of just the
-          space their own content needs — which is also what freed up room
-          to shrink the row's own height (9vh -> 6vh, matching the header
-          bar's height above) and still bump the font up a touch. */}
-      <div className="shrink-0 flex items-center justify-between gap-4 rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
-        <div className="min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-5 gap-y-0.5">
+          `justify-between` on the text row (added per a "spans the whole
+          width, not bunched to the left" follow-up) spreads the price/phone
+          items evenly across the full row instead of just the space their
+          own content needs — which is also what freed up room to shrink the
+          row's own height (9vh -> 6vh, matching the header bar's height
+          above) and still bump the font up a touch.
+          No QR code here any more — a real iPhone still couldn't resolve
+          it even after shrinking its module grid (short /s alias, lower
+          error-correction level, pixelated scaling — see the striedačka
+          section of CLAUDE.md) while staying this small, and there's no
+          more screen space to trade for a bigger one. Left for a later
+          pass if a club wants to revisit it with a different approach. */}
+      <div className="shrink-0 flex items-center rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
+        <div className="min-w-0 w-full flex flex-wrap items-baseline justify-between gap-x-5 gap-y-0.5">
           {PRICE_ROWS.map((row) => (
             <span key={row.label} className="text-[clamp(0.75rem,1.3vw,1.15rem)] font-semibold text-text-secondary whitespace-nowrap">
               {row.label}: <span className="text-primary">{row.price}</span>
@@ -136,14 +128,6 @@ export default function RinkScheduleAlternatingBoardPage() {
             Tel.: <span className="text-white">{club?.contact?.phone || FALLBACK_PHONE}</span>
           </span>
         </div>
-        {qrDataUrl && (
-          <img
-            src={qrDataUrl}
-            alt="QR"
-            className="shrink-0 rounded bg-white p-1"
-            style={{ width: 'clamp(36px, 5vh, 56px)', height: 'clamp(36px, 5vh, 56px)', imageRendering: 'pixelated' }}
-          />
-        )}
       </div>
     </div>
   )
