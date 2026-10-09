@@ -285,7 +285,17 @@
     "zoneQrTitle": "QR kódy zón",
     "zoneQrDesc": "Jeden kód pre každú zónu — po naskenovaní sa otvorí rezervačná stránka filtrovaná len na dostupné časy tejto zóny. Vhodné na vyvesenie pri jednotlivých častiach ihriska.",
     "slotQrTitle": "QR kód rýchlej registrácie",
-    "slotQrDesc": "Vyberte presnú zónu, dátum a čas a vygenerujte kód pre registráciu na jedno naskenovanie — po naskenovaní sa rovno otvorí registračný formulár pre daný termín, bez ďalšieho výberu. Vhodné pre verejné korčuľovanie / voľný vstup."
+    "slotQrDesc": "Vyberte presnú zónu, dátum a čas a vygenerujte kód pre registráciu na jedno naskenovanie — po naskenovaní sa rovno otvorí registračný formulár pre daný termín, bez ďalšieho výberu. Vhodné pre verejné korčuľovanie / voľný vstup.",
+    "phoneQrTitle": "QR kód na telefonický kontakt",
+    "phoneQrDesc": "Po naskenovaní sa rovno otvorí telefónna aplikácia s predvyplneným číslom, stačí ťuknúť na vytočiť. Môžete vytvoriť viacero kódov (napr. pre rôzne účely) a ktorýkoľvek z nich zobraziť aj na TV obrazovke striedačka.",
+    "phoneQrLabelField": "Názov",
+    "phoneQrLabelPlaceholder": "napr. Prenájom ľadu",
+    "phoneQrPhoneField": "Telefónne číslo",
+    "phoneQrAdd": "Vytvoriť QR kód",
+    "phoneQrNone": "Zatiaľ nebol vytvorený žiadny QR kód na telefonický kontakt.",
+    "phoneQrShowOnStriedacka": "Zobraziť na TV striedačka",
+    "phoneQrDelete": "Zmazať",
+    "phoneQrConfirmDelete": "Naozaj chcete zmazať tento QR kód?"
   },
   "trainingCalendar": {
     "manageNotice": "Ste tréner alebo personál klubu?",

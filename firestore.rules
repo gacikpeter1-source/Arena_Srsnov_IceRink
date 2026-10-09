@@ -443,6 +443,17 @@ service cloud.firestore {
       allow create, update, delete: if isTrainer() || isStaffMember();
     }
 
+    // Staff-managed "call this number" QR codes (see PhoneQrCode in
+    // src/types/index.ts) — public read since the striedačka TV board that
+    // displays them has no login, writes restricted to the same ice-rink
+    // staff roles the rest of AdminQrPanel.tsx's admin-only QR tools already
+    // require (no isTrainer() branch — this lives in the ice-rink admin
+    // area, not the training domain).
+    match /phoneQrCodes/{id} {
+      allow read: if true;
+      allow create, update, delete: if isStaffMember();
+    }
+
     // ---------------------------------------------------------------
     // Cognitive training ("Kognitívny tréning") — see src/types/index.ts
     // for the full data model rationale. The TV screen has no login, so
