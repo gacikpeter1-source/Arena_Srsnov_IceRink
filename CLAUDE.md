@@ -3749,6 +3749,23 @@ intent:
   blurred edges are exactly what a camera's own decoder struggles with
   most at a small physical size.
 
+**Follow-up: the QR code was removed from the footer entirely.** The
+module-grid shrink above (short `/s` alias, `errorCorrectionLevel: 'L'`,
+pixelated scaling) still wasn't enough — a real iPhone couldn't resolve
+it at the required on-screen size, and there was no more room to trade
+for a bigger box without giving back the "čo najmenej zasahovať"
+footprint this footer was built around in the first place. Per explicit
+direction, `qrDataUrl` and its generating effect were deleted from
+`RinkScheduleAlternatingBoardPage.tsx`, leaving the footer as just the
+price/phone text row (still spread full-width via the earlier
+`justify-between` fix). The `/s` alias route in `App.tsx` was left in
+place (harmless, nothing else references it) rather than removed, in
+case a different QR approach — a bigger dedicated screen, a printed
+sticker, anything not constrained to this exact footer's height — comes
+back later; `generateQrDataUrl`'s opt-in `errorCorrectionLevel` param in
+`lib/qrcode.ts` likewise stays as a generically useful addition to that
+shared helper even with no current caller passing it.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

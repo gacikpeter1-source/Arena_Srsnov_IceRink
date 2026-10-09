@@ -112,11 +112,13 @@ export default function App() {
               deployment, so no random code is needed, just a fixed alias. */}
           <Route path="/tv" element={<Navigate to="/rozvrh?display=tv" replace />} />
           <Route path="/tv/:code" element={<TvCodeRedirectPage />} />
-          {/* /s is the same kind of fixed alias as /tv above, just for the
-              striedačka board — its own corner QR encodes this instead of
-              the full /rozvrh/strieda path so the QR has fewer modules to
-              draw at the same tiny on-screen size, easier for a phone
-              camera to resolve (see RinkScheduleAlternatingBoardPage.tsx). */}
+          {/* /s is the same kind of fixed alias as /tv above, for the
+              striedačka board — originally meant to shorten its corner QR
+              (fewer modules to draw at a tiny on-screen size), but that QR
+              was removed entirely (a real iPhone still couldn't scan it
+              even at the smaller grid — see RinkScheduleAlternatingBoardPage.tsx).
+              Kept as a plain short link in case a different QR approach
+              comes back later. */}
           <Route path="/s" element={<Navigate to="/rozvrh/strieda" replace />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/rozvrh/strieda" element={<RinkScheduleAlternatingBoardPage />} />
