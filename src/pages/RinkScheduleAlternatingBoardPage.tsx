@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useRinkScheduleBoardData } from '@/hooks/useRinkScheduleBoardData'
 import { fetchUpcomingFreeIceSlots } from '@/lib/freeIceSlots'
+import { fetchPhoneQrCodes } from '@/lib/phoneQrCodes'
+import { generateQrDataUrl } from '@/lib/qrcode'
 import { formatDateISO } from '@/lib/utils'
-import { FreeIceSlot } from '@/types'
+import { FreeIceSlot, PhoneQrCode } from '@/types'
 import RinkScheduleTvGrid from '@/components/RinkScheduleTvGrid'
 import FreeIceBoard from '@/components/FreeIceBoard'
 
@@ -59,14 +61,41 @@ export default function RinkScheduleAlternatingBoardPage() {
   const { club, zones, now, nowMin, activeRinks, itemsByRink } = useRinkScheduleBoardData(i18n.language)
   const [freeSlots, setFreeSlots] = useState<(FreeIceSlot & { id: string })[]>([])
   const [slide, setSlide] = useState<0 | 1>(0)
+  // Phone-number QR codes staff opted into showing here (AdminQrPanel.tsx's
+  // "QR kód na telefonický kontakt" checkbox) — polled on the same cadence
+  // as freeSlots below rather than a separate interval, since both only
+  // ever need to be roughly up to date, not real-time.
+  const [phoneQrCodes, setPhoneQrCodes] = useState<(PhoneQrCode & { id: string })[]>([])
+  const [phoneQrDataUrls, setPhoneQrDataUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!club) return
-    const refresh = () => fetchUpcomingFreeIceSlots(club.id, formatDateISO(new Date())).then(setFreeSlots)
+    const refresh = () => {
+      fetchUpcomingFreeIceSlots(club.id, formatDateISO(new Date())).then(setFreeSlots)
+      fetchPhoneQrCodes(club.id).then((all) => setPhoneQrCodes(all.filter((p) => p.showOnStriedacka)))
+    }
     refresh()
     const interval = setInterval(refresh, FREE_ICE_POLL_MS)
     return () => clearInterval(interval)
   }, [club])
+
+  // Regenerates only when the actual set of shown entries changes (not on
+  // every poll that returns the same list) — `phoneQrKey` is a cheap
+  // content fingerprint used as the effect's real dependency instead of the
+  // `phoneQrCodes` array itself, which gets a new reference every poll.
+  const phoneQrKey = phoneQrCodes.map((p) => `${p.id}:${p.phone}`).join(',')
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(
+      phoneQrCodes.map(async (p) => [p.id, await generateQrDataUrl(`tel:${p.phone}`, { errorCorrectionLevel: 'L' })] as const)
+    ).then((pairs) => {
+      if (!cancelled) setPhoneQrDataUrls(Object.fromEntries(pairs))
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phoneQrKey])
 
   useEffect(() => {
     const timer = setInterval(() => setSlide((s) => (s === 0 ? 1 : 0)), intervalSeconds * 1000)
@@ -100,25 +129,28 @@ export default function RinkScheduleAlternatingBoardPage() {
 
       {/* Price/contact rate-card footer — a persistent `shrink-0` row (not
           part of either cycling slide), per an explicit "čo najmenej
-          zasahovať, ale musí byť viditeľné" request: it takes a small,
-          fixed slice of the column's height, and both RinkScheduleTvGrid's
-          own measure-and-shrink pass and FreeIceBoard's percentage-based
+          zasahovať, ale musí byť viditeľné" request: it takes a small
+          slice of the column's height, and both RinkScheduleTvGrid's own
+          measure-and-shrink pass and FreeIceBoard's percentage-based
           sizing already adapt to whatever vertical room is actually left,
           so neither cycling view needed any change to make room for this.
           `justify-between` on the text row (added per a "spans the whole
           width, not bunched to the left" follow-up) spreads the price/phone
           items evenly across the full row instead of just the space their
-          own content needs — which is also what freed up room to shrink the
-          row's own height (9vh -> 6vh, matching the header bar's height
-          above) and still bump the font up a touch.
-          No QR code here any more — a real iPhone still couldn't resolve
-          it even after shrinking its module grid (short /s alias, lower
-          error-correction level, pixelated scaling — see the striedačka
-          section of CLAUDE.md) while staying this small, and there's no
-          more screen space to trade for a bigger one. Left for a later
-          pass if a club wants to revisit it with a different approach. */}
-      <div className="shrink-0 flex items-center rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
-        <div className="min-w-0 w-full flex flex-wrap items-baseline justify-between gap-x-5 gap-y-0.5">
+          own content needs.
+          A generic app/URL QR code was tried here before and removed — a
+          real iPhone couldn't resolve it at this footer's tiny size even
+          after shrinking its module grid, with no more room to trade for a
+          bigger one. The phone-number QR code(s) below are a deliberate,
+          later re-introduction of the same idea for a different, much
+          shorter payload (a `tel:` URI needs far fewer modules than a full
+          URL — see AdminQrPanel.tsx's "QR kód na telefonický kontakt"
+          section and lib/qrcode.ts) — `minHeight` (not a fixed `height`)
+          lets the row grow just enough to fit them legibly when at least
+          one is checked, while staying as compact as before when none
+          are. */}
+      <div className="shrink-0 flex items-center gap-4 rounded-xl border border-border bg-background-card px-4 py-2" style={{ minHeight: '6vh' }}>
+        <div className="min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-5 gap-y-0.5">
           {PRICE_ROWS.map((row) => (
             <span key={row.label} className="text-[clamp(0.75rem,1.3vw,1.15rem)] font-semibold text-text-secondary whitespace-nowrap">
               {row.label}: <span className="text-primary">{row.price}</span>
@@ -128,6 +160,24 @@ export default function RinkScheduleAlternatingBoardPage() {
             Tel.: <span className="text-white">{club?.contact?.phone || FALLBACK_PHONE}</span>
           </span>
         </div>
+
+        {phoneQrCodes.length > 0 && (
+          <div className="shrink-0 flex items-center gap-3">
+            {phoneQrCodes.map((entry) => (
+              <div key={entry.id} className="flex flex-col items-center gap-0.5">
+                {phoneQrDataUrls[entry.id] && (
+                  <img
+                    src={phoneQrDataUrls[entry.id]}
+                    alt={entry.label}
+                    className="rounded bg-white p-1"
+                    style={{ width: 'clamp(56px, 10vh, 96px)', height: 'clamp(56px, 10vh, 96px)', imageRendering: 'pixelated' }}
+                  />
+                )}
+                <span className="text-[clamp(0.5rem,0.8vw,0.7rem)] text-text-secondary whitespace-nowrap">{entry.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

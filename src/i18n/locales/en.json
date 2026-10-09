@@ -285,7 +285,17 @@
     "zoneQrTitle": "Zone QR codes",
     "zoneQrDesc": "One code per zone — scanning it opens the booking page filtered to just that zone's available times. Good for posting at each part of the rink.",
     "slotQrTitle": "Quick-registration QR code",
-    "slotQrDesc": "Pick an exact zone, date, and time to generate a one-tap registration code — scanning it opens the sign-up form directly for that slot, with nothing else to pick. Good for open-ice / walk-in sessions."
+    "slotQrDesc": "Pick an exact zone, date, and time to generate a one-tap registration code — scanning it opens the sign-up form directly for that slot, with nothing else to pick. Good for open-ice / walk-in sessions.",
+    "phoneQrTitle": "Phone-call QR code",
+    "phoneQrDesc": "Scanning it opens the phone's own dialer with the number prefilled — just tap to call. You can create several codes (e.g. for different purposes) and show any of them on the striedačka TV board as well.",
+    "phoneQrLabelField": "Label",
+    "phoneQrLabelPlaceholder": "e.g. Ice rental",
+    "phoneQrPhoneField": "Phone number",
+    "phoneQrAdd": "Create QR code",
+    "phoneQrNone": "No phone-call QR codes have been created yet.",
+    "phoneQrShowOnStriedacka": "Show on striedačka TV",
+    "phoneQrDelete": "Delete",
+    "phoneQrConfirmDelete": "Delete this QR code?"
   },
   "trainingCalendar": {
     "manageNotice": "Are you a trainer or club staff?",

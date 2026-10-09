@@ -3766,6 +3766,55 @@ back later; `generateQrDataUrl`'s opt-in `errorCorrectionLevel` param in
 `lib/qrcode.ts` likewise stays as a generically useful addition to that
 shared helper even with no current caller passing it.
 
+**Follow-up: a different kind of QR brought back — "call this number"
+codes, managed in Administration, shown on the TV only when staff opt
+in.** The removed QR above encoded a full URL; per explicit request this
+is a smaller, deliberately different payload: a `tel:` URI, which a
+phone's camera opens straight into its dialer with the number prefilled
+(tap to call, no app/website involved) — and, being a far shorter
+string than any URL this app generates, needs a noticeably coarser QR
+module grid for the same error tolerance, which is exactly what makes it
+realistically scannable at this footer's small size where the earlier
+URL QR wasn't.
+
+`PhoneQrCode` (`src/types/index.ts`, `lib/phoneQrCodes.ts`) is a small
+new collection — plain CRUD, same shape as `FreeIceSlot`: no
+conflict-checking, no atomic transaction, nothing here reserves
+anything. A club can create more than one entry (e.g. a different
+number per purpose — ice rentals, reception), each independently
+toggled via its own `showOnStriedacka: boolean` checkbox. Managed from
+**Administration → QR kódy** (`AdminQrPanel.tsx`'s new fourth section,
+alongside the existing app/zone/slot QR tools, gated to the same
+`isStaffMember()` ice-rink-admin check as that whole panel — no
+`isTrainer()` branch, unlike the training domain's own QR tools
+elsewhere in this app) — a label + phone number form creates an entry,
+each rendered as its own `QrCodeDisplay` card (reused as-is, `value={
+'tel:' + phone}`) with a checkbox and a delete button.
+
+`RinkScheduleAlternatingBoardPage.tsx` polls `fetchPhoneQrCodes` on the
+same cadence as `freeSlots` (one combined `refresh()`, not a second
+interval) and filters client-side to `showOnStriedacka === true` — no
+composite Firestore index needed for this, same "multiple equality
+filters don't need one" precedent `cancelFreeIceSlotRepeat`'s own
+`clubId`+`seriesId` query already established in this codebase. Each
+checked entry's own QR data URL is regenerated only when the actual
+set of shown entries changes (a `phoneQrKey` content-fingerprint string
+used as the real effect dependency, not the array reference, which
+gets a new identity every poll regardless of whether anything
+changed) — `errorCorrectionLevel: 'L'` and `imageRendering: 'pixelated'`
+are reused from the earlier (now-removed) URL-QR attempt, same
+reasoning. The footer row switched from a fixed `height` to a
+`minHeight` specifically so it can grow just enough to fit however many
+checked entries exist (rendered as small QR+label blocks to the right
+of the price/phone text) while staying exactly as compact as before
+when none are checked — a club that never uses this feature sees no
+difference at all.
+
+`firestore.rules` opens `phoneQrCodes` to public read (the kiosk has no
+login) with writes restricted to `isStaffMember()`, matching
+`AdminQrPanel.tsx`'s own existing gating for every other QR tool on that
+page.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

@@ -377,6 +377,27 @@ export interface FreeIceSlot {
   seriesId?: string
 }
 
+// A staff-created QR code that opens the phone's own dialer with a number
+// prefilled (a `tel:` URI, see lib/qrcode.ts) rather than any app URL —
+// AdminQrPanel.tsx's "QR kód na telefonické číslo" section. A club can
+// create more than one (e.g. a different number per purpose — ice
+// rentals, reception) and independently mark any subset of them to also
+// appear on the striedačka TV board's footer (`showOnStriedacka`);
+// RinkScheduleAlternatingBoardPage.tsx renders one small QR block per
+// entry currently marked true, reading straight off this collection
+// rather than a copy, same "no second source of truth" principle this
+// app's other staff-curated listings (e.g. FreeIceSlot above) follow.
+export interface PhoneQrCode {
+  id: string
+  clubId: string
+  label: string
+  phone: string
+  showOnStriedacka: boolean
+  createdBy: string
+  createdByName: string
+  createdAt: Date
+}
+
 // Role hierarchy (ice-rink admin duties only — see isTrainer below for the
 // separate, orthogonal training-reservations track):
 // - superadmin: full control, and the only role that can grant/revoke 'owner'
