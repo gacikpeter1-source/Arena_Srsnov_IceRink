@@ -3704,6 +3704,21 @@ own line (or flows onto a second line only if the row genuinely doesn't
 fit, same as any other wrapped item) rather than always being forced
 onto its own row.
 
+**Follow-up: the footer row spans the full width and shrank vertically.**
+The text block only ever took as much horizontal room as its own content
+needed (left-aligned via plain `flex flex-wrap`), leaving a visibly empty
+gap between the price/phone text and the QR corner on a wide screen — per
+explicit feedback that the footer "takes up a lot of screen space" for
+that little text, `flex-1 justify-between` was added to the text
+container so its items (the four price rows + phone) spread evenly across
+the *entire* available width instead of bunching to the left. That freed
+enough visual room to go the other way on height: the row shrank from
+`9vh` to `6vh` (matching the header bar above it) while the text's own
+`clamp()` grew slightly (`0.6rem–0.95rem` → `0.75rem–1.15rem`) and the QR
+corner shrank to match (`clamp(48px,7vh,86px)` → `clamp(36px,5vh,56px)`)
+— net effect: bigger, more legible text in a noticeably smaller footer
+strip, leaving more vertical room for the two cycling slides above it.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

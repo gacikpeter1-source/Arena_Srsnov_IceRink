@@ -113,15 +113,21 @@ export default function RinkScheduleAlternatingBoardPage() {
           fixed slice of the column's height, and both RinkScheduleTvGrid's
           own measure-and-shrink pass and FreeIceBoard's percentage-based
           sizing already adapt to whatever vertical room is actually left,
-          so neither cycling view needed any change to make room for this. */}
-      <div className="shrink-0 flex items-center justify-between gap-4 rounded-xl border border-border bg-background-card px-4" style={{ height: '9vh' }}>
-        <div className="min-w-0 flex flex-wrap items-baseline gap-x-5 gap-y-0.5">
+          so neither cycling view needed any change to make room for this.
+          `flex-1 justify-between` on the text row (added per a "spans the
+          whole width, not bunched to the left" follow-up) spreads the
+          price/phone items evenly across the full row instead of just the
+          space their own content needs — which is also what freed up room
+          to shrink the row's own height (9vh -> 6vh, matching the header
+          bar's height above) and still bump the font up a touch. */}
+      <div className="shrink-0 flex items-center justify-between gap-4 rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
+        <div className="min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-5 gap-y-0.5">
           {PRICE_ROWS.map((row) => (
-            <span key={row.label} className="text-[clamp(0.6rem,1vw,0.95rem)] font-semibold text-text-secondary whitespace-nowrap">
+            <span key={row.label} className="text-[clamp(0.75rem,1.3vw,1.15rem)] font-semibold text-text-secondary whitespace-nowrap">
               {row.label}: <span className="text-primary">{row.price}</span>
             </span>
           ))}
-          <span className="text-[clamp(0.6rem,1vw,0.95rem)] font-semibold text-text-secondary whitespace-nowrap">
+          <span className="text-[clamp(0.75rem,1.3vw,1.15rem)] font-semibold text-text-secondary whitespace-nowrap">
             Tel.: <span className="text-white">{club?.contact?.phone || FALLBACK_PHONE}</span>
           </span>
         </div>
@@ -130,7 +136,7 @@ export default function RinkScheduleAlternatingBoardPage() {
             src={qrDataUrl}
             alt="QR"
             className="shrink-0 rounded bg-white p-1"
-            style={{ width: 'clamp(48px, 7vh, 86px)', height: 'clamp(48px, 7vh, 86px)' }}
+            style={{ width: 'clamp(36px, 5vh, 56px)', height: 'clamp(36px, 5vh, 56px)' }}
           />
         )}
       </div>
