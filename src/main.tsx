@@ -31,6 +31,15 @@ registerSW({
   immediate: true,
   onRegisteredSW(_url, registration) {
     if (!registration) return
+    // Check for an update right away, not just on the first 60s tick —
+    // `setInterval` alone leaves a device that already had an old service
+    // worker installed (e.g. a browser that visited this site before a
+    // deploy) serving stale precached content for up to a full minute on a
+    // fresh visit/QR scan before the first check even runs. An immediate
+    // check shrinks that window to roughly however long install+activate
+    // actually takes (a few seconds), while the interval keeps covering an
+    // already-open, long-running tab (the kiosk TV boards) the same as before.
+    registration.update()
     setInterval(() => registration.update(), 60_000)
   }
 })
