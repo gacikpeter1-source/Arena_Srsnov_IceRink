@@ -295,7 +295,12 @@
     "phoneQrNone": "No phone-call QR codes have been created yet.",
     "phoneQrShowOnStriedacka": "Show on striedačka TV",
     "phoneQrDelete": "Delete",
-    "phoneQrConfirmDelete": "Delete this QR code?"
+    "phoneQrConfirmDelete": "Delete this QR code?",
+    "freeIceListQrTitle": "QR code for the free-ice list",
+    "freeIceListQrDesc": "Scanning it opens a simple list of free ice slots (day, time, zone) with a Reserve button — the customer chooses to send an SMS or (once switched on later) reserve directly through the app. The phone number below is what the SMS button texts.",
+    "freeIceSmsPhoneField": "Phone number for SMS reservations",
+    "freeIceSmsPhoneSave": "Save",
+    "freeIceListQrLabel": "Free ice list"
   },
   "trainingCalendar": {
     "manageNotice": "Are you a trainer or club staff?",
@@ -502,7 +507,16 @@
     "boardNone": "No free slots currently scheduled.",
     "replacesPublicScheduleWarning": "Heads up: this list is now the ONLY source of what a customer sees and can book on /book. A rink/date with no entry here shows nothing on /book (the day is \"closed\").",
     "importTitle": "Bulk import",
-    "importHint": "Upload a spreadsheet (or a plain .csv/.txt file with the same columns) to add several free-ice slots at once. Required columns: Hala (rink number, e.g. 1 or 2), Datum (date, dd.mm.yyyy), Od and Do (start/end time, 24h format). Optional: Zona (which part of the ice — \"krajná tretina\" / \"stredná tretina\", an exact zone name, or blank for the whole rink) and Cena (free text, e.g. \"80 €\")."
+    "importHint": "Upload a spreadsheet (or a plain .csv/.txt file with the same columns) to add several free-ice slots at once. Required columns: Hala (rink number, e.g. 1 or 2), Datum (date, dd.mm.yyyy), Od and Do (start/end time, 24h format). Optional: Zona (which part of the ice — \"krajná tretina\" / \"stredná tretina\", an exact zone name, or blank for the whole rink) and Cena (free text, e.g. \"80 €\").",
+    "publicListTitle": "Reserve free ice",
+    "publicListIntro": "Pick an open slot and reserve it.",
+    "publicListNone": "No free slots currently available.",
+    "reserve": "Reserve",
+    "reserveDialogDesc": "How would you like to reserve this slot?",
+    "reserveSms": "Send SMS",
+    "reserveSmsUnavailable": "SMS reservation isn't set up yet — please contact the club by phone.",
+    "reserveSmsBody": "I'd like to reserve: {{date}} {{time}} {{zone}}",
+    "reserveViaApp": "Reserve via app"
   },
   "trainerIceLog": {
     "title": "Trainer ice log",

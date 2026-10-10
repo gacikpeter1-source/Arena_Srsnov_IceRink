@@ -67,6 +67,12 @@ export default function RinkScheduleAlternatingBoardPage() {
   // ever need to be roughly up to date, not real-time.
   const [phoneQrCodes, setPhoneQrCodes] = useState<(PhoneQrCode & { id: string })[]>([])
   const [phoneQrDataUrls, setPhoneQrDataUrls] = useState<Record<string, string>>({})
+  // The free-ice list's own QR (always shown, unlike the toggle-gated
+  // phoneQrCodes above — there's only ever one of these, so no admin
+  // on/off control is needed) — generated once on mount, same `/vl` short
+  // alias + low-error-correction + pixelated rendering as every other QR
+  // on this footer, for the same tiny-display-size scannability reasons.
+  const [freeIceListQrDataUrl, setFreeIceListQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!club) return
@@ -78,6 +84,10 @@ export default function RinkScheduleAlternatingBoardPage() {
     const interval = setInterval(refresh, FREE_ICE_POLL_MS)
     return () => clearInterval(interval)
   }, [club])
+
+  useEffect(() => {
+    generateQrDataUrl(`${window.location.origin}/vl`, { errorCorrectionLevel: 'L' }).then(setFreeIceListQrDataUrl)
+  }, [])
 
   // Regenerates only when the actual set of shown entries changes (not on
   // every poll that returns the same list) — `phoneQrKey` is a cheap
@@ -160,6 +170,18 @@ export default function RinkScheduleAlternatingBoardPage() {
             Tel.: <span className="text-white">{club?.contact?.phone || FALLBACK_PHONE}</span>
           </span>
         </div>
+
+        {freeIceListQrDataUrl && (
+          <div className="shrink-0 flex flex-col items-center gap-0.5">
+            <img
+              src={freeIceListQrDataUrl}
+              alt={t('admin.freeIceListQrLabel')}
+              className="rounded bg-white p-1"
+              style={{ width: 'clamp(56px, 10vh, 96px)', height: 'clamp(56px, 10vh, 96px)', imageRendering: 'pixelated' }}
+            />
+            <span className="text-[clamp(0.5rem,0.8vw,0.7rem)] text-text-secondary whitespace-nowrap">{t('admin.freeIceListQrLabel')}</span>
+          </div>
+        )}
 
         {phoneQrCodes.length > 0 && (
           <div className="shrink-0 flex items-center gap-3">

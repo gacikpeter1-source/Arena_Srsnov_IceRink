@@ -3815,6 +3815,58 @@ login) with writes restricted to `isStaffMember()`, matching
 `AdminQrPanel.tsx`'s own existing gating for every other QR tool on that
 page.
 
+### Free-ice list page + SMS/app reservation (SMS live, app path deferred)
+
+A third QR-reachable public surface for `FreeIceSlot` data, alongside the
+TV boards — `FreeIceListPage.tsx` (`/volny-lad`, short alias `/vl` same
+pattern as `/tv`/`/s`) is a plain mobile page listing every upcoming
+free-ice slot as "Deň · Čas / Zóna / Rezervovať" rows (`fetchUpcomingFreeIceSlots`,
+the same read `FreeIceBoard.tsx` already uses — no new data source), with
+the zone column prefixed by the rink's own name when the club runs more
+than one active rink (zone names aren't unique club-wide, same reasoning
+`lib/excel.ts`'s Rink+Zone resolution already documents). Tapping
+"Rezervovať" opens a small dialog rather than acting immediately, since
+there are two genuinely different reservation paths to choose between.
+
+**Only the SMS path is live; the "reserve via app" path is fully built
+but deliberately switched off**, per explicit product direction — this
+is a new, unproven customer flow, so it ships code-complete but inert
+until separately turned on. `FREE_ICE_RESERVE_VIA_APP_ENABLED` (a plain
+`false` constant local to `FreeIceListPage.tsx`) is the single switch —
+flipping it to `true` is the entire "turn it on later" step, no other
+code changes needed, since the button and its `/book?zone=&date=&time=`
+link (the same quick-registration URL shape `AdminQrPanel.tsx`'s own
+slot-QR tool already generates) are already fully implemented, just
+conditionally rendered.
+
+The SMS button needs a phone number to text — deliberately a new
+`Club.freeIceSmsPhone` field, NOT the existing `contact.phone` (the
+general club contact number shown in the header's "Contact us" popup),
+since a club may want a different line for this specific purpose. Set
+from a new fifth `AdminQrPanel.tsx` section (owner/assistant, same
+`clubs/{clubId}` update rule every other club-level field already uses —
+no `firestore.rules` change needed) rather than the general club-settings
+panel, since the user asked for it to live alongside this QR tool
+specifically. The dialog shows the SMS option as unavailable (not a
+broken button) when this field is unset — an unconfigured club simply
+hasn't turned the feature on yet, same "nothing is active by default"
+stance `Club.paymentsEnabled`/`entitlements` already take elsewhere.
+
+The SMS itself opens pre-filled (`sms:<phone>?body=...`/`&body=...`,
+browser-sniffed since iOS only accepts `&` as the separator even for the
+first query param while Android only accepts `?`) with the exact slot's
+date/time/zone spelled out in Slovak/English per the viewer's own
+language — the customer only has to tap send, not describe which slot
+they want.
+
+The same QR (encoding the short `/vl` alias, `errorCorrectionLevel: 'L'`
++ `imageRendering: pixelated`, identical reasoning to every other
+small-footer QR on this board) is shown in two places per explicit
+request: the new `AdminQrPanel.tsx` section (so staff can print/download
+it) and, unconditionally (there's only one such QR, unlike the
+toggle-per-entry `phoneQrCodes` tiles next to it), in
+`RinkScheduleAlternatingBoardPage.tsx`'s own footer.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

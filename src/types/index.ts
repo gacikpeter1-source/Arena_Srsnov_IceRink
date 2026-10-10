@@ -16,6 +16,14 @@ export interface Club {
   }
   timezone: string
   paymentsEnabled: boolean
+  // Phone number used by the public "free ice list" page's SMS reservation
+  // button (src/pages/FreeIceListPage.tsx) — set by an owner/assistant from
+  // Administration → QR kódy (AdminQrPanel.tsx), deliberately separate from
+  // contact.phone (that's the general club contact number shown in the
+  // header's "Contact us" popup; this one may need to be different, e.g. a
+  // dedicated booking line). Unset = the SMS option shows as unavailable
+  // rather than falling back to contact.phone.
+  freeIceSmsPhone?: string
   // Links to sibling club services shown as cards on the hub home screen.
   // Unset until those apps are actually live — the card then shows as
   // "coming soon" instead of a dead link.

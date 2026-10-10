@@ -25,3 +25,13 @@ export async function updateClubInfo(clubId: string, update: ClubInfoUpdate): Pr
     'contact.website': update.website
   })
 }
+
+/**
+ * Owner/superadmin-only, same rule as updateClubInfo above. Set from
+ * AdminQrPanel.tsx's "free ice list" QR section rather than the general
+ * club-settings panel, since it's specifically the number the public free
+ * ice list's SMS reservation button texts — see Club.freeIceSmsPhone.
+ */
+export async function updateFreeIceSmsPhone(clubId: string, phone: string): Promise<void> {
+  await updateDoc(doc(db, 'clubs', clubId), { freeIceSmsPhone: phone })
+}
