@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { computeDaySchedule } from '@/lib/schedule'
 import { fetchScheduleOverride } from '@/lib/scheduleOverrides'
 import { createPhoneQrCode, deletePhoneQrCode, fetchPhoneQrCodes, setPhoneQrCodeShowOnStriedacka } from '@/lib/phoneQrCodes'
+import { updateFreeIceSmsPhone } from '@/lib/club'
 import { formatDateISO, localizedName } from '@/lib/utils'
 import { Club, PhoneQrCode, Rink, ScheduleOverride, TimeSlotConfig, Zone } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -75,6 +76,24 @@ export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs }: Ad
       setPhoneQrCodes((prev) => prev.filter((p) => p.id !== id))
     } finally {
       setPhoneQrBusyId(null)
+    }
+  }
+
+  // 5. Free-ice-list QR + its SMS reservation phone number — see
+  // FreeIceListPage.tsx (the public page this QR points at) and
+  // Club.freeIceSmsPhone. Saving triggers a full reload, same convention
+  // AdminClubSettingsPanel's own club-field saves already use, since club
+  // data isn't live state anywhere in this app.
+  const [freeIceSmsPhone, setFreeIceSmsPhone] = useState(club.freeIceSmsPhone ?? '')
+  const [freeIceSmsSaving, setFreeIceSmsSaving] = useState(false)
+
+  const handleSaveFreeIceSmsPhone = async () => {
+    setFreeIceSmsSaving(true)
+    try {
+      await updateFreeIceSmsPhone(club.id, freeIceSmsPhone.trim())
+      window.location.reload()
+    } finally {
+      setFreeIceSmsSaving(false)
     }
   }
 
@@ -306,6 +325,40 @@ export default function AdminQrPanel({ club, rinks, zones, timeSlotConfigs }: Ad
               ))}
             </div>
           )}
+        </div>
+
+        {/* 5. Free-ice-list QR — points at the public page listing every
+            upcoming FreeIceSlot with a "Reserve" button (SMS today; the
+            same button's "reserve via app" path is already built but kept
+            off until a later, separate switch-on — see
+            FreeIceListPage.tsx). The phone number configured here is what
+            that page's SMS button texts. */}
+        <div>
+          <h3 className="text-white text-sm font-semibold mb-2">{t('admin.freeIceListQrTitle')}</h3>
+          <p className="text-text-secondary text-sm mb-3">{t('admin.freeIceListQrDesc')}</p>
+
+          <div className="flex flex-wrap items-end gap-3 mb-4">
+            <div>
+              <Label htmlFor="free-ice-sms-phone" className="text-white">{t('admin.freeIceSmsPhoneField')}</Label>
+              <Input
+                id="free-ice-sms-phone"
+                type="tel"
+                value={freeIceSmsPhone}
+                onChange={(e) => setFreeIceSmsPhone(e.target.value)}
+                placeholder="+421905622145"
+                className="bg-background-dark border-border text-white"
+              />
+            </div>
+            <Button
+              onClick={handleSaveFreeIceSmsPhone}
+              disabled={freeIceSmsSaving || freeIceSmsPhone.trim() === (club.freeIceSmsPhone ?? '')}
+              className="bg-primary hover:bg-primary-gold text-primary-foreground"
+            >
+              {t('admin.freeIceSmsPhoneSave')}
+            </Button>
+          </div>
+
+          <QrCodeDisplay value={`${origin}/vl`} filename="free-ice-list-qr.png" label={t('admin.freeIceListQrLabel')} />
         </div>
       </CardContent>
     </Card>

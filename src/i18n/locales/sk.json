@@ -295,7 +295,12 @@
     "phoneQrNone": "Zatiaľ nebol vytvorený žiadny QR kód na telefonický kontakt.",
     "phoneQrShowOnStriedacka": "Zobraziť na TV striedačka",
     "phoneQrDelete": "Zmazať",
-    "phoneQrConfirmDelete": "Naozaj chcete zmazať tento QR kód?"
+    "phoneQrConfirmDelete": "Naozaj chcete zmazať tento QR kód?",
+    "freeIceListQrTitle": "QR kód na zoznam voľných ľadov",
+    "freeIceListQrDesc": "Po naskenovaní sa otvorí jednoduchý zoznam voľných termínov (deň, čas, zóna) s tlačidlom Rezervovať — zákazník si vyberie, či chce poslať SMS alebo (po zapnutí v budúcnosti) rezervovať priamo cez appku. Telefónne číslo nižšie sa použije pre tlačidlo SMS.",
+    "freeIceSmsPhoneField": "Telefónne číslo pre SMS rezervácie",
+    "freeIceSmsPhoneSave": "Uložiť",
+    "freeIceListQrLabel": "Zoznam voľných ľadov"
   },
   "trainingCalendar": {
     "manageNotice": "Ste tréner alebo personál klubu?",
@@ -502,7 +507,16 @@
     "boardNone": "Momentálne nie sú naplánované žiadne voľné termíny.",
     "replacesPublicScheduleWarning": "Pozor: tento zoznam je teraz jediným zdrojom termínov, ktoré zákazník vidí a môže si rezervovať na stránke /book. Pre deň/halu bez záznamu tu sa na /book nezobrazí nič (deň je \"zatvorený\").",
     "importTitle": "Hromadný import",
-    "importHint": "Nahrajte tabuľku (alebo obyčajný .csv/.txt súbor s rovnakými stĺpcami) a pridajte viacero voľných termínov naraz. Povinné stĺpce: Hala (číslo haly, napr. 1 alebo 2), Datum (dd.mm.rrrr), Od a Do (čas, 24-hodinový formát). Nepovinné: Zona (ktorá časť ľadovej plochy — \"krajná tretina\", \"stredná tretina\", presný názov zóny, alebo prázdne pre celé ihrisko) a Cena (voľný text, napr. \"80 €\")."
+    "importHint": "Nahrajte tabuľku (alebo obyčajný .csv/.txt súbor s rovnakými stĺpcami) a pridajte viacero voľných termínov naraz. Povinné stĺpce: Hala (číslo haly, napr. 1 alebo 2), Datum (dd.mm.rrrr), Od a Do (čas, 24-hodinový formát). Nepovinné: Zona (ktorá časť ľadovej plochy — \"krajná tretina\", \"stredná tretina\", presný názov zóny, alebo prázdne pre celé ihrisko) a Cena (voľný text, napr. \"80 €\").",
+    "publicListTitle": "Rezervácia voľného ľadu",
+    "publicListIntro": "Vyberte si voľný termín a rezervujte si ho.",
+    "publicListNone": "Momentálne nie sú k dispozícii žiadne voľné termíny.",
+    "reserve": "Rezervovať",
+    "reserveDialogDesc": "Ako si chcete tento termín rezervovať?",
+    "reserveSms": "Poslať SMS",
+    "reserveSmsUnavailable": "SMS rezervácia momentálne nie je nastavená, kontaktujte prosím klub telefonicky.",
+    "reserveSmsBody": "Chcem rezervovať: {{date}} {{time}} {{zone}}",
+    "reserveViaApp": "Rezervovať cez appku"
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",

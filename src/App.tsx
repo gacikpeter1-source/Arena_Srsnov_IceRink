@@ -11,6 +11,7 @@ import TrainingCalendarPage from './pages/TrainingCalendarPage'
 import TrainerDirectoryPage from './pages/TrainerDirectoryPage'
 import TournamentSchedulePage from './pages/TournamentSchedulePage'
 import TvCodeRedirectPage from './pages/TvCodeRedirectPage'
+import FreeIceListPage from './pages/FreeIceListPage'
 import RinkScheduleBoardPage from './pages/RinkScheduleBoardPage'
 import RinkScheduleAlternatingBoardPage from './pages/RinkScheduleAlternatingBoardPage'
 import CognitiveTvPage from './pages/CognitiveTvPage'
@@ -120,6 +121,13 @@ export default function App() {
               Kept as a plain short link in case a different QR approach
               comes back later. */}
           <Route path="/s" element={<Navigate to="/rozvrh/strieda" replace />} />
+          {/* /vl is the same short-alias pattern as /tv and /s above — the
+              free-ice list's own QR codes (AdminQrPanel.tsx, the striedačka
+              footer) encode this shorter path rather than the full
+              /volny-lad, for a coarser/more scannable QR module grid (see
+              that footer's own doc comment on this whole topic). */}
+          <Route path="/vl" element={<Navigate to="/volny-lad" replace />} />
+          <Route path="/volny-lad" element={<FreeIceListPage />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/rozvrh/strieda" element={<RinkScheduleAlternatingBoardPage />} />
           <Route path="/treningy/kognitivny-tv" element={<CognitiveTvPage />} />
