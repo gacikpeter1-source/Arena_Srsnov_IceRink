@@ -111,12 +111,20 @@ export default function FreeIceListPage() {
               </DialogHeader>
               <div className="flex flex-col gap-3">
                 {smsPhone ? (
-                  <a
-                    href={buildSmsHref(smsPhone, smsBody(selected))}
-                    className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-gold"
-                  >
-                    {t('freeIce.reserveSms')}
-                  </a>
+                  <>
+                    <a
+                      href={buildSmsHref(smsPhone, smsBody(selected))}
+                      className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-gold"
+                    >
+                      {t('freeIce.reserveSms')}
+                    </a>
+                    <a
+                      href={`tel:${smsPhone}`}
+                      className="inline-flex h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-semibold text-white hover:bg-background-dark"
+                    >
+                      {t('freeIce.reserveCall')}
+                    </a>
+                  </>
                 ) : (
                   <p className="text-text-muted text-sm">{t('freeIce.reserveSmsUnavailable')}</p>
                 )}
