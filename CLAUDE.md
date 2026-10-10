@@ -3892,6 +3892,14 @@ tab, e.g. the kiosk TV boards) — shrinks the worst-case wait on a fresh
 visit down to roughly however long installing+activating the new worker
 actually takes (a few seconds), not a full minute.
 
+**Follow-up: a plain "Call" button sits right under "Poslať SMS".** Same
+`smsPhone` (`club.freeIceSmsPhone`) number, just a `tel:` link instead of
+an `sms:` one — opens the phone's dialer directly rather than the SMS
+composer. Shown/hidden under the exact same condition as the SMS button
+(both depend on `smsPhone` being set), so an unconfigured club still
+shows only the "not set up" fallback message, no dangling Call button
+with nothing to call.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,

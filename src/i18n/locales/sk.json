@@ -514,6 +514,7 @@
     "reserve": "Rezervovať",
     "reserveDialogDesc": "Ako si chcete tento termín rezervovať?",
     "reserveSms": "Poslať SMS",
+    "reserveCall": "Zavolať",
     "reserveSmsUnavailable": "SMS rezervácia momentálne nie je nastavená, kontaktujte prosím klub telefonicky.",
     "reserveSmsBody": "Chcem rezervovať: {{date}} {{time}} {{zone}}",
     "reserveViaApp": "Rezervovať cez appku"

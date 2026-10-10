@@ -514,6 +514,7 @@
     "reserve": "Reserve",
     "reserveDialogDesc": "How would you like to reserve this slot?",
     "reserveSms": "Send SMS",
+    "reserveCall": "Call",
     "reserveSmsUnavailable": "SMS reservation isn't set up yet — please contact the club by phone.",
     "reserveSmsBody": "I'd like to reserve: {{date}} {{time}} {{zone}}",
     "reserveViaApp": "Reserve via app"
