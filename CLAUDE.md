@@ -3867,6 +3867,31 @@ it) and, unconditionally (there's only one such QR, unlike the
 toggle-per-entry `phoneQrCodes` tiles next to it), in
 `RinkScheduleAlternatingBoardPage.tsx`'s own footer.
 
+**Follow-up: a phone that had visited the site before showed a blank page
+for this brand-new route.** Real report: scanning the admin QR panel's
+`/vl` QR on an iPhone already running Chrome (which had an older service
+worker from a previous visit, before this feature deployed) showed the
+shared app header but nothing else — the URL stayed on `/vl`, meaning the
+redirect to `/volny-lad` never ran, because the OLD, still-active service
+worker intercepted that fresh navigation and served its own precached
+(pre-this-deploy) `index.html`/JS bundle, which simply has no `/vl` route
+at all. Safari on the same phone worked immediately, since it had never
+visited the site before and so had no stale service worker to get in the
+way — confirming this wasn't a bug in the new page itself. This is the
+same self-healing mechanism the "app never actually reloaded itself onto
+a new deploy" fix above already built (`registration.update()` polling +
+a `controllerchange` reload), just caught at its one real gap: that
+polling only ran every 60s via `setInterval`, so a device opening a fresh
+link right after a deploy could sit on the stale bundle for up to a full
+minute before the first check even fired — long enough that someone
+scanning a QR and seeing nothing would reasonably give up and close the
+tab before it self-corrected. `src/main.tsx` now also calls
+`registration.update()` once immediately in `onRegisteredSW`, in addition
+to keeping the 60s interval (still needed for an already-open, long-running
+tab, e.g. the kiosk TV boards) — shrinks the worst-case wait on a fresh
+visit down to roughly however long installing+activating the new worker
+actually takes (a few seconds), not a full minute.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,
