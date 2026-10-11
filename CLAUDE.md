@@ -2464,6 +2464,28 @@ fixed-width column of its own.
 
 **Fixed: the table was grouped by entry, not truly sorted by date.** The table originally rendered one `<Fragment>` per entry (`visibleEntries.map(({ entry, occurrences }) => ...)`), so every occurrence of a given entry — including a recurring series spanning months — rendered as one contiguous block whenever that entry's turn came up. Since entries themselves are ordered by their own original creation-time date, a multi-month series "jumped ahead" of a chronologically-earlier one-off booking that happened to belong to a different entry — the table read as grouped-then-sorted, not truly sorted by date, which a club noticed live while reviewing the app. Fixed by flattening every entry's occurrences into one `scheduleRows` list up front (each row keeping its own `entry` reference for its action buttons) and sorting that flat list by date then time — the whole table is now one continuous timeline regardless of which entry or series a row belongs to. This also meant "Zmazať celú sériu" could no longer be a single row rendered once at the end of a series' block (there is no longer a "block") — it's now a button on every one of that series' own rows instead, alongside "Zrušiť tento termín", so each row stays fully self-contained.
 
+**Follow-up: a leading "Deň" column, and action buttons shrunk to fit one
+row.** Two things a club flagged from a real screenshot of this table: no
+day-of-week was shown at all (just the raw `d.m.yyyy` date), and the
+actions cell's 2-4 buttons (Upraviť/Opakovať/Zrušiť tento termín/Zmazať
+celú sériu) wrapped onto 2-3 lines per row since each was a full-size
+`sm` `Button` with a long label. A new leftmost "Deň" column
+(`dayName`, same `Intl.DateTimeFormat(i18n.language, { weekday: 'long' })`
+technique `FreeIceSlotsPage.tsx`'s own `dayName` already uses — a staff
+admin page follows the UI's language, unlike the TV boards' fixed-Slovak
+day names) now shows the localized weekday for every row (an
+`isInformational` entry, an entry with no live occurrences, and a normal
+occurrence row all needed their own cell added, plus the "no occurrences"
+placeholder row's `colSpan` bumped 4→5). Separately, a shared
+`actionBtnClass` (`h-7 px-2 text-xs`, replacing the default `sm` size's
+larger `h-9 px-3`) is now passed to every action button, and the two
+longest labels were shortened (`rinkSchedule.cancelOccurrence`: "Zrušiť
+tento termín" → "Zrušiť termín"; `deleteSeries`: "Zmazať celú sériu" →
+"Zmazať sériu") — both keys are only ever read in this one actions cell,
+so shortening them doesn't affect any other page. `common.edit`/
+`common.delete` were left as-is (already short, and reused everywhere
+else in the app).
+
 ### Editing and cancelling individual occurrences
 
 Originally `RinkSchedulePage.tsx` only supported create-or-delete-the-

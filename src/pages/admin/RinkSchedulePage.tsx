@@ -264,6 +264,23 @@ export default function RinkSchedulePage() {
     return `${Number(d)}.${Number(m)}.${y}`
   }
 
+  // Localized weekday name (e.g. "Pondelok") — same technique
+  // FreeIceSlotsPage.tsx's own dayName already uses: a staff admin page
+  // follows whichever language the UI is currently in, unlike the TV
+  // boards' fixed-Slovak day names (not something a kiosk viewer picks).
+  const dayFormatter = new Intl.DateTimeFormat(i18n.language, { weekday: 'long' })
+  const dayName = (isoDate: string) => {
+    const name = dayFormatter.format(new Date(`${isoDate}T00:00:00`))
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  }
+
+  // A real season's worth of rows means the actions cell has to hold up to
+  // 4 buttons per row — the default `sm` Button size left them wrapping
+  // onto 2-3 lines per row (see the reported screenshot). This shared,
+  // tighter className (plus shortened labels on the two longest buttons
+  // below) is what gets a full row's actions onto a single line instead.
+  const actionBtnClass = 'h-7 px-2 text-xs'
+
   const handleStartRepeat = async (entry: RinkScheduleEntry & { id: string }) => {
     if (!club) return
     setBusyId(entry.id)
@@ -641,6 +658,7 @@ export default function RinkSchedulePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-text-muted border-b border-border">
+                    <th className="py-2 pr-3">{t('rinkSchedule.day')}</th>
                     <th className="py-2 pr-3">{t('common.date')}</th>
                     <th className="py-2 pr-3">{t('common.time')}</th>
                     <th className="py-2 pr-3">{t('admin.rink')}</th>
@@ -666,6 +684,7 @@ export default function RinkSchedulePage() {
                       if (entry.isInformational) {
                         return (
                           <tr key={key} className="border-b border-border">
+                            <td className="py-2 pr-3">{dayName(entry.date)}</td>
                             <td className="py-2 pr-3 mono">{formatDMY(entry.date)}</td>
                             <td className="py-2 pr-3 mono text-primary">{entry.startTime}</td>
                             <td className="py-2 pr-3">{rinkNameById.get(entry.rinkId) ?? entry.rinkId}</td>
@@ -677,7 +696,7 @@ export default function RinkSchedulePage() {
                             <td className="py-2 pr-3 text-text-secondary">{entry.room ?? '—'}</td>
                             <td className="py-2 pr-3 text-text-secondary">{entry.awayRoom ?? '—'}</td>
                             <td className="py-2 pr-3">
-                              <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                              <Button size="sm" variant="destructive" className={actionBtnClass} disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                                 {t('common.delete')}
                               </Button>
                             </td>
@@ -686,12 +705,12 @@ export default function RinkSchedulePage() {
                       }
                       return (
                         <tr key={key} className="border-b border-border">
-                          <td className="py-2 pr-3 mono text-text-muted" colSpan={4}>{t('rinkSchedule.noOccurrences')}</td>
+                          <td className="py-2 pr-3 mono text-text-muted" colSpan={5}>{t('rinkSchedule.noOccurrences')}</td>
                           <td className="py-2 pr-3 text-white">{entry.teamName}</td>
                           <td className="py-2 pr-3 text-text-secondary">{entry.room ?? '—'}</td>
                           <td className="py-2 pr-3 text-text-secondary">{entry.awayRoom ?? '—'}</td>
                           <td className="py-2 pr-3">
-                            <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                            <Button size="sm" variant="destructive" className={actionBtnClass} disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                               {t('common.delete')}
                             </Button>
                           </td>
@@ -702,6 +721,7 @@ export default function RinkSchedulePage() {
                     const awayRoomValue = entry.occurrenceAwayRooms?.[occurrence.id] ?? entry.awayRoom
                     return (
                       <tr key={key} className="border-b border-border">
+                        <td className="py-2 pr-3">{dayName(occurrence.date)}</td>
                         <td className="py-2 pr-3 mono">{formatDMY(occurrence.date)}{isSeries ? ` (${t('rinkSchedule.recurring')})` : ''}</td>
                         <td className="py-2 pr-3 mono text-primary">{occurrence.startTime}</td>
                         <td className="py-2 pr-3">{rinkNameById.get(occurrence.rinkId) ?? occurrence.rinkId}</td>
@@ -710,10 +730,11 @@ export default function RinkSchedulePage() {
                         <td className="py-2 pr-3 text-text-secondary">{room ?? '—'}</td>
                         <td className="py-2 pr-3 text-text-secondary">{awayRoomValue ?? '—'}</td>
                         <td className="py-2 pr-3">
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-nowrap gap-1">
                             <Button
                               size="sm"
                               variant="outline"
+                              className={actionBtnClass}
                               disabled={busyId === occurrence.id}
                               onClick={() => setEditing({ entry, occurrence })}
                             >
@@ -723,6 +744,7 @@ export default function RinkSchedulePage() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className={actionBtnClass}
                                 disabled={busyId === entry.id}
                                 onClick={() => handleStartRepeat(entry)}
                               >
@@ -734,17 +756,18 @@ export default function RinkSchedulePage() {
                                 <Button
                                   size="sm"
                                   variant="destructive"
+                                  className={actionBtnClass}
                                   disabled={busyId === occurrence.id}
                                   onClick={() => handleCancelOccurrence(occurrence)}
                                 >
                                   {t('rinkSchedule.cancelOccurrence')}
                                 </Button>
-                                <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                                <Button size="sm" variant="destructive" className={actionBtnClass} disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                                   {t('rinkSchedule.deleteSeries')}
                                 </Button>
                               </>
                             ) : (
-                              <Button size="sm" variant="destructive" disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
+                              <Button size="sm" variant="destructive" className={actionBtnClass} disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                                 {t('common.delete')}
                               </Button>
                             )}
