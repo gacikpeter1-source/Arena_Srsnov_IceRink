@@ -8,7 +8,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
@@ -962,5 +962,59 @@ export const sendMonthlyRinkUtilizationReport = onSchedule("0 2 1 * *", async ()
     });
 
     logger.info("Monthly rink utilization report queued", { clubId: clubDoc.id, label, rowCount: rows.length });
+  }
+});
+
+// ---------------------------------------------------------------------
+// PROTOTYPE: turnstile entry demo (NOT part of the real ticketing/payment
+// product yet — see CLAUDE.md's "Subscription / paid add-on modules" and
+// the payment-scaffold notes elsewhere for why no real payment gateway is
+// wired in). This exists purely so an ESP32 + barcode-scanner-module +
+// servo bench rig can demonstrate the actual intended production shape
+// end-to-end to a prospective customer who already owns a turnstile
+// (their own unit scans a code itself and releases its own brake for one
+// manual turn — this function only ever answers "is this code good,
+// mark it used" over plain HTTP, exactly the question any real turnstile
+// controller would need to ask before releasing). A real ticket-purchase
+// flow would write these same two fields onto a real `Booking`-like doc
+// after a payment webhook confirms payment; for the demo, a small one-off
+// Admin-SDK script writes the ticket docs directly instead (see
+// scripts/create-turnstile-demo-tickets.mjs), with no payment step at all.
+//
+// Deliberately a plain onRequest (not onCall) — an onCall function
+// expects Firebase's own callable wire protocol (gRPC-over-HTTP with a
+// specific body/auth-token shape), which an ESP32 Arduino HTTPClient
+// can't easily speak; a plain GET with a query param is the simplest
+// thing a microcontroller can do.
+export const validateTurnstileDemoTicket = onRequest(async (req, res) => {
+  const code = typeof req.query.code === "string" ? req.query.code : (req.body?.code as string | undefined);
+  if (!code) {
+    res.status(400).json({ valid: false, reason: "missing_code" });
+    return;
+  }
+
+  const db = getFirestore();
+  const snap = await db.collection("turnstileDemoTickets").where("code", "==", code).limit(1).get();
+  if (snap.empty) {
+    res.status(200).json({ valid: false, reason: "not_found" });
+    return;
+  }
+  const ticketRef = snap.docs[0].ref;
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ticketRef);
+      const data = fresh.data() as { used?: boolean; usedAt?: Timestamp } | undefined;
+      if (data?.used) {
+        return { valid: false, reason: "already_used", usedAt: data.usedAt?.toDate().toISOString() };
+      }
+      tx.update(ticketRef, { used: true, usedAt: Timestamp.now() });
+      return { valid: true };
+    });
+    logger.info("Turnstile demo ticket scan", { code, result });
+    res.status(200).json(result);
+  } catch (err) {
+    logger.error("Turnstile demo ticket validation failed", err);
+    res.status(500).json({ valid: false, reason: "server_error" });
   }
 });

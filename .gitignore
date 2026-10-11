@@ -27,3 +27,6 @@ npm-debug.log*
 
 # os
 .DS_Store
+
+# turnstile demo prototype (scripts/create-turnstile-demo-tickets.mjs) — throwaway, regenerated per demo run
+/turnstile-demo-qrcodes/
