@@ -238,8 +238,8 @@ export async function rescheduleRinkScheduleEntry(
     durationMinutes: fields.durationMinutes,
     teamName: fields.teamName,
     bookingId: newBookingId,
-    ...(fields.room ? { room: fields.room } : {}),
-    ...(fields.awayRoom ? { awayRoom: fields.awayRoom } : {})
+    room: fields.room ? fields.room : deleteField(),
+    awayRoom: fields.awayRoom ? fields.awayRoom : deleteField()
   })
 }
 
@@ -288,22 +288,22 @@ export async function rescheduleRinkScheduleOccurrence(
     newBookingId = created.id
   }
 
-  const entryUpdates: { occurrenceRooms?: Record<string, string>; occurrenceAwayRooms?: Record<string, string> } = {}
-  if (fields.room) {
-    const occurrenceRooms = { ...entry.occurrenceRooms }
-    delete occurrenceRooms[oldBookingId]
-    occurrenceRooms[newBookingId] = fields.room
-    entryUpdates.occurrenceRooms = occurrenceRooms
-  }
-  if (fields.awayRoom) {
-    const occurrenceAwayRooms = { ...entry.occurrenceAwayRooms }
-    delete occurrenceAwayRooms[oldBookingId]
-    occurrenceAwayRooms[newBookingId] = fields.awayRoom
-    entryUpdates.occurrenceAwayRooms = occurrenceAwayRooms
-  }
-  if (Object.keys(entryUpdates).length > 0) {
-    await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), entryUpdates)
-  }
+  // Always write both maps, even when a field was cleared (fields.room/
+  // awayRoom undefined) — storing '' for this occurrence is what lets the
+  // '??' fallback read sites (RinkSchedulePage.tsx, useRinkScheduleBoardData.ts)
+  // tell "explicitly no room for this one occurrence" apart from "no
+  // override, fall back to the entry's own default", instead of silently
+  // leaving a stale override (or the entry-level default) in place forever
+  // — previously guarding these writes behind `if (fields.room)`/
+  // `if (fields.awayRoom)` meant clearing the field in the edit modal had
+  // no way to ever take effect.
+  const occurrenceRooms = { ...entry.occurrenceRooms }
+  delete occurrenceRooms[oldBookingId]
+  occurrenceRooms[newBookingId] = fields.room ?? ''
+  const occurrenceAwayRooms = { ...entry.occurrenceAwayRooms }
+  delete occurrenceAwayRooms[oldBookingId]
+  occurrenceAwayRooms[newBookingId] = fields.awayRoom ?? ''
+  await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { occurrenceRooms, occurrenceAwayRooms })
 }
 
 // Weekly default used by "Opakovať" on RinkSchedulePage.tsx's entries
