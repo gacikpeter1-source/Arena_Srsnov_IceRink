@@ -24,6 +24,14 @@ export interface Club {
   // dedicated booking line). Unset = the SMS option shows as unavailable
   // rather than falling back to contact.phone.
   freeIceSmsPhone?: string
+  // Stripe Connect connected account ID (acct_...) for this club — set by
+  // stripeConnectCallback (functions/src/index.ts) once an owner/
+  // superadmin completes the "Pripojiť Stripe účet" OAuth flow from
+  // AdminClubSettingsPanel.tsx. Unset means the club hasn't connected a
+  // Stripe account yet, so any payment-taking feature (ticket purchases)
+  // has nowhere to route money and should show as unavailable rather than
+  // falling back to the platform's own account.
+  stripeAccountId?: string
   // Links to sibling club services shown as cards on the hub home screen.
   // Unset until those apps are actually live — the card then shows as
   // "coming soon" instead of a dead link.

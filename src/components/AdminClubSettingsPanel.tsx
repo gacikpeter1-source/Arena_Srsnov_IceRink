@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { updateClubInfo } from '@/lib/club'
+import { buildStripeConnectAuthorizeUrl } from '@/lib/stripe'
 import { Club } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
@@ -52,75 +53,98 @@ export default function AdminClubSettingsPanel({ club }: AdminClubSettingsPanelP
   }
 
   return (
-    <Card className="arena-card">
-      <CardHeader>
-        <CardTitle className="text-white">{t('admin.clubSettingsTitle')}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-          {error && <div className="text-status-danger text-sm">{error}</div>}
+    <>
+      <Card className="arena-card">
+        <CardHeader>
+          <CardTitle className="text-white">{t('admin.clubSettingsTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
+            {error && <div className="text-status-danger text-sm">{error}</div>}
 
-          <div>
-            <Label htmlFor="club-name" className="text-white">{t('admin.clubName')}</Label>
-            <Input
-              id="club-name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="bg-background-dark border-border text-white"
-              required
-            />
-          </div>
+            <div>
+              <Label htmlFor="club-name" className="text-white">{t('admin.clubName')}</Label>
+              <Input
+                id="club-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="bg-background-dark border-border text-white"
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="club-email" className="text-white">{t('common.email')}</Label>
-            <Input
-              id="club-email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="bg-background-dark border-border text-white"
-              required
-            />
-          </div>
+            <div>
+              <Label htmlFor="club-email" className="text-white">{t('common.email')}</Label>
+              <Input
+                id="club-email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="bg-background-dark border-border text-white"
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="club-phone" className="text-white">{t('common.phone')}</Label>
-            <Input
-              id="club-phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="bg-background-dark border-border text-white"
-            />
-          </div>
+            <div>
+              <Label htmlFor="club-phone" className="text-white">{t('common.phone')}</Label>
+              <Input
+                id="club-phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="bg-background-dark border-border text-white"
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="club-address" className="text-white">{t('admin.clubAddress')}</Label>
-            <Input
-              id="club-address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="bg-background-dark border-border text-white"
-            />
-          </div>
+            <div>
+              <Label htmlFor="club-address" className="text-white">{t('admin.clubAddress')}</Label>
+              <Input
+                id="club-address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="bg-background-dark border-border text-white"
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="club-website" className="text-white">{t('nav.website')}</Label>
-            <Input
-              id="club-website"
-              type="url"
-              placeholder="https://..."
-              value={formData.website}
-              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-              className="bg-background-dark border-border text-white"
-            />
-          </div>
+            <div>
+              <Label htmlFor="club-website" className="text-white">{t('nav.website')}</Label>
+              <Input
+                id="club-website"
+                type="url"
+                placeholder="https://..."
+                value={formData.website}
+                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                className="bg-background-dark border-border text-white"
+              />
+            </div>
 
-          <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary-gold text-primary-foreground">
-            {saving ? t('common.saving') : t('common.save')}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary-gold text-primary-foreground">
+              {saving ? t('common.saving') : t('common.save')}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="arena-card mt-4">
+        <CardHeader>
+          <CardTitle className="text-white">{t('admin.stripeSettingsTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {club.stripeAccountId ? (
+            <div className="space-y-1">
+              <p className="text-status-success">{t('admin.stripeConnected')}</p>
+              <p className="text-text-muted text-sm">{t('admin.stripeAccountId', { id: club.stripeAccountId })}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-status-warning text-sm">{t('admin.stripeNotConnected')}</p>
+              <Button asChild className="bg-primary hover:bg-primary-gold text-primary-foreground">
+                <a href={buildStripeConnectAuthorizeUrl(club.id)}>{t('admin.stripeConnectButton')}</a>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   )
 }

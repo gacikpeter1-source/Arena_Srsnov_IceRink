@@ -8,7 +8,8 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
+import Stripe from "stripe";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
@@ -27,6 +28,11 @@ initializeApp();
 // Google retired "less secure app" access.)
 const smtpUri = defineSecret("SMTP_URI");
 const mailFrom = defineSecret("MAIL_FROM");
+
+// Platform-level Stripe Connect secret key — used only to exchange an
+// OAuth authorization code for a club's connected account id below.
+// Set via: firebase functions:secrets:set STRIPE_SECRET_KEY
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 
 export const sendQueuedMail = onDocumentCreated(
   { document: "mail/{mailId}", secrets: [smtpUri, mailFrom] },
@@ -984,3 +990,54 @@ export const sendMonthlyRinkUtilizationReport = onSchedule("0 2 1 * *", async ()
     logger.info("Monthly rink utilization report queued", { clubId: clubDoc.id, label, rowCount: rows.length });
   }
 });
+
+// ---------------------------------------------------------------------
+// Stripe Connect: links a club's own Stripe account to this app so ticket
+// payments route directly to the club (Direct charges) — the platform's
+// own Stripe account never holds or touches that money. The club's
+// owner/superadmin starts this from AdminClubSettingsPanel.tsx ("Pripojiť
+// Stripe účet"), which sends them to Stripe's OAuth authorize page with
+// `state` set to the clubId; Stripe redirects back here with a one-time
+// `code` once the club approves. This is the one place that exchanges
+// that code for the club's real connected account id (acct_...) — it
+// has to happen server-side since the exchange needs the platform's
+// secret key, which a browser can never hold.
+//
+// Renders a tiny static HTML page instead of redirecting back into the
+// app, specifically because this function doesn't know each customer's
+// own frontend domain (every deployment is a separate Vercel project —
+// see CLAUDE.md's multi-tenant section) — a plain "you can close this
+// tab" message sidesteps needing that mapping at all.
+export const stripeConnectCallback = onRequest({ secrets: [stripeSecretKey] }, async (req, res) => {
+  const code = typeof req.query.code === "string" ? req.query.code : undefined;
+  const clubId = typeof req.query.state === "string" ? req.query.state : undefined;
+
+  if (!code || !clubId) {
+    res.status(400).send(renderStripeConnectResult(false, "Chýba parameter code alebo state v URL."));
+    return;
+  }
+
+  try {
+    const stripe = new Stripe(stripeSecretKey.value());
+    const tokenResponse = await stripe.oauth.token({ grant_type: "authorization_code", code });
+    const stripeAccountId = tokenResponse.stripe_user_id;
+    if (!stripeAccountId) throw new Error("Stripe OAuth response had no stripe_user_id");
+
+    await getFirestore().doc(`clubs/${clubId}`).update({ stripeAccountId });
+    logger.info("Stripe Connect account linked", { clubId, stripeAccountId });
+    res.status(200).send(renderStripeConnectResult(true));
+  } catch (err) {
+    logger.error("Stripe Connect OAuth callback failed", { clubId, err });
+    res.status(200).send(renderStripeConnectResult(false, "Prepojenie so Stripe zlyhalo. Skúste to prosím znova."));
+  }
+});
+
+function renderStripeConnectResult(success: boolean, message?: string): string {
+  const title = success ? "Stripe účet pripojený" : "Chyba pri pripájaní";
+  const body = success
+    ? "Stripe účet bol úspešne prepojený s vaším klubom. Toto okno môžete zatvoriť a vrátiť sa do appky."
+    : (message ?? "Niečo sa pokazilo.");
+  return `<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>${title}</title></head>` +
+    `<body style="font-family:sans-serif;text-align:center;padding:48px 24px;">` +
+    `<h1>${title}</h1><p>${body}</p></body></html>`;
+}
