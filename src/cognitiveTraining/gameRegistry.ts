@@ -1,6 +1,8 @@
 import { CognitiveGameModule } from './types'
 import { randomNumberModule } from './games/randomNumber'
 import { mathProblemModule } from './games/mathProblem'
+import { mathFormulasModule } from './games/mathFormulas'
+import { circleCountingModule } from './games/circleCounting'
 
 // Adding a new game = adding one more entry here (plus its matching
 // generator in functions/src/cognitiveGames/registry.ts, registered under
@@ -9,7 +11,9 @@ import { mathProblemModule } from './games/mathProblem'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const modules: Record<string, CognitiveGameModule<any>> = {
   [randomNumberModule.id]: randomNumberModule,
-  [mathProblemModule.id]: mathProblemModule
+  [mathProblemModule.id]: mathProblemModule,
+  [mathFormulasModule.id]: mathFormulasModule,
+  [circleCountingModule.id]: circleCountingModule
 }
 
 export function listCognitiveGames(): CognitiveGameModule<Record<string, unknown>>[] {

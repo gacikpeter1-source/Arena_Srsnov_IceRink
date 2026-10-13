@@ -8,12 +8,19 @@ import { CognitiveGameModule } from '@/cognitiveTraining/types'
 // MATH_PROBLEM_GAME_ID in functions/src/cognitiveGames/mathProblem.ts
 // exactly, since that string is the only thing linking this frontend
 // module to its server-side generator.
-export type MathOperation = 'add' | 'subtract'
+//
+// Configured in "rounds" (intervals), not a flat task count — matches how
+// a trainer actually plans this during physical exercise: N rounds of M
+// seconds each (e.g. 8 rounds of 1 minute), tasks shown back-to-back
+// within a round (no pause/countdown interrupting it) for the chosen
+// per-task duration, with one rest only between rounds.
+export type MathOperation = 'add' | 'subtract' | 'multiply' | 'divide'
 
 export interface MathProblemConfig {
-  taskCount: number
+  intervalDurationSeconds: number
+  intervalCount: number
   taskDurationSeconds: number
-  pauseDurationSeconds: number
+  restDurationSeconds: number
   min: number
   max: number
   operations: MathOperation[]
@@ -28,9 +35,10 @@ export interface MathProblemContent {
 export const MATH_PROBLEM_GAME_ID = 'mathProblem'
 
 const defaultConfig: MathProblemConfig = {
-  taskCount: 10,
-  taskDurationSeconds: 6,
-  pauseDurationSeconds: 5,
+  intervalDurationSeconds: 60,
+  intervalCount: 8,
+  taskDurationSeconds: 3,
+  restDurationSeconds: 15,
   min: 1,
   max: 10,
   operations: ['add']
@@ -39,8 +47,9 @@ const defaultConfig: MathProblemConfig = {
 // Same presets/behavior as randomNumber's own duration fields — see that
 // module's doc comment for why these are a <select>, not a free-typed
 // number.
-const TASK_DURATION_PRESETS_SECONDS = [2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 45, 60]
-const PAUSE_DURATION_PRESETS_SECONDS = [0, 2, 3, 5, 10, 15, 20, 30, 45, 60]
+const INTERVAL_DURATION_PRESETS_SECONDS = [15, 30, 45, 60, 90, 120, 180, 240, 300, 600]
+const TASK_DURATION_PRESETS_SECONDS = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30]
+const REST_DURATION_PRESETS_SECONDS = [0, 5, 10, 15, 20, 30, 45, 60]
 
 // Same "keep local text while editing, only commit a valid parsed number"
 // behavior as randomNumber's own NumberField — see that module's own doc
@@ -137,9 +146,9 @@ function OperationsField({
 
   const toggle = (op: MathOperation) => {
     if (value.includes(op)) {
-      // Never let the trainer uncheck both — the generator falls back to
-      // addition for an empty array, which would silently ignore the
-      // trainer's own "only subtraction" intent.
+      // Never let the trainer uncheck every operation — the generator
+      // falls back to addition for an empty array, which would silently
+      // ignore the trainer's own intent (e.g. "only division").
       if (value.length === 1) return
       onChange(value.filter((v) => v !== op))
     } else {
@@ -147,18 +156,23 @@ function OperationsField({
     }
   }
 
+  const options: { op: MathOperation; labelKey: string }[] = [
+    { op: 'add', labelKey: 'cognitiveTraining.games.mathProblem.operationAdd' },
+    { op: 'subtract', labelKey: 'cognitiveTraining.games.mathProblem.operationSubtract' },
+    { op: 'multiply', labelKey: 'cognitiveTraining.games.mathProblem.operationMultiply' },
+    { op: 'divide', labelKey: 'cognitiveTraining.games.mathProblem.operationDivide' }
+  ]
+
   return (
     <div className="space-y-1 col-span-2">
       <Label>{t('cognitiveTraining.games.mathProblem.operations')}</Label>
-      <div className="flex gap-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={value.includes('add')} onChange={() => toggle('add')} />
-          {t('cognitiveTraining.games.mathProblem.operationAdd')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={value.includes('subtract')} onChange={() => toggle('subtract')} />
-          {t('cognitiveTraining.games.mathProblem.operationSubtract')}
-        </label>
+      <div className="flex flex-wrap gap-4">
+        {options.map(({ op, labelKey }) => (
+          <label key={op} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={value.includes(op)} onChange={() => toggle(op)} />
+            {t(labelKey)}
+          </label>
+        ))}
       </div>
     </div>
   )
@@ -168,7 +182,7 @@ function OperationsField({
 function ConfigForm({ value, onChange }: { value: MathProblemConfig; onChange: (v: MathProblemConfig) => void }) {
   const { t } = useTranslation()
 
-  const numberField = (key: 'taskCount' | 'min' | 'max', labelKey: string, min = 1) => (
+  const numberField = (key: 'intervalCount' | 'min' | 'max', labelKey: string, min = 1) => (
     <NumberField
       id={`mp-${key}`}
       label={t(labelKey)}
@@ -180,20 +194,27 @@ function ConfigForm({ value, onChange }: { value: MathProblemConfig; onChange: (
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {numberField('taskCount', 'cognitiveTraining.games.mathProblem.taskCount')}
+      <DurationSelectField
+        id="mp-intervalDurationSeconds"
+        label={t('cognitiveTraining.interval.intervalDurationSeconds')}
+        value={value.intervalDurationSeconds}
+        presets={INTERVAL_DURATION_PRESETS_SECONDS}
+        onCommit={(n) => onChange({ ...value, intervalDurationSeconds: n })}
+      />
+      {numberField('intervalCount', 'cognitiveTraining.interval.intervalCount')}
       <DurationSelectField
         id="mp-taskDurationSeconds"
-        label={t('cognitiveTraining.games.mathProblem.taskDurationSeconds')}
+        label={t('cognitiveTraining.interval.taskDurationSeconds')}
         value={value.taskDurationSeconds}
         presets={TASK_DURATION_PRESETS_SECONDS}
         onCommit={(n) => onChange({ ...value, taskDurationSeconds: n })}
       />
       <DurationSelectField
-        id="mp-pauseDurationSeconds"
-        label={t('cognitiveTraining.games.mathProblem.pauseDurationSeconds')}
-        value={value.pauseDurationSeconds}
-        presets={PAUSE_DURATION_PRESETS_SECONDS}
-        onCommit={(n) => onChange({ ...value, pauseDurationSeconds: n })}
+        id="mp-restDurationSeconds"
+        label={t('cognitiveTraining.interval.restDurationSeconds')}
+        value={value.restDurationSeconds}
+        presets={REST_DURATION_PRESETS_SECONDS}
+        onCommit={(n) => onChange({ ...value, restDurationSeconds: n })}
       />
       <div className="space-y-1">
         {numberField('min', 'cognitiveTraining.games.mathProblem.min')}
@@ -208,7 +229,7 @@ function ConfigForm({ value, onChange }: { value: MathProblemConfig; onChange: (
   )
 }
 
-const OPERATION_SYMBOL: Record<MathOperation, string> = { add: '+', subtract: '−' }
+const OPERATION_SYMBOL: Record<MathOperation, string> = { add: '+', subtract: '−', multiply: '×', divide: ':' }
 
 // eslint-disable-next-line react-refresh/only-export-components
 function ProblemDisplay({ a, b, operation }: MathProblemContent) {

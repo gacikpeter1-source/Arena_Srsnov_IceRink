@@ -16,7 +16,7 @@ import * as logger from "firebase-functions/logger";
 import * as nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
 import { getGameGenerator } from "./cognitiveGames/registry";
-import { buildPlanFromTasks, totalPlanDurationMs } from "./cognitiveGames/engine";
+import { buildPlanFromTasks, buildIntervalPlanFromTasks, totalPlanDurationMs } from "./cognitiveGames/engine";
 
 initializeApp();
 
@@ -207,9 +207,17 @@ export const startCognitiveSession = onCall(async (request) => {
   }
 
   const config = session.config ?? {};
-  const pauseDurationMs = (Number(config.pauseDurationSeconds) || COGNITIVE_DEFAULT_PAUSE_SECONDS) * 1000;
   const tasks = generator.generate(config, Math.random);
-  const { phases, answers } = buildPlanFromTasks(tasks, pauseDurationMs);
+  // An "interval"-style game (mathProblem, mathFormulas, circleCounting —
+  // see CognitiveGameGenerator plugins and engine.ts's IntervalConfig)
+  // marks its config with intervalCount/intervalDurationSeconds; its tasks
+  // are already flagged roundEnd and want a rest only at round boundaries.
+  // Anything else (the randomNumber demo game, or an old session predating
+  // this config shape) keeps the original one-pause-after-every-task plan.
+  const isIntervalConfig = typeof config.intervalCount === "number" && typeof config.intervalDurationSeconds === "number";
+  const { phases, answers } = isIntervalConfig
+    ? buildIntervalPlanFromTasks(tasks, (Number(config.restDurationSeconds) || 0) * 1000)
+    : buildPlanFromTasks(tasks, (Number(config.pauseDurationSeconds) || COGNITIVE_DEFAULT_PAUSE_SECONDS) * 1000);
   const totalDurationMs = totalPlanDurationMs(phases);
   const startAtMs = Date.now() + COGNITIVE_COUNTDOWN_MS;
 

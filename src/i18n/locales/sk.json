@@ -751,6 +751,12 @@
     "incorrect": "Nesprávne",
     "correctAnswer": "Správna odpoveď",
     "pairingIntro": "Na TV/notebooku zadajte tento kód alebo naskenujte QR kód:",
+    "interval": {
+      "intervalDurationSeconds": "Dĺžka kola (s)",
+      "intervalCount": "Počet kôl",
+      "taskDurationSeconds": "Trvanie úlohy (s)",
+      "restDurationSeconds": "Oddych medzi kolami (s)"
+    },
     "games": {
       "randomNumber": {
         "displayName": "Náhodné číslo",
@@ -764,16 +770,46 @@
       },
       "mathProblem": {
         "displayName": "Matematický príklad",
-        "taskCount": "Počet príkladov",
-        "taskDurationSeconds": "Trvanie úlohy (s)",
-        "pauseDurationSeconds": "Pauza medzi príkladmi (s)",
         "min": "Rozsah čísel od",
         "minHint": "Najmenšie číslo, ktoré sa môže objaviť v príklade (napr. 1).",
         "max": "Rozsah čísel do",
         "maxHint": "Najväčšie číslo, ktoré sa môže objaviť v príklade (napr. 10).",
         "operations": "Operácie",
         "operationAdd": "Sčítanie (+)",
-        "operationSubtract": "Odčítanie (−)"
+        "operationSubtract": "Odčítanie (−)",
+        "operationMultiply": "Násobenie (×)",
+        "operationDivide": "Delenie (:)"
+      },
+      "mathFormulas": {
+        "displayName": "Matematické vzorce",
+        "answers": {
+          "circleCircumference": "Obvod kruhu",
+          "circleArea": "Obsah kruhu",
+          "squareArea": "Obsah štvorca",
+          "squarePerimeter": "Obvod štvorca",
+          "rectangleArea": "Obsah obdĺžnika",
+          "rectanglePerimeter": "Obvod obdĺžnika",
+          "triangleArea": "Obsah trojuholníka",
+          "cubeVolume": "Objem kocky",
+          "cylinderVolume": "Objem valca",
+          "sphereVolume": "Objem gule"
+        }
+      },
+      "circleCounting": {
+        "displayName": "Počítanie kruhov",
+        "minCircles": "Počet kruhov od",
+        "maxCircles": "Počet kruhov do",
+        "colors": "Farby na obrazovke",
+        "targetColor": "Počítaná farba",
+        "countPrompt": "Spočítaj kruhy farby: {{color}}",
+        "colorNames": {
+          "red": "Červená",
+          "green": "Zelená",
+          "blue": "Modrá",
+          "yellow": "Žltá",
+          "orange": "Oranžová",
+          "white": "Biela"
+        }
       }
     },
     "tv": {

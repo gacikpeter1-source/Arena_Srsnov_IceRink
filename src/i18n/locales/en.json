@@ -751,6 +751,12 @@
     "incorrect": "Incorrect",
     "correctAnswer": "Correct answer",
     "pairingIntro": "On the TV/laptop, enter this code or scan the QR code:",
+    "interval": {
+      "intervalDurationSeconds": "Round length (s)",
+      "intervalCount": "Number of rounds",
+      "taskDurationSeconds": "Task duration (s)",
+      "restDurationSeconds": "Rest between rounds (s)"
+    },
     "games": {
       "randomNumber": {
         "displayName": "Random number",
@@ -764,16 +770,46 @@
       },
       "mathProblem": {
         "displayName": "Math problem",
-        "taskCount": "Number of problems",
-        "taskDurationSeconds": "Task duration (s)",
-        "pauseDurationSeconds": "Pause between problems (s)",
         "min": "Minimum",
         "minHint": "The smallest number that can appear in a problem (e.g. 1).",
         "max": "Maximum",
         "maxHint": "The largest number that can appear in a problem (e.g. 10).",
         "operations": "Operations",
         "operationAdd": "Addition (+)",
-        "operationSubtract": "Subtraction (−)"
+        "operationSubtract": "Subtraction (−)",
+        "operationMultiply": "Multiplication (×)",
+        "operationDivide": "Division (:)"
+      },
+      "mathFormulas": {
+        "displayName": "Math formulas",
+        "answers": {
+          "circleCircumference": "Circle circumference",
+          "circleArea": "Circle area",
+          "squareArea": "Square area",
+          "squarePerimeter": "Square perimeter",
+          "rectangleArea": "Rectangle area",
+          "rectanglePerimeter": "Rectangle perimeter",
+          "triangleArea": "Triangle area",
+          "cubeVolume": "Cube volume",
+          "cylinderVolume": "Cylinder volume",
+          "sphereVolume": "Sphere volume"
+        }
+      },
+      "circleCounting": {
+        "displayName": "Circle counting",
+        "minCircles": "Number of circles from",
+        "maxCircles": "Number of circles to",
+        "colors": "Colors on screen",
+        "targetColor": "Color to count",
+        "countPrompt": "Count the {{color}} circles",
+        "colorNames": {
+          "red": "Red",
+          "green": "Green",
+          "blue": "Blue",
+          "yellow": "Yellow",
+          "orange": "Orange",
+          "white": "White"
+        }
       }
     },
     "tv": {

@@ -15,6 +15,12 @@ export interface GeneratedTask {
   content: unknown
   correctAnswer: unknown
   durationMs: number
+  // True when this is the last task of an interval/"round" — the only
+  // thing buildIntervalPlanFromTasks (engine.ts) reads to decide where a
+  // rest phase goes. Unused by a game that doesn't generate in rounds
+  // (e.g. randomNumber), which still goes through the older
+  // buildPlanFromTasks (one pause after every task, uniform).
+  roundEnd?: boolean
 }
 
 // The whole plugin contract a game must implement on the server side —
