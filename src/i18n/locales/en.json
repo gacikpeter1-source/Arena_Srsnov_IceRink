@@ -761,6 +761,19 @@
         "minHint": "The smallest number that can appear (e.g. 1).",
         "max": "Maximum",
         "maxHint": "The largest number that can appear (e.g. 20). The player sees a random number between Minimum and Maximum."
+      },
+      "mathProblem": {
+        "displayName": "Math problem",
+        "taskCount": "Number of problems",
+        "taskDurationSeconds": "Task duration (s)",
+        "pauseDurationSeconds": "Pause between problems (s)",
+        "min": "Minimum",
+        "minHint": "The smallest number that can appear in a problem (e.g. 1).",
+        "max": "Maximum",
+        "maxHint": "The largest number that can appear in a problem (e.g. 10).",
+        "operations": "Operations",
+        "operationAdd": "Addition (+)",
+        "operationSubtract": "Subtraction (−)"
       }
     },
     "tv": {

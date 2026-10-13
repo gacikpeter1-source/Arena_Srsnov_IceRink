@@ -761,6 +761,19 @@
         "minHint": "Najmenšie číslo, ktoré sa môže objaviť (napr. 1).",
         "max": "Rozsah čísel do",
         "maxHint": "Najväčšie číslo, ktoré sa môže objaviť (napr. 20). Hráč vidí náhodné číslo v tomto rozsahu."
+      },
+      "mathProblem": {
+        "displayName": "Matematický príklad",
+        "taskCount": "Počet príkladov",
+        "taskDurationSeconds": "Trvanie úlohy (s)",
+        "pauseDurationSeconds": "Pauza medzi príkladmi (s)",
+        "min": "Rozsah čísel od",
+        "minHint": "Najmenšie číslo, ktoré sa môže objaviť v príklade (napr. 1).",
+        "max": "Rozsah čísel do",
+        "maxHint": "Najväčšie číslo, ktoré sa môže objaviť v príklade (napr. 10).",
+        "operations": "Operácie",
+        "operationAdd": "Sčítanie (+)",
+        "operationSubtract": "Odčítanie (−)"
       }
     },
     "tv": {
