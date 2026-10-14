@@ -15,6 +15,7 @@ import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as QRCode from "qrcode";
+import * as PDFDocument from "pdfkit";
 
 // Same platform-level Connect secret stripeConnectCallback (index.ts)
 // already uses — defineSecret keys off the secret's NAME in Secret
@@ -65,26 +66,52 @@ function cancelPath(kind: RegistrationKind, registrationId: string, token: strin
 
 type Lang = "sk" | "en";
 
-const STRINGS: Record<Lang, { subject: (club: string) => string; greeting: (name: string) => string; intro: string; code: string; cancelIntro: string; cancelButton: string }> = {
+const STRINGS: Record<
+  Lang,
+  {
+    subject: (club: string) => string;
+    greeting: (name: string) => string;
+    intro: string;
+    code: string;
+    cancelIntro: string;
+    cancelButton: string;
+    pdfNote: string;
+    ticketTitle: string;
+    scanNote: string;
+  }
+> = {
   sk: {
     subject: (club) => `Platba prijatá – ${club}`,
     greeting: (name) => `Dobrý deň, ${name},`,
     intro: "Vaša platba bola úspešne prijatá a vaša rezervácia je potvrdená.",
     code: "Potvrdzovací kód",
-    cancelIntro: "Rezerváciu môžete zrušiť tu, alebo naskenovať QR kód pri vstupe:",
-    cancelButton: "Zrušiť rezerváciu"
+    cancelIntro: "Rezerváciu môžete zrušiť tu:",
+    cancelButton: "Zrušiť rezerváciu",
+    pdfNote: "Vstupenka s QR kódom na vstup je priložená ako PDF súbor.",
+    ticketTitle: "Vstupenka",
+    scanNote: "Naskenujte tento QR kód pri vstupe."
   },
   en: {
     subject: (club) => `Payment received – ${club}`,
     greeting: (name) => `Hello ${name},`,
     intro: "Your payment was received and your booking is confirmed.",
     code: "Confirmation code",
-    cancelIntro: "You can cancel your booking here, or scan the QR code at the entrance:",
-    cancelButton: "Cancel booking"
+    cancelIntro: "You can cancel your booking here:",
+    cancelButton: "Cancel booking",
+    pdfNote: "Your entrance ticket with the QR code is attached as a PDF.",
+    ticketTitle: "Ticket",
+    scanNote: "Scan this QR code at the entrance."
   }
 };
 
-function buildConfirmationEmailHtml(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; cancelUrl: string; qrDataUrl: string | null; lang: Lang }): string {
+// The QR used to be embedded inline in the HTML body as a `data:` URI
+// `<img>` — several mobile mail clients (confirmed live: Gmail on iOS)
+// strip or simply never render that, leaving a blank box where the QR
+// should be. A real PDF attachment (buildTicketPdfBase64 below) is the
+// one thing guaranteed to actually reach the customer regardless of how
+// the client renders HTML email, so the QR now lives there instead, and
+// the HTML body just points at it.
+function buildConfirmationEmailHtml(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; cancelUrl: string; lang: Lang }): string {
   const s = STRINGS[params.lang];
   return `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #111;">
@@ -93,15 +120,57 @@ function buildConfirmationEmailHtml(params: { clubName: string; name: string; su
       <p>${s.intro}</p>
       ${params.subtitle ? `<p style="margin: 4px 0;"><strong>${params.subtitle}</strong></p>` : ""}
       <p style="margin: 4px 0;">${s.code}: <strong>${params.confirmationCode}</strong></p>
+      <p style="margin: 16px 0; font-weight: bold;">${s.pdfNote}</p>
       <div style="margin-top: 20px; padding: 15px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
         <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${s.cancelIntro}</p>
         <a href="${params.cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
           ${s.cancelButton}
         </a>
-        ${params.qrDataUrl ? `<div style="margin-top: 15px;"><img src="${params.qrDataUrl}" alt="QR" width="160" height="160" style="background: white; padding: 8px; border-radius: 8px;" /></div>` : ""}
       </div>
     </div>
   `;
+}
+
+/**
+ * A one-page PDF "ticket" — club name, what it's for, the confirmation
+ * code, and the entrance QR code — built with pdfkit (pure JS, no native
+ * dependencies, fine inside a Cloud Function). Returned already
+ * base64-encoded since that's the shape the `mail` collection's
+ * `attachments` field already expects (see e.g.
+ * sendMonthlyRinkUtilizationReport's own .xlsx attachment in index.ts).
+ */
+function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; qrPngBuffer: Buffer; lang: Lang }): Promise<string> {
+  const s = STRINGS[params.lang];
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A5", margin: 40 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks).toString("base64")));
+    doc.on("error", reject);
+
+    doc.fontSize(18).font("Helvetica-Bold").text(params.clubName, { align: "center" });
+    doc.moveDown(0.5);
+    doc.fontSize(14).text(s.ticketTitle, { align: "center" });
+    doc.moveDown(1);
+
+    doc.fontSize(11).font("Helvetica").text(params.name);
+    if (params.subtitle) {
+      doc.moveDown(0.3);
+      doc.fontSize(13).font("Helvetica-Bold").text(params.subtitle);
+    }
+    doc.moveDown(0.3);
+    doc.fontSize(11).font("Helvetica").text(`${s.code}: ${params.confirmationCode}`);
+    doc.moveDown(1.5);
+
+    const qrSize = 220;
+    const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const qrX = doc.page.margins.left + (contentWidth - qrSize) / 2;
+    doc.image(params.qrPngBuffer, qrX, doc.y, { width: qrSize, height: qrSize });
+    doc.y += qrSize + 12;
+
+    doc.fontSize(10).fillColor("#666666").text(s.scanNote, { align: "center" });
+    doc.end();
+  });
 }
 
 interface CreateTicketCheckoutSessionInput {
@@ -236,7 +305,27 @@ async function sendPaymentConfirmationEmail(
   }
 
   const cancelUrl = `${appOrigin}${cancelPath(kind, registrationId, reg.cancellationToken)}`;
-  const qrDataUrl = await QRCode.toDataURL(cancelUrl, { width: 320, margin: 2 }).catch(() => null);
+
+  // The QR only ever reaches the customer via the PDF attachment below
+  // (see buildConfirmationEmailHtml's own doc comment for why) — if PDF
+  // generation fails for any reason, the email still goes out with the
+  // cancel link, just without the ticket attachment, rather than not
+  // sending anything at all.
+  let attachments: { filename: string; content: string; contentType: string; encoding: "base64" }[] = [];
+  try {
+    const qrPngBuffer = await QRCode.toBuffer(cancelUrl, { width: 320, margin: 2 });
+    const pdfBase64 = await buildTicketPdfBase64({
+      clubName,
+      name: reg.name ?? "",
+      subtitle,
+      confirmationCode: reg.confirmationCode,
+      qrPngBuffer,
+      lang
+    });
+    attachments = [{ filename: "vstupenka.pdf", content: pdfBase64, contentType: "application/pdf", encoding: "base64" }];
+  } catch (err) {
+    logger.error("Failed to build ticket PDF attachment", err);
+  }
 
   await db.collection("mail").add({
     to: reg.email,
@@ -248,10 +337,10 @@ async function sendPaymentConfirmationEmail(
         subtitle,
         confirmationCode: reg.confirmationCode,
         cancelUrl,
-        qrDataUrl,
         lang
       })
-    }
+    },
+    ...(attachments.length > 0 ? { attachments } : {})
   });
 }
 

@@ -44,7 +44,12 @@ export const sendQueuedMail = onDocumentCreated(
     const data = snap.data() as {
       to?: string;
       message?: { subject?: string; html?: string };
-      attachments?: { filename: string; content: string; contentType: string }[];
+      // `encoding` is optional and only ever set by a binary (base64)
+      // attachment (e.g. payments.ts's PDF ticket) — nodemailer passes it
+      // straight through to decode the content correctly; a plain-text
+      // attachment (e.g. an .ics calendar invite) omits it and nodemailer
+      // treats `content` as literal text, same as before this field existed.
+      attachments?: { filename: string; content: string; contentType: string; encoding?: string }[];
       delivery?: unknown;
     };
 
