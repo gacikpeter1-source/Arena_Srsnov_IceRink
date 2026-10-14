@@ -270,7 +270,21 @@ export const stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhoo
   try {
     event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret.value());
   } catch (err) {
-    logger.error("Stripe webhook signature verification failed", err);
+    // Temporary extra diagnostics for a signature mismatch that's been
+    // hard to root-cause remotely — safe to leave in briefly since this
+    // only ever logs on the FAILURE path and only a secret prefix/length,
+    // never the full secret or payload contents.
+    const secretValue = stripeWebhookSecret.value();
+    logger.error("Stripe webhook signature verification failed", {
+      err: String(err),
+      sigHeaderPreview: sig.slice(0, 30),
+      rawBodyIsBuffer: Buffer.isBuffer(req.rawBody),
+      rawBodyLength: req.rawBody ? req.rawBody.length : null,
+      rawBodyPreview: req.rawBody ? req.rawBody.toString("utf8").slice(0, 80) : null,
+      contentType: req.headers["content-type"],
+      secretPrefix: secretValue.slice(0, 12),
+      secretLength: secretValue.length
+    });
     res.status(400).send("Webhook signature verification failed");
     return;
   }
