@@ -30,8 +30,13 @@ const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 //   - Endpoint URL: this deployed stripeWebhook function's URL
 //   - IMPORTANT: check "Listen to events on Connected accounts"
 //   - Events: checkout.session.completed, checkout.session.async_payment_succeeded
-// Then: firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
-// (paste the endpoint's own "Signing secret", not the API secret key).
+// Then: printf '%s' '<secret>' | firebase functions:secrets:set STRIPE_WEBHOOK_SECRET --data-file=-
+// (paste the endpoint's own "Signing secret", not the API secret key) —
+// use printf, NOT `echo`, when piping it in: echo appends a trailing
+// newline, which becomes part of the stored secret value and makes every
+// signature check fail with a confusing "no signatures found" error that
+// looks like a wrong secret even though it isn't (cost real debugging
+// time to track down once, see git history).
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 // Must comfortably exceed Stripe's own 30-minute floor for a Checkout
@@ -270,21 +275,7 @@ export const stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhoo
   try {
     event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret.value());
   } catch (err) {
-    // Temporary extra diagnostics for a signature mismatch that's been
-    // hard to root-cause remotely — safe to leave in briefly since this
-    // only ever logs on the FAILURE path and only a secret prefix/length,
-    // never the full secret or payload contents.
-    const secretValue = stripeWebhookSecret.value();
-    logger.error("Stripe webhook signature verification failed", {
-      err: String(err),
-      sigHeaderPreview: sig.slice(0, 30),
-      rawBodyIsBuffer: Buffer.isBuffer(req.rawBody),
-      rawBodyLength: req.rawBody ? req.rawBody.length : null,
-      rawBodyPreview: req.rawBody ? req.rawBody.toString("utf8").slice(0, 80) : null,
-      contentType: req.headers["content-type"],
-      secretPrefix: secretValue.slice(0, 12),
-      secretLength: secretValue.length
-    });
+    logger.error("Stripe webhook signature verification failed", err);
     res.status(400).send("Webhook signature verification failed");
     return;
   }
