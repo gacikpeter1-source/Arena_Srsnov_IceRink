@@ -186,6 +186,8 @@
     "stripeNotConnected": "Stripe účet ešte nie je pripojený — platby za lístky nemajú kam smerovať.",
     "stripeConnectButton": "Pripojiť Stripe účet",
     "stripeAccountId": "ID účtu: {{id}}",
+    "paymentsEnabledToggle": "Umožniť zákazníkom platiť za lístky/tréningy kartou",
+    "paymentsEnabledHint": "Keď je zapnuté, nastavená cena (napr. pri tréningu) sa zákazníkovi zobrazí a pri registrácii bude presmerovaný na bezpečnú platbu cez Stripe (karta, Apple Pay, Google Pay). Peniaze idú priamo na váš pripojený Stripe účet.",
     "statusConfirmed": "potvrdené",
     "statusCancelled": "zrušené",
     "statusPending": "čaká na potvrdenie",
@@ -340,6 +342,16 @@
     "confirmedNotice": "Zákazník je zaregistrovaný a potvrdený.",
     "waitlistTitle": "Ste v čakacej listine",
     "waitlistNotice": "Tento tréning je plný, preto sme vás pridali do čakacej listiny. Napíšeme vám e-mail, ak sa uvoľní miesto."
+  },
+  "trainingPayment": {
+    "waitingTitle": "Čakáme na potvrdenie platby",
+    "waitingNotice": "Vaša platba sa spracováva. Akonáhle ju banka potvrdí, pošleme vám e-mail s potvrdením a QR kódom.",
+    "successTitle": "Platba úspešná!",
+    "successNotice": "Vaša rezervácia je potvrdená. Potvrdenie s QR kódom sme poslali na váš e-mail.",
+    "cancelledTitle": "Platba zrušená",
+    "cancelledNotice": "Platbu ste nedokončili. Vaše miesto ostáva dočasne podržané — ak oň stále máte záujem, zaregistrujte sa prosím znova.",
+    "timedOutNotice": "Potvrdenie trvá dlhšie ako zvyčajne, ale platba môže byť stále v spracovaní — keď bude hotová, dostanete e-mail s potvrdením a QR kódom.",
+    "backToCalendar": "Späť na kalendár tréningov"
   },
   "trainingConfirm": {
     "title": "Potvrdiť registráciu",

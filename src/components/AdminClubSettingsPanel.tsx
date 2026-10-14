@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { updateClubInfo } from '@/lib/club'
+import { setPaymentsEnabled, updateClubInfo } from '@/lib/club'
 import { buildStripeConnectAuthorizeUrl } from '@/lib/stripe'
 import { Club } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -27,6 +27,20 @@ export default function AdminClubSettingsPanel({ club }: AdminClubSettingsPanelP
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [togglingPayments, setTogglingPayments] = useState(false)
+
+  const handleTogglePayments = async () => {
+    setTogglingPayments(true)
+    try {
+      await setPaymentsEnabled(club.id, !club.paymentsEnabled)
+      // Same "club data isn't live, reload to pick it up everywhere" reason
+      // the main form's own save already reloads — see below.
+      window.location.reload()
+    } catch (err) {
+      console.error('Error toggling paymentsEnabled:', err)
+      setTogglingPayments(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -131,9 +145,23 @@ export default function AdminClubSettingsPanel({ club }: AdminClubSettingsPanelP
         </CardHeader>
         <CardContent>
           {club.stripeAccountId ? (
-            <div className="space-y-1">
-              <p className="text-status-success">{t('admin.stripeConnected')}</p>
-              <p className="text-text-muted text-sm">{t('admin.stripeAccountId', { id: club.stripeAccountId })}</p>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-status-success">{t('admin.stripeConnected')}</p>
+                <p className="text-text-muted text-sm">{t('admin.stripeAccountId', { id: club.stripeAccountId })}</p>
+              </div>
+              <div className="border-t border-border pt-4 space-y-2">
+                <label className="flex items-center gap-2 text-white text-sm">
+                  <input
+                    type="checkbox"
+                    checked={club.paymentsEnabled}
+                    disabled={togglingPayments}
+                    onChange={handleTogglePayments}
+                  />
+                  {t('admin.paymentsEnabledToggle')}
+                </label>
+                <p className="text-text-muted text-xs">{t('admin.paymentsEnabledHint')}</p>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

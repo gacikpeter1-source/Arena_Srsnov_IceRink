@@ -357,6 +357,19 @@ export async function fetchTrainingSeriesByIds(
 
 export const TRAINING_PENDING_CONFIRMATION_MINUTES = 5
 
+// A payment-gated registration needs a LONGER hold than the plain 5-minute
+// anti-typo window above — Stripe Checkout Sessions can't be made to
+// expire sooner than 30 minutes from the API's own side, so a registration
+// whose spot is only held for 5 minutes could get reclaimed by someone
+// else while the customer is still sitting on the Checkout page, and the
+// webhook would then be confirming a payment for a slot that's no longer
+// actually theirs. 35 minutes comfortably outlives Stripe's own 30-minute
+// floor (functions/src/payments.ts sets the Checkout Session's own
+// `expires_at` from this same value — the two must stay in sync, same
+// "duplicated across the functions/ project boundary" pattern this
+// codebase already uses for e.g. zonedTimeToUtc, see CLAUDE.md).
+export const PAYMENT_PENDING_HOLD_MINUTES = 35
+
 /**
  * Per-session variant of isPastCancellationCutoff (lib/bookings.ts) — each
  * trainer sets their own cancellationCutoffHours rather than sharing one
@@ -443,6 +456,12 @@ export interface RegisterForSessionInput {
   // club.paymentsEnabled through rather than this function re-fetching the
   // club doc for a value that can't change mid-transaction anyway.
   paymentsEnabled?: boolean
+  // Overrides TRAINING_PENDING_CONFIRMATION_MINUTES for this one
+  // registration's hold — the caller passes PAYMENT_PENDING_HOLD_MINUTES
+  // when a payment is about to be collected (see that constant's own
+  // comment for why the plain 5-minute default isn't long enough once
+  // Stripe Checkout is involved).
+  pendingHoldMinutes?: number
 }
 
 export interface RegisteredForSession {
@@ -505,7 +524,7 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
         tx.set(regRef, { ...base, status: 'confirmed' })
         return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
       }
-      const pendingExpiresAt = new Date(Date.now() + TRAINING_PENDING_CONFIRMATION_MINUTES * 60 * 1000)
+      const pendingExpiresAt = new Date(Date.now() + (input.pendingHoldMinutes ?? TRAINING_PENDING_CONFIRMATION_MINUTES) * 60 * 1000)
       tx.set(regRef, { ...base, status: 'pending', pendingExpiresAt })
       return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const }
     }
@@ -705,6 +724,8 @@ export interface RegisterForBundleInput {
   attendeeCount?: number
   // See RegisterForSessionInput.paymentsEnabled.
   paymentsEnabled?: boolean
+  // See RegisterForSessionInput.pendingHoldMinutes.
+  pendingHoldMinutes?: number
 }
 
 export interface RegisteredForBundle {
@@ -761,7 +782,7 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
         tx.set(regRef, { ...base, status: 'confirmed' })
         return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
       }
-      const pendingExpiresAt = new Date(Date.now() + TRAINING_PENDING_CONFIRMATION_MINUTES * 60 * 1000)
+      const pendingExpiresAt = new Date(Date.now() + (input.pendingHoldMinutes ?? TRAINING_PENDING_CONFIRMATION_MINUTES) * 60 * 1000)
       tx.set(regRef, { ...base, status: 'pending', pendingExpiresAt })
       return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const }
     }

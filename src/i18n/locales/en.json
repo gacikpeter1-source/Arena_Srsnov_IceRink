@@ -186,6 +186,8 @@
     "stripeNotConnected": "No Stripe account connected yet — ticket payments have nowhere to go.",
     "stripeConnectButton": "Connect Stripe account",
     "stripeAccountId": "Account ID: {{id}}",
+    "paymentsEnabledToggle": "Let customers pay for tickets/trainings by card",
+    "paymentsEnabledHint": "When on, a set price (e.g. on a training) is shown to the customer, and registering redirects them to a secure Stripe payment (card, Apple Pay, Google Pay). Money goes directly to your connected Stripe account.",
     "statusConfirmed": "confirmed",
     "statusCancelled": "cancelled",
     "statusPending": "pending confirmation",
@@ -340,6 +342,16 @@
     "confirmedNotice": "The customer is registered and confirmed.",
     "waitlistTitle": "You're on the waitlist",
     "waitlistNotice": "This session is full, so you've been added to the waitlist. We'll email you if a spot opens up."
+  },
+  "trainingPayment": {
+    "waitingTitle": "Waiting for payment confirmation",
+    "waitingNotice": "Your payment is being processed. Once your bank confirms it, we'll email you a confirmation with a QR code.",
+    "successTitle": "Payment successful!",
+    "successNotice": "Your booking is confirmed. We've emailed you a confirmation with a QR code.",
+    "cancelledTitle": "Payment cancelled",
+    "cancelledNotice": "You didn't complete the payment. Your spot remains temporarily held — if you're still interested, please register again.",
+    "timedOutNotice": "Confirmation is taking longer than usual, but the payment may still be processing — once it's done, you'll get a confirmation email with a QR code.",
+    "backToCalendar": "Back to training calendar"
   },
   "trainingConfirm": {
     "title": "Confirm registration",

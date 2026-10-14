@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { registerForSession, registerForBundle, SessionUnavailableError } from '@/lib/training'
+import { registerForSession, registerForBundle, SessionUnavailableError, PAYMENT_PENDING_HOLD_MINUTES } from '@/lib/training'
+import { createTicketCheckoutSession } from '@/lib/payments'
 import {
   queueTrainingPendingConfirmationEmail,
   queueBundlePendingConfirmationEmail,
@@ -75,8 +76,20 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           instantConfirm: asStaff,
           language: lang,
           attendeeCount,
-          paymentsEnabled: club.paymentsEnabled
+          paymentsEnabled: club.paymentsEnabled,
+          pendingHoldMinutes: totalPrice != null ? PAYMENT_PENDING_HOLD_MINUTES : undefined
         })
+        // A priced registration (customer, not staff — see asStaff's own
+        // doc comment) redirects to Stripe Checkout instead of sending any
+        // email here: the webhook (functions/src/payments.ts) is the only
+        // thing that ever queues the real confirmation email, once payment
+        // actually succeeds. A waitlisted registration is excluded on
+        // purpose — there's no guaranteed spot yet to charge for.
+        if (!asStaff && totalPrice != null && registered.status !== 'waitlist') {
+          const url = await createTicketCheckoutSession({ clubId: club.id, kind: 'bundle', registrationId: registered.id })
+          window.location.href = url
+          return
+        }
         if (registered.status === 'confirmed') {
           const sessionsSnap = await getDocs(query(collection(db, 'trainingSessions'), where('bundleId', '==', bundle.id)))
           const bundleSessions = sessionsSnap.docs
@@ -119,8 +132,16 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           instantConfirm: asStaff,
           language: lang,
           attendeeCount,
-          paymentsEnabled: club.paymentsEnabled
+          paymentsEnabled: club.paymentsEnabled,
+          pendingHoldMinutes: totalPrice != null ? PAYMENT_PENDING_HOLD_MINUTES : undefined
         })
+        // See the bundle branch above for why a priced, non-staff,
+        // non-waitlisted registration redirects instead of emailing here.
+        if (!asStaff && totalPrice != null && registered.status !== 'waitlist') {
+          const url = await createTicketCheckoutSession({ clubId: club.id, kind: 'session', registrationId: registered.id })
+          window.location.href = url
+          return
+        }
         if (registered.status === 'confirmed') {
           await queueTrainingConfirmationEmail(
             club,

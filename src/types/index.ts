@@ -182,6 +182,16 @@ export interface Payment {
   currency: string
   status: 'unpaid' | 'paid'
   paidAt?: Date
+  // Set once createTicketCheckoutSession (functions/src/payments.ts) has
+  // created the Stripe Checkout Session this payment will arrive through
+  // — written back via the Admin SDK right after creation, purely so the
+  // record traces back to something visible in the club's own Stripe
+  // Dashboard. Never read by the app itself.
+  checkoutSessionId?: string
+  // Set by stripeWebhook (functions/src/payments.ts) once payment.status
+  // flips to 'paid' — the actual PaymentIntent id Stripe processed the
+  // charge under, same "traceable in the Dashboard" reasoning.
+  paymentIntentId?: string
 }
 
 export interface Booking {

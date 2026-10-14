@@ -27,8 +27,18 @@ export async function updateClubInfo(clubId: string, update: ClubInfoUpdate): Pr
 }
 
 /**
- * Owner/superadmin-only, same rule as updateClubInfo above. Set from
- * AdminQrPanel.tsx's "free ice list" QR section rather than the general
+ * Owner/superadmin-only, same rule as updateFreeIceSmsPhone above. Set
+ * from AdminClubSettingsPanel.tsx's Stripe card right under the connect
+ * status, so turning payments on is a one-click follow-up to connecting a
+ * Stripe account rather than needing a direct Firestore edit.
+ */
+export async function setPaymentsEnabled(clubId: string, enabled: boolean): Promise<void> {
+  await updateDoc(doc(db, 'clubs', clubId), { paymentsEnabled: enabled })
+}
+
+/**
+ * Owner/superadmin-only, same rule as updateFreeIceSmsPhone above. Set
+ * from AdminQrPanel.tsx's "free ice list" QR section rather than the general
  * club-settings panel, since it's specifically the number the public free
  * ice list's SMS reservation button texts — see Club.freeIceSmsPhone.
  */

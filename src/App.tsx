@@ -17,6 +17,7 @@ import RinkScheduleAlternatingBoardPage from './pages/RinkScheduleAlternatingBoa
 import CognitiveTvPage from './pages/CognitiveTvPage'
 import TrainingConfirmPage from './pages/TrainingConfirmPage'
 import TrainingCancelPage from './pages/TrainingCancelPage'
+import TrainingPaymentStatusPage from './pages/TrainingPaymentStatusPage'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminSignupPage from './pages/admin/AdminSignupPage'
 import TrainerSignupPage from './pages/admin/TrainerSignupPage'
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/treningy/zrusit/:regId/:token" element={<TrainingCancelPage kind="session" />} />
           <Route path="/treningy/kurz/potvrdit/:regId/:token" element={<TrainingConfirmPage kind="bundle" />} />
           <Route path="/treningy/kurz/zrusit/:regId/:token" element={<TrainingCancelPage kind="bundle" />} />
+          <Route path="/treningy/platba" element={<TrainingPaymentStatusPage />} />
           <Route path="/turnaje" element={<TournamentSchedulePage />} />
           {/* /tv (no code) is the rink schedule board's own TV shortcut —
               unlike a tournament, there's only ever one of these per
