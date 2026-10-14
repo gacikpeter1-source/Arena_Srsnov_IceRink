@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { ChevronLeft } from 'lucide-react'
 import { Timestamp } from 'firebase/firestore'
 import { fetchCognitiveSession, fetchCognitiveSessionByCode, fetchLatestCognitiveSessionForClub } from '@/lib/cognitiveTraining/sessions'
 import { measureClockOffsetMs, localNowMs } from '@/lib/cognitiveTraining/clockSync'
@@ -10,6 +11,22 @@ import { useClubData } from '@/hooks/useClubData'
 import { CognitiveSession } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+
+// A kiosk/TV screen is normally meant to have nothing clickable at all
+// (see App.tsx's chrome-stripping for this path) — this is a deliberate,
+// documented exception, same "harmless on a real wall-mounted TV, useful
+// when someone previews the page on their own phone/laptop" escape hatch
+// the rink-schedule/tournament TV boards already use elsewhere in this
+// app (their own "Späť na štandardné zobrazenie" link).
+function BackToTrainerLink() {
+  const { t } = useTranslation()
+  return (
+    <Link to="/admin/treningy/kognitivny" className="inline-flex items-center gap-1 text-text-muted hover:text-primary text-sm">
+      <ChevronLeft className="h-4 w-4" />
+      {t('common.back')}
+    </Link>
+  )
+}
 
 type LocalSession = CognitiveSession & { id: string }
 
@@ -174,7 +191,10 @@ export default function CognitiveTvPage() {
   // further down for what it shows meanwhile).
   if (!isStaticMode && !session) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background-dark text-white p-6">
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background-dark text-white p-6 gap-6">
+        <div className="self-start">
+          <BackToTrainerLink />
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -214,13 +234,16 @@ export default function CognitiveTvPage() {
       }`}
     >
       <div className="shrink-0 flex items-center justify-between px-4 py-1 text-sm text-text-muted">
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="border-border text-white" onClick={() => setFontScale((s) => Math.max(FONT_SCALE_MIN, s - FONT_SCALE_STEP))}>
-            A-
-          </Button>
-          <Button size="sm" variant="outline" className="border-border text-white" onClick={() => setFontScale((s) => Math.min(FONT_SCALE_MAX, s + FONT_SCALE_STEP))}>
-            A+
-          </Button>
+        <div className="flex items-center gap-4">
+          <BackToTrainerLink />
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="border-border text-white" onClick={() => setFontScale((s) => Math.max(FONT_SCALE_MIN, s - FONT_SCALE_STEP))}>
+              A-
+            </Button>
+            <Button size="sm" variant="outline" className="border-border text-white" onClick={() => setFontScale((s) => Math.min(FONT_SCALE_MAX, s + FONT_SCALE_STEP))}>
+              A+
+            </Button>
+          </div>
         </div>
         <Button size="sm" variant="outline" className="border-border text-white" onClick={toggleFullscreen}>
           {isFullscreen ? t('cognitiveTraining.tv.exitFullscreen') : t('cognitiveTraining.tv.fullscreen')}
