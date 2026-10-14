@@ -159,6 +159,21 @@ export default function CognitiveTrainingPage() {
       <BackButton fallback="/admin/treningy" />
       <h1 className="text-2xl font-bold text-white">{t('cognitiveTraining.title')}</h1>
 
+      {/* A fixed, no-pairing-needed URL every TV in the room opens once and
+          leaves open — it auto-follows whatever session this page starts
+          next (see CognitiveTvPage's static mode), so this link is shown
+          unconditionally here rather than only once a session exists. */}
+      <Card className="arena-card">
+        <CardContent className="py-4 space-y-2">
+          <Button asChild variant="outline" className="w-full border-border text-white">
+            <a href="/treningy/kognitivny-tv" target="_blank" rel="noopener noreferrer">
+              {t('cognitiveTraining.openTv')}
+            </a>
+          </Button>
+          <p className="text-xs text-text-muted text-center">{t('cognitiveTraining.openTvHint')}</p>
+        </CardContent>
+      </Card>
+
       {!session && (
         <Card className="arena-card">
           <CardHeader>

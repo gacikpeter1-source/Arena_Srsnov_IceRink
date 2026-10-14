@@ -118,6 +118,14 @@
       ]
     },
     {
+      "collectionGroup": "cognitiveSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clubId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "cognitiveResults",
       "queryScope": "COLLECTION",
       "fields": [

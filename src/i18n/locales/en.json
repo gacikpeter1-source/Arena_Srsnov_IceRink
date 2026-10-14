@@ -751,6 +751,8 @@
     "incorrect": "Incorrect",
     "correctAnswer": "Correct answer",
     "pairingIntro": "On the TV/laptop, enter this code or scan the QR code:",
+    "openTv": "Open TV screen",
+    "openTvHint": "A static address — open it once on each TV in the room. It automatically shows whichever training is currently running, no pairing code needed.",
     "interval": {
       "intervalDurationSeconds": "Round length (s)",
       "intervalCount": "Number of rounds",

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Timestamp } from 'firebase/firestore'
-import { fetchCognitiveSession, fetchCognitiveSessionByCode } from '@/lib/cognitiveTraining/sessions'
+import { fetchCognitiveSession, fetchCognitiveSessionByCode, fetchLatestCognitiveSessionForClub } from '@/lib/cognitiveTraining/sessions'
 import { measureClockOffsetMs, localNowMs } from '@/lib/cognitiveTraining/clockSync'
 import { computeCurrentPhase } from '@/lib/cognitiveTraining/phase'
 import { getCognitiveGameModule } from '@/cognitiveTraining/gameRegistry'
+import { useClubData } from '@/hooks/useClubData'
 import { CognitiveSession } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,20 +25,31 @@ function startAtMillis(session: LocalSession): number | null {
 
 /**
  * The public, no-login TV/kiosk screen for "Kognitívny tréning" — see
- * CLAUDE.md. Reached either via `/treningy/kognitivny-tv/:code` (scanned
- * QR, resolves immediately) or `/treningy/kognitivny-tv` (typed code, e.g.
- * via a TV remote's number pad). Once paired to a session, this page NEVER
- * needs the countdown/task timing itself to come from the network again —
- * it only polls every POLL_MS to notice a status change (started/finished/
- * cancelled, or re-reading a freshly-generated plan), while every frame's
- * actual countdown/task display is computed purely from this device's own
- * clock against the session's shared `startAt` (see computeCurrentPhase) —
- * exactly what keeps an exercise playing out correctly through a dropped
- * connection.
+ * CLAUDE.md. Two ways in:
+ * - `/treningy/kognitivny-tv` (no code at all) — the STATIC url every TV in
+ *   the room opens once and leaves open: it auto-polls for whichever
+ *   session this club's trainer(s) most recently created
+ *   (fetchLatestCognitiveSessionForClub) and always just shows that one,
+ *   switching over on its own the moment a new drill is started — no
+ *   pairing code to type or scan, nothing to re-open between exercises.
+ * - `/treningy/kognitivny-tv/:code` (scanned QR / typed code from a
+ *   specific draft session's own pairing card) — the older, narrower way
+ *   to point one specific device at one specific session, still useful if
+ *   e.g. two trainers are running different drills on different screens
+ *   at once and a code is the only way to tell those apart.
+ * Once a session is known, this page NEVER needs the countdown/task timing
+ * itself to come from the network again — it only polls every POLL_MS to
+ * notice a status change (started/finished/cancelled, or re-reading a
+ * freshly-generated plan), while every frame's actual countdown/task
+ * display is computed purely from this device's own clock against the
+ * session's shared `startAt` (see computeCurrentPhase) — exactly what
+ * keeps an exercise playing out correctly through a dropped connection.
  */
 export default function CognitiveTvPage() {
   const { t } = useTranslation()
   const { code: codeParam } = useParams<{ code?: string }>()
+  const { club } = useClubData()
+  const isStaticMode = !codeParam
 
   const [codeInput, setCodeInput] = useState('')
   const [session, setSession] = useState<LocalSession | null>(null)
@@ -60,26 +72,47 @@ export default function CognitiveTvPage() {
   }, [])
 
   useEffect(() => {
-    if (codeParam && !autoTriedRef.current) {
+    if (!isStaticMode && codeParam && !autoTriedRef.current) {
       autoTriedRef.current = true
       resolveCode(codeParam)
     }
-  }, [codeParam, resolveCode])
+  }, [isStaticMode, codeParam, resolveCode])
 
   useEffect(() => {
     measureClockOffsetMs().then(setClockOffsetMs)
   }, [])
 
-  // Poll for status changes only (started/finished/cancelled, or a plan
-  // that just got generated) — never what drives the visible countdown.
+  // Static mode: no code to resolve at all — just keep re-fetching "this
+  // club's latest session" on the same cadence a paired TV would poll its
+  // one known session, so a fresh drill the trainer starts takes over
+  // within one tick, with nothing to pair and nothing to re-open.
+  const clubId = club?.id
+  useEffect(() => {
+    if (!isStaticMode || !clubId) return
+    let cancelled = false
+    const poll = () => {
+      fetchLatestCognitiveSessionForClub(clubId).then((found) => {
+        if (!cancelled) setSession(found)
+      })
+    }
+    poll()
+    const interval = setInterval(poll, POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [isStaticMode, clubId])
+
+  // Paired-by-code mode only — static mode's own poll above already
+  // re-fetches the whole session doc on the same cadence.
   const sessionId = session?.id
   useEffect(() => {
-    if (!sessionId) return
+    if (isStaticMode || !sessionId) return
     const interval = setInterval(() => {
       fetchCognitiveSession(sessionId).then((fresh) => fresh && setSession(fresh))
     }, POLL_MS)
     return () => clearInterval(interval)
-  }, [sessionId])
+  }, [isStaticMode, sessionId])
 
   useEffect(() => {
     if (session?.status !== 'started') return
@@ -135,7 +168,11 @@ export default function CognitiveTvPage() {
     return computeCurrentPhase(session.phases, startAt, localNowMs(clockOffsetMs))
   }, [session, startAt, clockOffsetMs, nowTick])
 
-  if (!session) {
+  // Only the paired-by-code mode ever shows a manual "enter code" prompt —
+  // static mode has nothing to type, it just keeps waiting on its own poll
+  // above until a session eventually turns up (see the idle message
+  // further down for what it shows meanwhile).
+  if (!isStaticMode && !session) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background-dark text-white p-6">
         <form
@@ -163,6 +200,12 @@ export default function CognitiveTvPage() {
   }
 
   const isPause = phaseState?.kind === 'phase' && phaseState.phase.type === 'pause'
+  // Nothing live right now — no session at all yet (static mode before the
+  // very first drill, or between polls), a 'draft' one not started yet, or
+  // one the trainer explicitly ended ('finished'/'cancelled' — the time-
+  // elapsed-on-its-own case instead shows phaseState's own 'finished' kind
+  // below, status stays 'started' for that case by design, see CLAUDE.md).
+  const isWaiting = !session || session.status === 'draft' || session.status === 'finished' || session.status === 'cancelled'
 
   return (
     <div
@@ -203,7 +246,7 @@ export default function CognitiveTvPage() {
 
       <div className="flex-1 min-h-0 flex items-center justify-center">
         <div style={{ transform: `scale(${fontScale})` }} className="flex flex-col items-center gap-6">
-          {session.status === 'draft' && <p className="text-2xl text-text-muted">{t('cognitiveTraining.tv.waitingForStart')}</p>}
+          {isWaiting && <p className="text-2xl text-text-muted">{t('cognitiveTraining.tv.waitingForStart')}</p>}
 
           {phaseState?.kind === 'phase' && phaseState.phase.type === 'task' && game && <game.TvRenderer content={phaseState.phase.content} />}
 

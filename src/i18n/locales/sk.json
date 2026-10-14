@@ -751,6 +751,8 @@
     "incorrect": "Nesprávne",
     "correctAnswer": "Správna odpoveď",
     "pairingIntro": "Na TV/notebooku zadajte tento kód alebo naskenujte QR kód:",
+    "openTv": "Otvoriť TV obrazovku",
+    "openTvHint": "Statická adresa — otvorte ju raz na každej TV obrazovke v miestnosti. Automaticky zobrazí práve prebiehajúci tréning, netreba párovací kód.",
     "interval": {
       "intervalDurationSeconds": "Dĺžka kola (s)",
       "intervalCount": "Počet kôl",

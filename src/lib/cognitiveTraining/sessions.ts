@@ -95,6 +95,27 @@ export async function fetchCognitiveSession(sessionId: string): Promise<(Cogniti
   return { ...(snap.data() as Omit<CognitiveSession, 'id'>), id: snap.id }
 }
 
+/**
+ * The static-URL TV's way in: instead of pairing to one specific session
+ * via a per-exercise code, a TV left permanently open on a fixed URL just
+ * always shows whichever session this club's trainer(s) most recently
+ * created — 'draft'/'started' while a drill is live, or the last
+ * 'finished'/'cancelled' one while idle between drills (the caller treats
+ * any non-'started' status as "nothing live right now"). No status filter
+ * here on purpose — a plain clubId-equality + createdAt-order query needs
+ * only the one composite index already declared in firestore.indexes.json,
+ * and "most recent regardless of status" is exactly what a TV that should
+ * auto-follow whatever the trainer does next actually wants.
+ */
+export async function fetchLatestCognitiveSessionForClub(clubId: string): Promise<(CognitiveSession & { id: string }) | null> {
+  const snap = await getDocs(
+    query(collection(db, 'cognitiveSessions'), where('clubId', '==', clubId), orderBy('createdAt', 'desc'), limit(1))
+  )
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return { ...(d.data() as Omit<CognitiveSession, 'id'>), id: d.id }
+}
+
 /** Resolves a pairing code to whichever session currently claims it — the TV's only way in, per CLAUDE.md. */
 export async function fetchCognitiveSessionByCode(code: string): Promise<(CognitiveSession & { id: string }) | null> {
   const snap = await getDocs(
