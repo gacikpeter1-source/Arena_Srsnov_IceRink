@@ -444,7 +444,13 @@
     "alreadyScannedWarning": "Tento kód už bol naskenovaný o {{time}} — overte, či si ho niekto neposiela ďalej medzi viacerými ľuďmi.",
     "pickSession": "Ktorý tréning?",
     "selectSessionPlaceholder": "Vyberte tréning...",
-    "scanNext": "Skenovať ďalší"
+    "scanNext": "Skenovať ďalší",
+    "ticketProgress": "Odbavené: {{checked}}/{{total}} osôb",
+    "ticketLabel": {
+      "adult": "Dospelý",
+      "child": "Dieťa",
+      "person": "Osoba"
+    }
   },
   "rinkSchedule": {
     "title": "Rozvrh ihriska",

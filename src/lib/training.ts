@@ -19,6 +19,7 @@ import {
   TrainingBundleRegistration,
   TrainingFrequency,
   TrainingRegistration,
+  RegistrationTicket,
   TrainingSeries,
   TrainingSession,
   TrainingWalkIn
@@ -495,6 +496,7 @@ export interface RegisteredForSession {
   cancellationToken: string
   status: 'pending' | 'confirmed' | 'waitlist'
   waitlistPosition?: number
+  tickets: RegistrationTicket[]
 }
 
 /** Rounds to the nearest cent — avoids floating-point drift (e.g. 0.1 + 0.2) accumulating across adult/child line items. */
@@ -527,6 +529,19 @@ function computeTieredAmount(params: {
   return roundMoney((adultCount * params.price + childCount * childUnit) * discountFactor)
 }
 
+/**
+ * One RegistrationTicket per attendeeCount, each scannable/checkable-in on
+ * its own — see RegistrationTicket's own doc comment. `id` is just a
+ * stringified index (0, 1, 2, ...), unique within this one registration.
+ */
+function buildTickets(attendeeCount: number, adultCount?: number, childCount?: number): RegistrationTicket[] {
+  const hasSplit = adultCount != null && childCount != null
+  const labels: RegistrationTicket['label'][] = hasSplit
+    ? [...Array(adultCount as number).fill('adult' as const), ...Array(childCount as number).fill('child' as const)]
+    : Array(attendeeCount).fill('person' as const)
+  return labels.map((label, index) => ({ id: String(index), label }))
+}
+
 export async function registerForSession(input: RegisterForSessionInput): Promise<RegisteredForSession> {
   await reclaimExpiredSessionRegistrations(input.sessionId).catch(() => {})
 
@@ -542,6 +557,7 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
   const cancellationToken = generateToken()
   const tokenExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
   const regRef = doc(collection(db, 'trainingRegistrations'))
+  const tickets = buildTickets(attendeeCount, input.adultCount, input.childCount)
 
   return runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef)
@@ -567,6 +583,7 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
       startAtUtc: zonedTimeToUtc(session.date, session.startTime, input.timezone),
       ...(input.language ? { language: input.language } : {}),
       attendeeCount,
+      tickets,
       ...(input.adultCount != null ? { adultCount: input.adultCount } : {}),
       ...(input.childCount != null ? { childCount: input.childCount } : {}),
       ...(input.paymentsEnabled && session.price
@@ -593,15 +610,15 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
       tx.update(sessionRef, { confirmedCount: session.confirmedCount + attendeeCount })
       if (input.instantConfirm) {
         tx.set(regRef, { ...base, status: 'confirmed' })
-        return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
+        return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const, tickets }
       }
       const pendingExpiresAt = new Date(Date.now() + (input.pendingHoldMinutes ?? TRAINING_PENDING_CONFIRMATION_MINUTES) * 60 * 1000)
       tx.set(regRef, { ...base, status: 'pending', pendingExpiresAt })
-      return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const }
+      return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const, tickets }
     }
 
     tx.set(regRef, { ...base, status: 'waitlist', waitlistPosition: waitlistPositionGuess })
-    return { id: regRef.id, confirmationCode, cancellationToken, status: 'waitlist' as const, waitlistPosition: waitlistPositionGuess }
+    return { id: regRef.id, confirmationCode, cancellationToken, status: 'waitlist' as const, waitlistPosition: waitlistPositionGuess, tickets }
   })
 }
 
@@ -808,6 +825,7 @@ export interface RegisteredForBundle {
   cancellationToken: string
   status: 'pending' | 'confirmed' | 'waitlist'
   waitlistPosition?: number
+  tickets: RegistrationTicket[]
 }
 
 export async function registerForBundle(input: RegisterForBundleInput): Promise<RegisteredForBundle> {
@@ -825,6 +843,7 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
   const cancellationToken = generateToken()
   const tokenExpiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
   const regRef = doc(collection(db, 'trainingBundleRegistrations'))
+  const tickets = buildTickets(attendeeCount, input.adultCount, input.childCount)
 
   return runTransaction(db, async (tx) => {
     const bundleSnap = await tx.get(bundleRef)
@@ -844,6 +863,7 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
       tokenExpiresAt,
       ...(input.language ? { language: input.language } : {}),
       attendeeCount,
+      tickets,
       ...(input.adultCount != null ? { adultCount: input.adultCount } : {}),
       ...(input.childCount != null ? { childCount: input.childCount } : {}),
       ...(input.paymentsEnabled && bundle.price
@@ -870,15 +890,15 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
       tx.update(bundleRef, { confirmedCount: bundle.confirmedCount + attendeeCount })
       if (input.instantConfirm) {
         tx.set(regRef, { ...base, status: 'confirmed' })
-        return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const }
+        return { id: regRef.id, confirmationCode, cancellationToken, status: 'confirmed' as const, tickets }
       }
       const pendingExpiresAt = new Date(Date.now() + (input.pendingHoldMinutes ?? TRAINING_PENDING_CONFIRMATION_MINUTES) * 60 * 1000)
       tx.set(regRef, { ...base, status: 'pending', pendingExpiresAt })
-      return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const }
+      return { id: regRef.id, confirmationCode, cancellationToken, status: 'pending' as const, tickets }
     }
 
     tx.set(regRef, { ...base, status: 'waitlist', waitlistPosition: waitlistPositionGuess })
-    return { id: regRef.id, confirmationCode, cancellationToken, status: 'waitlist' as const, waitlistPosition: waitlistPositionGuess }
+    return { id: regRef.id, confirmationCode, cancellationToken, status: 'waitlist' as const, waitlistPosition: waitlistPositionGuess, tickets }
   })
 }
 
@@ -1016,6 +1036,39 @@ export async function markSessionAttendance(registrationId: string, checkedIn: b
   })
 }
 
+/**
+ * Checks in a single person's own ticket on a session registration — see
+ * TrainingRegistration.ticketCheckIns. Deliberately a second, separate write
+ * from markSessionAttendance above (not combined into one update call), so
+ * the existing attendance-only firestore.rules branch stays untouched and
+ * only a new, additive ticketCheckIns-only rule is needed. On a genuine
+ * first check-in for this registration (nothing in ticketCheckIns yet) this
+ * also flips the whole-registration `attendance.checkedIn` to true, so the
+ * pre-existing roster/report views ("did this family show up") keep
+ * reflecting reality without having to read the new field at all.
+ */
+export async function markSessionTicketCheckIn(
+  registrationId: string,
+  ticketId: string,
+  checkedIn: boolean,
+  checkedInBy: string
+): Promise<void> {
+  const regRef = doc(db, 'trainingRegistrations', registrationId)
+  const snap = await getDoc(regRef)
+  if (!snap.exists()) throw new Error('Registration not found')
+  const registration = snap.data() as TrainingRegistration
+  const existing = registration.ticketCheckIns ?? {}
+  await updateDoc(regRef, {
+    ticketCheckIns: {
+      ...existing,
+      [ticketId]: checkedIn ? { checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy } : { checkedIn: false }
+    }
+  })
+  if (checkedIn && !registration.attendance?.checkedIn) {
+    await markSessionAttendance(registrationId, true, checkedInBy)
+  }
+}
+
 /** Marks attendance for one real session within a bundle registration's attendanceBySession map. */
 export async function markBundleSessionAttendance(
   registrationId: string,
@@ -1033,6 +1086,34 @@ export async function markBundleSessionAttendance(
       [sessionId]: checkedIn ? { checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy } : { checkedIn: false }
     }
   })
+}
+
+/** Bundle counterpart of markSessionTicketCheckIn — per-ticket, scoped to one real session within the bundle. */
+export async function markBundleTicketCheckIn(
+  registrationId: string,
+  sessionId: string,
+  ticketId: string,
+  checkedIn: boolean,
+  checkedInBy: string
+): Promise<void> {
+  const regRef = doc(db, 'trainingBundleRegistrations', registrationId)
+  const snap = await getDoc(regRef)
+  if (!snap.exists()) throw new Error('Registration not found')
+  const registration = snap.data() as TrainingBundleRegistration
+  const existingBySession = registration.ticketCheckInsBySession ?? {}
+  const existingForSession = existingBySession[sessionId] ?? {}
+  await updateDoc(regRef, {
+    ticketCheckInsBySession: {
+      ...existingBySession,
+      [sessionId]: {
+        ...existingForSession,
+        [ticketId]: checkedIn ? { checkedIn: true, checkedInAt: serverTimestamp(), checkedInBy } : { checkedIn: false }
+      }
+    }
+  })
+  if (checkedIn && !registration.attendanceBySession?.[sessionId]?.checkedIn) {
+    await markBundleSessionAttendance(registrationId, sessionId, true, checkedInBy)
+  }
 }
 
 export interface AddWalkInInput {

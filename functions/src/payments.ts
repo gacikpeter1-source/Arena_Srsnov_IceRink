@@ -88,11 +88,13 @@ const STRINGS: Record<
     code: string;
     cancelIntro: string;
     cancelButton: string;
-    pdfNote: string;
+    pdfNote: (count: number) => string;
     ticketTitle: string;
     scanNote: string;
     adultsLabel: string;
     childrenLabel: string;
+    ticketLabels: Record<"adult" | "child" | "person", string>;
+    ticketOfTotal: (index: number, total: number) => string;
   }
 > = {
   sk: {
@@ -102,11 +104,16 @@ const STRINGS: Record<
     code: "Potvrdzovací kód",
     cancelIntro: "Rezerváciu môžete zrušiť tu:",
     cancelButton: "Zrušiť rezerváciu",
-    pdfNote: "Vstupenka s QR kódom na vstup je priložená ako PDF súbor.",
+    pdfNote: (count) =>
+      count > 1
+        ? `V prílohe nájdete ${count} vstupeniek — jednu pre každú osobu, každá s vlastným QR kódom.`
+        : "Vstupenka s QR kódom na vstup je priložená ako PDF súbor.",
     ticketTitle: "Vstupenka",
     scanNote: "Naskenujte tento QR kód pri vstupe.",
     adultsLabel: "Dospelí",
-    childrenLabel: "Deti"
+    childrenLabel: "Deti",
+    ticketLabels: { adult: "Dospelý", child: "Dieťa", person: "Osoba" },
+    ticketOfTotal: (index, total) => (total > 1 ? `Vstupenka ${index} / ${total}` : "Vstupenka")
   },
   en: {
     subject: (club) => `Payment received – ${club}`,
@@ -115,11 +122,16 @@ const STRINGS: Record<
     code: "Confirmation code",
     cancelIntro: "You can cancel your booking here:",
     cancelButton: "Cancel booking",
-    pdfNote: "Your entrance ticket with the QR code is attached as a PDF.",
+    pdfNote: (count) =>
+      count > 1
+        ? `Attached are ${count} tickets — one per person, each with its own QR code.`
+        : "Your entrance ticket with the QR code is attached as a PDF.",
     ticketTitle: "Ticket",
     scanNote: "Scan this QR code at the entrance.",
     adultsLabel: "Adults",
-    childrenLabel: "Children"
+    childrenLabel: "Children",
+    ticketLabels: { adult: "Adult", child: "Child", person: "Person" },
+    ticketOfTotal: (index, total) => (total > 1 ? `Ticket ${index} / ${total}` : "Ticket")
   }
 };
 
@@ -142,7 +154,7 @@ function buildPeopleLine(lang: Lang, adultCount?: number, childCount?: number): 
 // one thing guaranteed to actually reach the customer regardless of how
 // the client renders HTML email, so the QR now lives there instead, and
 // the HTML body just points at it.
-function buildConfirmationEmailHtml(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; peopleLine: string; cancelUrl: string; lang: Lang }): string {
+function buildConfirmationEmailHtml(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; peopleLine: string; cancelUrl: string; lang: Lang; ticketCount: number }): string {
   const s = STRINGS[params.lang];
   return `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #111;">
@@ -152,7 +164,7 @@ function buildConfirmationEmailHtml(params: { clubName: string; name: string; su
       ${params.subtitle ? `<p style="margin: 4px 0;"><strong>${params.subtitle}</strong></p>` : ""}
       ${params.peopleLine ? `<p style="margin: 4px 0;">${params.peopleLine}</p>` : ""}
       <p style="margin: 4px 0;">${s.code}: <strong>${params.confirmationCode}</strong></p>
-      <p style="margin: 16px 0; font-weight: bold;">${s.pdfNote}</p>
+      <p style="margin: 16px 0; font-weight: bold;">${s.pdfNote(params.ticketCount)}</p>
       <div style="margin-top: 20px; padding: 15px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
         <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${s.cancelIntro}</p>
         <a href="${params.cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
@@ -164,14 +176,24 @@ function buildConfirmationEmailHtml(params: { clubName: string; name: string; su
 }
 
 /**
- * A one-page PDF "ticket" — club name, what it's for, the confirmation
- * code, and the entrance QR code — built with pdfkit (pure JS, no native
- * dependencies, fine inside a Cloud Function). Returned already
- * base64-encoded since that's the shape the `mail` collection's
- * `attachments` field already expects (see e.g.
+ * A multi-page PDF "ticket" — one page PER TICKET (one per attendeeCount —
+ * see RegistrationTicket in src/types/index.ts), each with its own QR code
+ * so an adult's ticket and a child's ticket on the same registration can be
+ * torn apart and scanned/checked in independently at the door. Built with
+ * pdfkit (pure JS, no native dependencies, fine inside a Cloud Function).
+ * Returned already base64-encoded since that's the shape the `mail`
+ * collection's `attachments` field already expects (see e.g.
  * sendMonthlyRinkUtilizationReport's own .xlsx attachment in index.ts).
  */
-function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; peopleLine: string; qrPngBuffer: Buffer; lang: Lang }): Promise<string> {
+function buildTicketsPdfBase64(params: {
+  clubName: string;
+  name: string;
+  subtitle: string;
+  confirmationCode: string;
+  peopleLine: string;
+  tickets: { label: "adult" | "child" | "person"; qrPngBuffer: Buffer }[];
+  lang: Lang;
+}): Promise<string> {
   const s = STRINGS[params.lang];
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A5", margin: 40 });
@@ -183,31 +205,43 @@ function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle
     doc.registerFont("Regular", FONT_REGULAR);
     doc.registerFont("Bold", FONT_BOLD);
 
-    doc.fontSize(18).font("Bold").text(params.clubName, { align: "center" });
-    doc.moveDown(0.5);
-    doc.fontSize(14).font("Bold").text(s.ticketTitle, { align: "center" });
-    doc.moveDown(1);
+    const total = params.tickets.length;
+    params.tickets.forEach((ticket, index) => {
+      if (index > 0) doc.addPage();
 
-    doc.fontSize(11).font("Regular").text(params.name);
-    if (params.subtitle) {
+      doc.fontSize(18).font("Bold").text(params.clubName, { align: "center" });
+      doc.moveDown(0.5);
+      doc.fontSize(14).font("Bold").text(s.ticketTitle, { align: "center" });
+      doc.fontSize(11).font("Regular").fillColor("#666666").text(s.ticketOfTotal(index + 1, total), { align: "center" });
+      doc.fillColor("#000000");
+      doc.moveDown(1);
+
+      doc.fontSize(13).font("Bold").text(s.ticketLabels[ticket.label], { align: "center" });
+      doc.moveDown(0.5);
+
+      doc.fontSize(11).font("Regular").text(params.name);
+      if (params.subtitle) {
+        doc.moveDown(0.3);
+        doc.fontSize(13).font("Bold").text(params.subtitle);
+      }
+      if (params.peopleLine) {
+        doc.moveDown(0.3);
+        doc.fontSize(11).font("Regular").text(params.peopleLine);
+      }
       doc.moveDown(0.3);
-      doc.fontSize(13).font("Bold").text(params.subtitle);
-    }
-    if (params.peopleLine) {
-      doc.moveDown(0.3);
-      doc.fontSize(11).font("Regular").text(params.peopleLine);
-    }
-    doc.moveDown(0.3);
-    doc.fontSize(11).font("Regular").text(`${s.code}: ${params.confirmationCode}`);
-    doc.moveDown(1.5);
+      doc.fontSize(11).font("Regular").text(`${s.code}: ${params.confirmationCode}`);
+      doc.moveDown(1.5);
 
-    const qrSize = 220;
-    const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const qrX = doc.page.margins.left + (contentWidth - qrSize) / 2;
-    doc.image(params.qrPngBuffer, qrX, doc.y, { width: qrSize, height: qrSize });
-    doc.y += qrSize + 12;
+      const qrSize = 220;
+      const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const qrX = doc.page.margins.left + (contentWidth - qrSize) / 2;
+      doc.image(ticket.qrPngBuffer, qrX, doc.y, { width: qrSize, height: qrSize });
+      doc.y += qrSize + 12;
 
-    doc.fontSize(10).fillColor("#666666").text(s.scanNote, { align: "center" });
+      doc.fontSize(10).fillColor("#666666").text(s.scanNote, { align: "center" });
+      doc.fillColor("#000000");
+    });
+
     doc.end();
   });
 }
@@ -326,6 +360,8 @@ async function sendPaymentConfirmationEmail(
         bundleId?: string;
         adultCount?: number;
         childCount?: number;
+        tickets?: { id: string; label: "adult" | "child" | "person" }[];
+        attendeeCount?: number;
       }
     | undefined;
   const club = clubSnap.data() as { name?: string } | undefined;
@@ -345,8 +381,16 @@ async function sendPaymentConfirmationEmail(
     subtitle = (bundleSnap.data() as { title?: string } | undefined)?.title ?? "";
   }
 
-  const cancelUrl = `${appOrigin}${cancelPath(kind, registrationId, reg.cancellationToken)}`;
+  const cancelPathBase = cancelPath(kind, registrationId, reg.cancellationToken);
+  const cancelUrl = `${appOrigin}${cancelPathBase}`;
   const peopleLine = buildPeopleLine(lang, reg.adultCount, reg.childCount);
+
+  // One ticket (and so one QR, one PDF page) per attendeeCount — see
+  // RegistrationTicket in src/types/index.ts. A registration from before
+  // this field existed has no `tickets` array at all: fall back to a
+  // single synthetic 'person' ticket whose QR has no `?ticket=` param, so
+  // QrScanPage.tsx's own fallback (whole-registration check-in) applies.
+  const tickets = reg.tickets && reg.tickets.length > 0 ? reg.tickets : [{ id: "", label: "person" as const }];
 
   // The QR only ever reaches the customer via the PDF attachment below
   // (see buildConfirmationEmailHtml's own doc comment for why) — if PDF
@@ -355,17 +399,22 @@ async function sendPaymentConfirmationEmail(
   // sending anything at all.
   let attachments: { filename: string; content: string; contentType: string; encoding: "base64" }[] = [];
   try {
-    const qrPngBuffer = await QRCode.toBuffer(cancelUrl, { width: 320, margin: 2 });
-    const pdfBase64 = await buildTicketPdfBase64({
+    const ticketsWithQr = await Promise.all(
+      tickets.map(async (ticket) => ({
+        label: ticket.label,
+        qrPngBuffer: await QRCode.toBuffer(ticket.id ? `${cancelUrl}?ticket=${ticket.id}` : cancelUrl, { width: 320, margin: 2 })
+      }))
+    );
+    const pdfBase64 = await buildTicketsPdfBase64({
       clubName,
       name: reg.name ?? "",
       subtitle,
       confirmationCode: reg.confirmationCode,
       peopleLine,
-      qrPngBuffer,
+      tickets: ticketsWithQr,
       lang
     });
-    attachments = [{ filename: "vstupenka.pdf", content: pdfBase64, contentType: "application/pdf", encoding: "base64" }];
+    attachments = [{ filename: "vstupenky.pdf", content: pdfBase64, contentType: "application/pdf", encoding: "base64" }];
   } catch (err) {
     logger.error("Failed to build ticket PDF attachment", err);
   }
@@ -381,7 +430,8 @@ async function sendPaymentConfirmationEmail(
         confirmationCode: reg.confirmationCode,
         peopleLine,
         cancelUrl,
-        lang
+        lang,
+        ticketCount: tickets.length
       })
     },
     ...(attachments.length > 0 ? { attachments } : {})

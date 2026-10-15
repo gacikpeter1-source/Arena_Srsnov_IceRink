@@ -62,7 +62,8 @@ export default function TrainingConfirmPage({ kind }: TrainingConfirmPageProps) 
                 durationMinutes: confirmed.durationMinutes,
                 trainerName,
                 name: confirmed.name,
-                email: confirmed.email
+                email: confirmed.email,
+                tickets: confirmed.tickets
               },
               window.location.origin,
               isSupportedLanguage(i18n.language) ? i18n.language : 'en'
@@ -91,7 +92,8 @@ export default function TrainingConfirmPage({ kind }: TrainingConfirmPageProps) 
                 trainerName: bundle.trainerName,
                 name: confirmed.name,
                 email: confirmed.email,
-                sessions: sessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes }))
+                sessions: sessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes })),
+                tickets: confirmed.tickets
               },
               window.location.origin,
               isSupportedLanguage(i18n.language) ? i18n.language : 'en'

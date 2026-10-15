@@ -122,7 +122,8 @@ export default function TrainingCancelPage({ kind }: TrainingCancelPageProps) {
               durationMinutes: promoted.durationMinutes,
               trainerName: label.trainerName,
               name: promoted.name,
-              email: promoted.email
+              email: promoted.email,
+              tickets: promoted.tickets
             },
             window.location.origin,
             promoted.language ?? 'sk'
@@ -157,7 +158,8 @@ export default function TrainingCancelPage({ kind }: TrainingCancelPageProps) {
               trainerName: label.trainerName,
               name: promoted.name,
               email: promoted.email,
-              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes }))
+              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes })),
+              tickets: promoted.tickets
             },
             window.location.origin,
             promoted.language ?? 'sk'

@@ -320,6 +320,15 @@ service cloud.firestore {
       // may not be the trainer running that particular session.
       allow update: if isStaffMember()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendance']);
+      // Per-person QR-scan check-in (markSessionTicketCheckIn) — a second,
+      // separate write from the whole-registration `attendance` field above
+      // (see that function's own comment), so this needs its own additive
+      // rule rather than widening the existing attendance-only one.
+      allow update: if isTrainer()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketCheckIns'])
+        && get(/databases/$(database)/documents/trainingSessions/$(resource.data.sessionId)).data.trainerId == request.auth.uid;
+      allow update: if isStaffMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketCheckIns']);
       allow update: if isOwnerOrAbove();
     }
 
@@ -347,6 +356,12 @@ service cloud.firestore {
       // See the matching entrance QR-scan note on trainingRegistrations above.
       allow update: if isStaffMember()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['attendanceBySession']);
+      // See the matching per-person QR-scan note on trainingRegistrations above.
+      allow update: if isTrainer()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketCheckInsBySession'])
+        && get(/databases/$(database)/documents/trainingBundles/$(resource.data.bundleId)).data.trainerId == request.auth.uid;
+      allow update: if isStaffMember()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketCheckInsBySession']);
       allow update: if isOwnerOrAbove();
     }
 
