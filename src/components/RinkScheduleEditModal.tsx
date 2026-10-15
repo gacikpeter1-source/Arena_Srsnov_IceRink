@@ -8,6 +8,7 @@ import {
   rescheduleRinkScheduleEntry,
   rescheduleRinkScheduleOccurrence,
   renameRinkScheduleEntrySeries,
+  rescheduleRinkScheduleEntrySeriesTime,
   RinkScheduleOccurrenceFields
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
@@ -78,6 +79,12 @@ export default function RinkScheduleEditModal({
   // when checked, the name change is propagated to every live occurrence
   // in the series via renameRinkScheduleEntrySeries, not just this one.
   const [renameWholeSeries, setRenameWholeSeries] = useState(false)
+  // Only ever offered when the rink/zone/time-of-day actually changed for
+  // THIS occurrence while its own date stayed put (see canShiftSeriesTime
+  // below) — when checked, that same rink/zone/startTime/durationMinutes
+  // is applied to every other live occurrence too, via
+  // rescheduleRinkScheduleEntrySeriesTime.
+  const [moveWholeSeriesTime, setMoveWholeSeriesTime] = useState(false)
 
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
 
@@ -96,6 +103,13 @@ export default function RinkScheduleEditModal({
   // by it, so it must never block a same-slot save.
   const sameSlot = zoneId === occurrence.zoneId && date === occurrence.date && startTime === occurrence.startTime
 
+  // A bulk time shift only makes sense when this occurrence's own DATE
+  // stayed the same but its rink/zone/time-of-day moved — moving one
+  // occurrence to a different calendar DATE is a one-off thing (e.g. a
+  // single rescheduled practice), not "the whole series now runs at a
+  // different time", so that case doesn't offer this checkbox at all.
+  const canShiftSeriesTime = Boolean(entry.seriesId) && date === occurrence.date && !sameSlot
+
   useEffect(() => {
     if (!isOpen) return
     setRinkId(occurrence.rinkId)
@@ -108,6 +122,7 @@ export default function RinkScheduleEditModal({
     setDurationMinutes(occurrence.durationMinutes)
     setError(null)
     setRenameWholeSeries(false)
+    setMoveWholeSeriesTime(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, occurrence.id])
 
@@ -183,11 +198,21 @@ export default function RinkScheduleEditModal({
         }
       }
       await apply()
+      // Propagates the new rink/zone/time to every other live occurrence in
+      // the series, after apply() above — so it picks up this occurrence's
+      // own (just-recreated) booking already at the new slot and simply
+      // leaves it alone on its own pass, rather than moving it twice.
+      if (canShiftSeriesTime && moveWholeSeriesTime) {
+        const shiftResult = await rescheduleRinkScheduleEntrySeriesTime(entry, { rinkId, zoneId, startTime, durationMinutes, timezone })
+        if (shiftResult.skippedDates.length > 0) {
+          alert(t('rinkSchedule.seriesTimeShiftPartial', { moved: shiftResult.movedCount, dates: shiftResult.skippedDates.join(', ') }))
+        }
+      }
       // Propagates just the new name to every other live occurrence in the
-      // series, after apply() above — so it picks up this occurrence's own
-      // (possibly just-recreated, if the slot moved) booking id rather than
-      // a stale one. This occurrence's own name gets written twice (once by
-      // apply(), once here), which is harmless — same value either way.
+      // series, after any time shift above — so it picks up whichever
+      // booking id each occurrence currently has (possibly just-recreated
+      // by the shift). This occurrence's own name gets written twice (once
+      // by apply(), once here), which is harmless — same value either way.
       if (entry.seriesId && renameWholeSeries) {
         await renameRinkScheduleEntrySeries(entry, fields.teamName)
       }
@@ -277,6 +302,14 @@ export default function RinkScheduleEditModal({
               <Label className="text-white">{t('common.time')}</Label>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="bg-background-dark border-border text-white" required />
             </div>
+            {canShiftSeriesTime && (
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-2 text-sm text-text-secondary">
+                  <input type="checkbox" checked={moveWholeSeriesTime} onChange={(e) => setMoveWholeSeriesTime(e.target.checked)} />
+                  {t('rinkSchedule.moveWholeSeriesTime')}
+                </label>
+              </div>
+            )}
             <div>
               <Label className="text-white">{t('trainerDashboard.durationMin')}</Label>
               <Input

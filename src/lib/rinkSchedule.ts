@@ -344,6 +344,102 @@ export async function renameRinkScheduleEntrySeries(entry: RinkScheduleEntry & {
   await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { teamName })
 }
 
+export interface SeriesTimeShiftResult {
+  movedCount: number
+  // Each date (yyyy-mm-dd) whose new rink/zone/time was already taken by
+  // some other real booking, so that one occurrence was left exactly as
+  // it was rather than failing the whole shift — staff can resolve just
+  // that date by hand via the normal single-occurrence edit (which does
+  // offer the full conflict/replace flow this bulk operation deliberately
+  // skips, same reasoning as the batch schedule generators elsewhere in
+  // this app).
+  skippedDates: string[]
+}
+
+/**
+ * Shifts every live occurrence of a recurring series to a new rink/zone/
+ * startTime/durationMinutes at once — e.g. a club moves a standing weekly
+ * practice from 18:00 to 19:00. Each occurrence's own DATE (which day it
+ * actually falls on) is left untouched; only the time-of-day/rink/zone/
+ * duration move uniformly, same as rescheduleRinkScheduleOccurrence's own
+ * create-then-cancel mechanism but looped across the whole series instead
+ * of one occurrence. createBooking's own atomic transaction protects each
+ * date independently, so a date whose new slot collides with an unrelated
+ * real booking is skipped (not failed) rather than aborting the whole
+ * shift — same "skip, don't fail the series" convention
+ * createBookingSeries/startRinkScheduleEntryRepeat already use elsewhere
+ * in this file. An occurrence whose rink/zone/time already match the
+ * target is left completely alone (just its duration patched in place if
+ * that alone differs) — no pointless cancel-and-recreate. Deliberately
+ * has no interactive conflict/replace flow of its own (unlike the single-
+ * occurrence edit) — looping a confirm() dialog per date for a multi-
+ * occurrence series would be unusable UX, so a collision is always just
+ * skipped and reported back for the caller to show.
+ */
+export async function rescheduleRinkScheduleEntrySeriesTime(
+  entry: RinkScheduleEntry & { id: string },
+  fields: { rinkId: string; zoneId: string; startTime: string; durationMinutes: number; timezone: string }
+): Promise<SeriesTimeShiftResult> {
+  if (!entry.seriesId) throw new Error('This entry is not part of a recurring series')
+  const bookings = await fetchSeriesBookings(entry.seriesId)
+  const live = bookings.filter((b) => b.status !== 'cancelled')
+
+  const occurrenceRooms = { ...entry.occurrenceRooms }
+  const occurrenceAwayRooms = { ...entry.occurrenceAwayRooms }
+  let movedCount = 0
+  const skippedDates: string[] = []
+
+  for (const booking of live) {
+    const sameSlot = booking.rinkId === fields.rinkId && booking.zoneId === fields.zoneId && booking.startTime === fields.startTime
+    if (sameSlot) {
+      if (booking.durationMinutes !== fields.durationMinutes) {
+        await updateDoc(doc(db, 'bookings', booking.id), { durationMinutes: fields.durationMinutes })
+      }
+      continue
+    }
+    try {
+      const created = await createBooking({
+        clubId: entry.clubId,
+        rinkId: fields.rinkId,
+        zoneId: fields.zoneId,
+        date: booking.date,
+        startTime: fields.startTime,
+        durationMinutes: fields.durationMinutes,
+        name: booking.name,
+        email: booking.email ?? '',
+        phone: booking.phone ?? '',
+        timezone: fields.timezone,
+        seriesId: entry.seriesId
+      })
+      await cancelBooking(booking.id).catch(() => {})
+      // Only carry forward a room override that actually existed — unlike
+      // the single-occurrence reschedule (which always writes '' from
+      // explicit form input), there's no new room value being entered
+      // here, so an occurrence with no override must stay without one
+      // rather than silently gaining an empty-string override that would
+      // mask the entry's own default room.
+      if (booking.id in occurrenceRooms) {
+        occurrenceRooms[created.id] = occurrenceRooms[booking.id]
+        delete occurrenceRooms[booking.id]
+      }
+      if (booking.id in occurrenceAwayRooms) {
+        occurrenceAwayRooms[created.id] = occurrenceAwayRooms[booking.id]
+        delete occurrenceAwayRooms[booking.id]
+      }
+      movedCount++
+    } catch (err) {
+      if (err instanceof SlotUnavailableError) {
+        skippedDates.push(booking.date)
+      } else {
+        throw err
+      }
+    }
+  }
+
+  await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { occurrenceRooms, occurrenceAwayRooms })
+  return { movedCount, skippedDates }
+}
+
 // Weekly default used by "Opakovať" on RinkSchedulePage.tsx's entries
 // table — a quick, no-extra-input way to turn an already-created single
 // entry into a recurring one, mirroring the same frequency/count the

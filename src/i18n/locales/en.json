@@ -458,6 +458,8 @@
     "newEntry": "New entry",
     "teamName": "Team / group",
     "renameWholeSeries": "Rename every occurrence in this series (time and recurrence stay unchanged)",
+    "moveWholeSeriesTime": "Also move every other occurrence in this series to this new time (each occurrence's own date stays the same)",
+    "seriesTimeShiftPartial": "Moved {{moved}} occurrence(s). These dates couldn't be moved because the new time is already taken — please edit them one at a time: {{dates}}",
     "room": "Room",
     "roomPlaceholder": "Optional — can be filled in later",
     "awayRoom": "Away team room",
