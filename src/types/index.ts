@@ -524,12 +524,20 @@ export interface TrainingBundle {
   capacity: number | null
   confirmedCount: number // maintained atomically in a transaction
   cancellationCutoffHours: number
-  // Per-person price for one registration, set by the trainer at creation —
+  // Per-adult price for one registration, set by the trainer at creation —
   // see the "Subscription / paid add-on modules"-adjacent payment scaffold
   // note in CLAUDE.md. Unset = free. Only actually charged (payment written
   // onto the registration) once Club.paymentsEnabled is true — today that
   // flag stays off, so this is data ready for later, not an active price.
   price?: number
+  // Per-child price — unset means a child is charged the same as `price`
+  // (no distinction at all), additive to the plain single-price scaffold
+  // above rather than replacing it. See TrainingRegistration.childCount.
+  childPrice?: number
+  // A one-off promotional discount (0-100), e.g. a club running "50% off"
+  // for one specific course — applied to both `price` and `childPrice`
+  // alike at charge time (registerForBundle). Unset/0 = no discount.
+  discountPercent?: number
   createdAt: Date
 }
 
@@ -567,10 +575,14 @@ export interface TrainingSession {
   // payroll-support record for the owner; unset = not yet confirmed
   // either way, not "trainer was absent".
   trainerPresentConfirmed?: boolean
-  // Per-person price for a standalone/series session, set by the trainer at
+  // Per-adult price for a standalone/series session, set by the trainer at
   // creation — see TrainingBundle.price for the full rationale (same
   // "ready but not active until Club.paymentsEnabled" scaffold).
   price?: number
+  // See TrainingBundle.childPrice.
+  childPrice?: number
+  // See TrainingBundle.discountPercent.
+  discountPercent?: number
   createdAt: Date
 }
 
@@ -615,8 +627,21 @@ export interface TrainingRegistration {
   // reserves/releases this many spots on the session's confirmedCount, not
   // always exactly 1 — see lib/training.ts.
   attendeeCount?: number
+  // The adult/child breakdown behind attendeeCount, only ever collected
+  // when the session has a price (see TrainingSession.price/childPrice) —
+  // a free event still just asks for a plain headcount, with no reason to
+  // tell adults and children apart. Unset on a registration made before
+  // this field existed, or on a free event: callers that need a number
+  // should treat the whole attendeeCount as "adult" in that case, since
+  // there's nothing to split. adultCount + childCount === attendeeCount
+  // whenever both are set.
+  adultCount?: number
+  childCount?: number
   // Set only when Club.paymentsEnabled is true and the session/bundle has
-  // a price — amount is price * attendeeCount. See TrainingBundle.price.
+  // a price — amount is (price * adultCount + childPrice * childCount),
+  // discounted by discountPercent if set, falling back to the simpler
+  // price * attendeeCount when adultCount/childCount aren't tracked (see
+  // registerForSession). See TrainingBundle.price.
   payment?: Payment
 
   createdAt: Date
@@ -649,6 +674,9 @@ export interface TrainingBundleRegistration {
   language?: SupportedLanguage
   // See TrainingRegistration.attendeeCount — same meaning, scoped to the bundle's own confirmedCount.
   attendeeCount?: number
+  // See TrainingRegistration.adultCount/childCount.
+  adultCount?: number
+  childCount?: number
   // See TrainingRegistration.payment.
   payment?: Payment
 

@@ -41,7 +41,14 @@ interface TrainingRegistrationModalProps {
 export default function TrainingRegistrationModal({ isOpen, onClose, club, session, bundle, series, asStaff }: TrainingRegistrationModalProps) {
   const { t, i18n } = useTranslation()
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' })
+  // A free event just asks for a plain headcount (no reason to tell
+  // adults and children apart when there's no price difference) — see
+  // isPriced below for when the form switches to the adult/child split
+  // instead. attendeeCount itself is never its own state once priced;
+  // it's always adultCount + childCount, computed where needed.
   const [attendeeCount, setAttendeeCount] = useState(1)
+  const [adultCount, setAdultCount] = useState(1)
+  const [childCount, setChildCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ status: 'pending' | 'confirmed' | 'waitlist' } | null>(null)
@@ -51,11 +58,20 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
   // payments on — see CLAUDE.md's payment-scaffold note. Today that flag
   // stays off, so this branch never renders in production.
   const unitPrice = bundle ? bundle.price : session.price
-  const totalPrice = club.paymentsEnabled && unitPrice ? unitPrice * attendeeCount : null
+  const isPriced = club.paymentsEnabled && unitPrice != null
+  const unitChildPrice = (bundle ? bundle.childPrice : session.childPrice) ?? unitPrice ?? 0
+  const discountPercent = Math.min(100, Math.max(0, (bundle ? bundle.discountPercent : session.discountPercent) ?? 0))
+  const discountFactor = 1 - discountPercent / 100
+  const effectiveAttendeeCount = isPriced ? adultCount + childCount : attendeeCount
+  const adultLinePrice = unitPrice != null ? unitPrice * discountFactor : 0
+  const childLinePrice = unitChildPrice * discountFactor
+  const totalPrice = isPriced ? Math.round((adultCount * adultLinePrice + childCount * childLinePrice) * 100) / 100 : null
 
   const handleClose = () => {
     setFormData({ name: '', email: '', phone: '' })
     setAttendeeCount(1)
+    setAdultCount(1)
+    setChildCount(0)
     setError(null)
     setResult(null)
     onClose()
@@ -75,7 +91,8 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           phone: formData.phone,
           instantConfirm: asStaff,
           language: lang,
-          attendeeCount,
+          attendeeCount: effectiveAttendeeCount,
+          ...(isPriced ? { adultCount, childCount } : {}),
           paymentsEnabled: club.paymentsEnabled,
           pendingHoldMinutes: totalPrice != null ? PAYMENT_PENDING_HOLD_MINUTES : undefined
         })
@@ -131,7 +148,8 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           timezone: club.timezone,
           instantConfirm: asStaff,
           language: lang,
-          attendeeCount,
+          attendeeCount: effectiveAttendeeCount,
+          ...(isPriced ? { adultCount, childCount } : {}),
           paymentsEnabled: club.paymentsEnabled,
           pendingHoldMinutes: totalPrice != null ? PAYMENT_PENDING_HOLD_MINUTES : undefined
         })
@@ -230,22 +248,55 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
             <Label htmlFor="training-phone" className="text-white">{t('common.phone')}</Label>
             <Input id="training-phone" type="tel" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="bg-background-dark border-border text-white" />
           </div>
-          <div>
-            <Label htmlFor="training-attendee-count" className="text-white">{t('booking.attendeeCount')}</Label>
-            <Input
-              id="training-attendee-count"
-              type="number"
-              min={1}
-              value={attendeeCount}
-              onChange={(e) => setAttendeeCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="bg-background-dark border-border text-white max-w-[100px]"
-            />
-          </div>
+          {isPriced ? (
+            <div className="flex gap-3">
+              <div>
+                <Label htmlFor="training-adult-count" className="text-white">{t('trainingRegistration.adultCount')}</Label>
+                <Input
+                  id="training-adult-count"
+                  type="number"
+                  min={0}
+                  value={adultCount}
+                  onChange={(e) => setAdultCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  className="bg-background-dark border-border text-white max-w-[100px]"
+                />
+              </div>
+              <div>
+                <Label htmlFor="training-child-count" className="text-white">{t('trainingRegistration.childCount')}</Label>
+                <Input
+                  id="training-child-count"
+                  type="number"
+                  min={0}
+                  value={childCount}
+                  onChange={(e) => setChildCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  className="bg-background-dark border-border text-white max-w-[100px]"
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="training-attendee-count" className="text-white">{t('booking.attendeeCount')}</Label>
+              <Input
+                id="training-attendee-count"
+                type="number"
+                min={1}
+                value={attendeeCount}
+                onChange={(e) => setAttendeeCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="bg-background-dark border-border text-white max-w-[100px]"
+              />
+            </div>
+          )}
+          {isPriced && (
+            <div className="text-text-secondary text-sm space-y-0.5">
+              {adultCount > 0 && <p>{t('trainingRegistration.priceAdultLine', { count: adultCount, price: adultLinePrice.toFixed(2) })}</p>}
+              {childCount > 0 && <p>{t('trainingRegistration.priceChildLine', { count: childCount, price: childLinePrice.toFixed(2) })}</p>}
+            </div>
+          )}
           {totalPrice != null && (
-            <p className="text-text-secondary text-sm">{t('trainingRegistration.totalPrice', { amount: totalPrice.toFixed(2) })}</p>
+            <p className="text-text-secondary text-sm font-semibold">{t('trainingRegistration.totalPrice', { amount: totalPrice.toFixed(2) })}</p>
           )}
           <DialogFooter>
-            <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
+            <Button type="submit" disabled={submitting || effectiveAttendeeCount < 1} className="w-full bg-primary hover:bg-primary-gold text-primary-foreground">
               {submitting ? t('trainingRegistration.submitting') : t('trainingRegistration.submit')}
             </Button>
           </DialogFooter>

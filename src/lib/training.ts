@@ -82,6 +82,10 @@ export interface CreateStandaloneSessionInput {
   cancellationCutoffHours: number
   // See TrainingSession.price — unset/0 = free.
   price?: number
+  // See TrainingSession.childPrice — unset = child pays the adult price.
+  childPrice?: number
+  // See TrainingSession.discountPercent — unset/0 = no discount.
+  discountPercent?: number
 }
 
 export async function createStandaloneSession(input: CreateStandaloneSessionInput): Promise<string> {
@@ -96,6 +100,8 @@ export async function createStandaloneSession(input: CreateStandaloneSessionInpu
     confirmedCount: 0,
     cancellationCutoffHours: input.cancellationCutoffHours,
     ...(input.price ? { price: input.price } : {}),
+    ...(input.childPrice ? { childPrice: input.childPrice } : {}),
+    ...(input.discountPercent ? { discountPercent: input.discountPercent } : {}),
     status: input.trainerId ? 'active' : 'unassigned',
     createdAt: serverTimestamp()
   })
@@ -116,6 +122,10 @@ export interface CreateTrainingSeriesInput {
   // See TrainingSession.price — copied onto every occurrence, same as
   // capacity/cancellationCutoffHours already are.
   price?: number
+  // See TrainingSession.childPrice — same "copied onto every occurrence" treatment.
+  childPrice?: number
+  // See TrainingSession.discountPercent — same "copied onto every occurrence" treatment.
+  discountPercent?: number
 }
 
 /**
@@ -164,6 +174,8 @@ export async function createTrainingSeries(
         confirmedCount: 0,
         cancellationCutoffHours: input.cancellationCutoffHours,
         ...(input.price ? { price: input.price } : {}),
+        ...(input.childPrice ? { childPrice: input.childPrice } : {}),
+        ...(input.discountPercent ? { discountPercent: input.discountPercent } : {}),
         seriesId: seriesRef.id,
         status: 'active',
         createdAt: serverTimestamp()
@@ -191,6 +203,10 @@ export interface CreateTrainingBundleInput {
   // See TrainingBundle.price — lives on the bundle doc alone (like
   // capacity/confirmedCount), not per contained session.
   price?: number
+  // See TrainingBundle.childPrice — same "lives on the bundle doc alone" treatment.
+  childPrice?: number
+  // See TrainingBundle.discountPercent — same "lives on the bundle doc alone" treatment.
+  discountPercent?: number
 }
 
 /**
@@ -217,6 +233,8 @@ export async function createTrainingBundle(input: CreateTrainingBundleInput): Pr
     confirmedCount: 0,
     cancellationCutoffHours: input.cancellationCutoffHours,
     ...(input.price ? { price: input.price } : {}),
+    ...(input.childPrice ? { childPrice: input.childPrice } : {}),
+    ...(input.discountPercent ? { discountPercent: input.discountPercent } : {}),
     createdAt: serverTimestamp()
   })
 
@@ -450,6 +468,13 @@ export interface RegisterForSessionInput {
   // How many people this one registration/QR covers — see
   // TrainingRegistration.attendeeCount. Defaults to 1.
   attendeeCount?: number
+  // The adult/child breakdown behind attendeeCount — see
+  // TrainingRegistration.adultCount/childCount. Only meaningful (and only
+  // ever collected by the registration form) when the session has a
+  // price; adultCount + childCount should equal attendeeCount whenever
+  // both are passed.
+  adultCount?: number
+  childCount?: number
   // Whether the club currently charges for trainings — see
   // TrainingRegistration.payment. Only when true AND the session has a
   // price is a payment actually attached; the caller passes
@@ -470,6 +495,36 @@ export interface RegisteredForSession {
   cancellationToken: string
   status: 'pending' | 'confirmed' | 'waitlist'
   waitlistPosition?: number
+}
+
+/** Rounds to the nearest cent — avoids floating-point drift (e.g. 0.1 + 0.2) accumulating across adult/child line items. */
+function roundMoney(amount: number): number {
+  return Math.round(amount * 100) / 100
+}
+
+/**
+ * The actual charged total for a registration — per-adult price times
+ * adultCount, plus per-child price (falling back to the adult price when
+ * no separate childPrice was set) times childCount, with an optional
+ * promotional discountPercent applied to both. Falls back to the original
+ * flat `price * attendeeCount` when no adult/child split was collected at
+ * all (a free event never asks for one, and a registration made before
+ * this feature existed never has adultCount/childCount set either).
+ */
+function computeTieredAmount(params: {
+  price: number
+  childPrice?: number
+  discountPercent?: number
+  attendeeCount: number
+  adultCount?: number
+  childCount?: number
+}): number {
+  const discountFactor = 1 - Math.min(100, Math.max(0, params.discountPercent ?? 0)) / 100
+  const hasSplit = params.adultCount != null && params.childCount != null
+  const adultCount = hasSplit ? (params.adultCount as number) : params.attendeeCount
+  const childCount = hasSplit ? (params.childCount as number) : 0
+  const childUnit = params.childPrice ?? params.price
+  return roundMoney((adultCount * params.price + childCount * childUnit) * discountFactor)
 }
 
 export async function registerForSession(input: RegisterForSessionInput): Promise<RegisteredForSession> {
@@ -512,8 +567,24 @@ export async function registerForSession(input: RegisterForSessionInput): Promis
       startAtUtc: zonedTimeToUtc(session.date, session.startTime, input.timezone),
       ...(input.language ? { language: input.language } : {}),
       attendeeCount,
+      ...(input.adultCount != null ? { adultCount: input.adultCount } : {}),
+      ...(input.childCount != null ? { childCount: input.childCount } : {}),
       ...(input.paymentsEnabled && session.price
-        ? { payment: { required: true, amount: session.price * attendeeCount, currency: 'EUR', status: 'unpaid' as const } }
+        ? {
+            payment: {
+              required: true,
+              amount: computeTieredAmount({
+                price: session.price,
+                childPrice: session.childPrice,
+                discountPercent: session.discountPercent,
+                attendeeCount,
+                adultCount: input.adultCount,
+                childCount: input.childCount
+              }),
+              currency: 'EUR',
+              status: 'unpaid' as const
+            }
+          }
         : {}),
       createdAt: serverTimestamp()
     }
@@ -722,6 +793,9 @@ export interface RegisterForBundleInput {
   language?: SupportedLanguage
   // See RegisterForSessionInput.attendeeCount.
   attendeeCount?: number
+  // See RegisterForSessionInput.adultCount/childCount.
+  adultCount?: number
+  childCount?: number
   // See RegisterForSessionInput.paymentsEnabled.
   paymentsEnabled?: boolean
   // See RegisterForSessionInput.pendingHoldMinutes.
@@ -770,8 +844,24 @@ export async function registerForBundle(input: RegisterForBundleInput): Promise<
       tokenExpiresAt,
       ...(input.language ? { language: input.language } : {}),
       attendeeCount,
+      ...(input.adultCount != null ? { adultCount: input.adultCount } : {}),
+      ...(input.childCount != null ? { childCount: input.childCount } : {}),
       ...(input.paymentsEnabled && bundle.price
-        ? { payment: { required: true, amount: bundle.price * attendeeCount, currency: 'EUR', status: 'unpaid' as const } }
+        ? {
+            payment: {
+              required: true,
+              amount: computeTieredAmount({
+                price: bundle.price,
+                childPrice: bundle.childPrice,
+                discountPercent: bundle.discountPercent,
+                attendeeCount,
+                adultCount: input.adultCount,
+                childCount: input.childCount
+              }),
+              currency: 'EUR',
+              status: 'unpaid' as const
+            }
+          }
         : {}),
       createdAt: serverTimestamp()
     }

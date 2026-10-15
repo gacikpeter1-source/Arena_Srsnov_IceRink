@@ -56,6 +56,8 @@ export default function TrainerDashboardPage() {
   const [sDuration, setSDuration] = useState(60)
   const [sCapacity, setSCapacity] = useState<string>('10')
   const [sPrice, setSPrice] = useState<string>('')
+  const [sChildPrice, setSChildPrice] = useState<string>('')
+  const [sDiscount, setSDiscount] = useState<string>('')
   const [creatingSession, setCreatingSession] = useState(false)
   // Owner/superadmin creating a session isn't necessarily the trainer it's
   // for — see the trainer picker in the form below. Defaults to
@@ -72,6 +74,8 @@ export default function TrainerDashboardPage() {
   const [seDuration, setSeDuration] = useState(60)
   const [seCapacity, setSeCapacity] = useState<string>('10')
   const [sePrice, setSePrice] = useState<string>('')
+  const [seChildPrice, setSeChildPrice] = useState<string>('')
+  const [seDiscount, setSeDiscount] = useState<string>('')
   const [seFrequency, setSeFrequency] = useState<TrainingFrequency>('weekly')
   const [seCount, setSeCount] = useState(8)
   const [creatingSeries, setCreatingSeries] = useState(false)
@@ -80,6 +84,8 @@ export default function TrainerDashboardPage() {
   const [buTitle, setBuTitle] = useState('')
   const [buCapacity, setBuCapacity] = useState<string>('10')
   const [buPrice, setBuPrice] = useState<string>('')
+  const [buChildPrice, setBuChildPrice] = useState<string>('')
+  const [buDiscount, setBuDiscount] = useState<string>('')
   const [buSessions, setBuSessions] = useState<TrainingBundleSessionInput[]>([
     { date: formatDateISO(new Date()), startTime: '17:00', durationMinutes: 60 }
   ])
@@ -142,6 +148,8 @@ export default function TrainerDashboardPage() {
   const parseCapacity = (v: string): number | null => (v.trim() === '' ? null : Math.max(0, parseInt(v, 10) || 0))
   // See TrainingSession.price/TrainingBundle.price — unset (empty input) = free.
   const parsePrice = (v: string): number | undefined => (v.trim() === '' ? undefined : Math.max(0, parseFloat(v) || 0))
+  // See TrainingSession.discountPercent/TrainingBundle.discountPercent — unset (empty input) = no discount. Clamped to 0-100.
+  const parseDiscount = (v: string): number | undefined => (v.trim() === '' ? undefined : Math.min(100, Math.max(0, parseFloat(v) || 0)))
 
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -164,7 +172,9 @@ export default function TrainerDashboardPage() {
         durationMinutes: sDuration,
         capacity: parseCapacity(sCapacity),
         cancellationCutoffHours: DEFAULT_CUTOFF_HOURS,
-        price: parsePrice(sPrice)
+        price: parsePrice(sPrice),
+        childPrice: parsePrice(sChildPrice),
+        discountPercent: parseDiscount(sDiscount)
       })
       refresh()
     } catch (err) {
@@ -192,10 +202,14 @@ export default function TrainerDashboardPage() {
         capacity: parseCapacity(seCapacity),
         cancellationCutoffHours: DEFAULT_CUTOFF_HOURS,
         recurrence,
-        price: parsePrice(sePrice)
+        price: parsePrice(sePrice),
+        childPrice: parsePrice(seChildPrice),
+        discountPercent: parseDiscount(seDiscount)
       })
       setSeTitle('')
       setSePrice('')
+      setSeChildPrice('')
+      setSeDiscount('')
       refresh()
     } catch (err) {
       console.error('Error creating training series:', err)
@@ -218,10 +232,14 @@ export default function TrainerDashboardPage() {
         capacity: parseCapacity(buCapacity),
         cancellationCutoffHours: DEFAULT_CUTOFF_HOURS,
         sessions: buSessions,
-        price: parsePrice(buPrice)
+        price: parsePrice(buPrice),
+        childPrice: parsePrice(buChildPrice),
+        discountPercent: parseDiscount(buDiscount)
       })
       setBuTitle('')
       setBuPrice('')
+      setBuChildPrice('')
+      setBuDiscount('')
       setBuSessions([{ date: formatDateISO(new Date()), startTime: '17:00', durationMinutes: 60 }])
       refresh()
     } catch (err) {
@@ -351,6 +369,14 @@ export default function TrainerDashboardPage() {
                   <Label className="text-white">{t('trainerDashboard.pricePerPerson')}</Label>
                   <Input type="number" min={0} step="0.01" value={sPrice} onChange={(e) => setSPrice(e.target.value)} placeholder={t('trainerDashboard.freePlaceholder')} className="bg-background-dark border-border text-white" />
                 </div>
+                <div>
+                  <Label className="text-white">{t('trainerDashboard.priceChild')}</Label>
+                  <Input type="number" min={0} step="0.01" value={sChildPrice} onChange={(e) => setSChildPrice(e.target.value)} placeholder={t('trainerDashboard.priceChildPlaceholder')} className="bg-background-dark border-border text-white" />
+                </div>
+                <div>
+                  <Label className="text-white">{t('trainerDashboard.discountPercent')}</Label>
+                  <Input type="number" min={0} max={100} step="1" value={sDiscount} onChange={(e) => setSDiscount(e.target.value)} placeholder={t('trainerDashboard.discountPlaceholder')} className="bg-background-dark border-border text-white" />
+                </div>
                 <div className="sm:col-span-4">
                   <Button type="submit" disabled={creatingSession} className="bg-primary hover:bg-primary-gold text-primary-foreground">
                     {creatingSession ? t('common.saving') : t('trainerDashboard.createSession')}
@@ -412,6 +438,14 @@ export default function TrainerDashboardPage() {
                   <Label className="text-white">{t('trainerDashboard.pricePerPerson')}</Label>
                   <Input type="number" min={0} step="0.01" value={sePrice} onChange={(e) => setSePrice(e.target.value)} placeholder={t('trainerDashboard.freePlaceholder')} className="bg-background-dark border-border text-white" />
                 </div>
+                <div>
+                  <Label className="text-white">{t('trainerDashboard.priceChild')}</Label>
+                  <Input type="number" min={0} step="0.01" value={seChildPrice} onChange={(e) => setSeChildPrice(e.target.value)} placeholder={t('trainerDashboard.priceChildPlaceholder')} className="bg-background-dark border-border text-white" />
+                </div>
+                <div>
+                  <Label className="text-white">{t('trainerDashboard.discountPercent')}</Label>
+                  <Input type="number" min={0} max={100} step="1" value={seDiscount} onChange={(e) => setSeDiscount(e.target.value)} placeholder={t('trainerDashboard.discountPlaceholder')} className="bg-background-dark border-border text-white" />
+                </div>
                 <div className="sm:col-span-4">
                   <Button type="submit" disabled={creatingSeries} className="bg-primary hover:bg-primary-gold text-primary-foreground">
                     {creatingSeries ? t('common.saving') : t('trainerDashboard.createSeries')}
@@ -464,6 +498,14 @@ export default function TrainerDashboardPage() {
                   <div>
                     <Label className="text-white">{t('trainerDashboard.pricePerPerson')}</Label>
                     <Input type="number" min={0} step="0.01" value={buPrice} onChange={(e) => setBuPrice(e.target.value)} placeholder={t('trainerDashboard.freePlaceholder')} className="bg-background-dark border-border text-white" />
+                  </div>
+                  <div>
+                    <Label className="text-white">{t('trainerDashboard.priceChild')}</Label>
+                    <Input type="number" min={0} step="0.01" value={buChildPrice} onChange={(e) => setBuChildPrice(e.target.value)} placeholder={t('trainerDashboard.priceChildPlaceholder')} className="bg-background-dark border-border text-white" />
+                  </div>
+                  <div>
+                    <Label className="text-white">{t('trainerDashboard.discountPercent')}</Label>
+                    <Input type="number" min={0} max={100} step="1" value={buDiscount} onChange={(e) => setBuDiscount(e.target.value)} placeholder={t('trainerDashboard.discountPlaceholder')} className="bg-background-dark border-border text-white" />
                   </div>
                 </div>
 

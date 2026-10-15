@@ -91,6 +91,8 @@ const STRINGS: Record<
     pdfNote: string;
     ticketTitle: string;
     scanNote: string;
+    adultsLabel: string;
+    childrenLabel: string;
   }
 > = {
   sk: {
@@ -102,7 +104,9 @@ const STRINGS: Record<
     cancelButton: "Zrušiť rezerváciu",
     pdfNote: "Vstupenka s QR kódom na vstup je priložená ako PDF súbor.",
     ticketTitle: "Vstupenka",
-    scanNote: "Naskenujte tento QR kód pri vstupe."
+    scanNote: "Naskenujte tento QR kód pri vstupe.",
+    adultsLabel: "Dospelí",
+    childrenLabel: "Deti"
   },
   en: {
     subject: (club) => `Payment received – ${club}`,
@@ -113,9 +117,23 @@ const STRINGS: Record<
     cancelButton: "Cancel booking",
     pdfNote: "Your entrance ticket with the QR code is attached as a PDF.",
     ticketTitle: "Ticket",
-    scanNote: "Scan this QR code at the entrance."
+    scanNote: "Scan this QR code at the entrance.",
+    adultsLabel: "Adults",
+    childrenLabel: "Children"
   }
 };
+
+// Builds "Dospelí: 2, Deti: 1" (or just one half, or nothing at all when
+// neither count is known/zero) from a registration's adult/child split —
+// shared by both the HTML email body and the PDF ticket so the two never
+// disagree on wording.
+function buildPeopleLine(lang: Lang, adultCount?: number, childCount?: number): string {
+  const s = STRINGS[lang];
+  const parts: string[] = [];
+  if (adultCount) parts.push(`${s.adultsLabel}: ${adultCount}`);
+  if (childCount) parts.push(`${s.childrenLabel}: ${childCount}`);
+  return parts.join(", ");
+}
 
 // The QR used to be embedded inline in the HTML body as a `data:` URI
 // `<img>` — several mobile mail clients (confirmed live: Gmail on iOS)
@@ -124,7 +142,7 @@ const STRINGS: Record<
 // one thing guaranteed to actually reach the customer regardless of how
 // the client renders HTML email, so the QR now lives there instead, and
 // the HTML body just points at it.
-function buildConfirmationEmailHtml(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; cancelUrl: string; lang: Lang }): string {
+function buildConfirmationEmailHtml(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; peopleLine: string; cancelUrl: string; lang: Lang }): string {
   const s = STRINGS[params.lang];
   return `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #111;">
@@ -132,6 +150,7 @@ function buildConfirmationEmailHtml(params: { clubName: string; name: string; su
       <p>${s.greeting(params.name)}</p>
       <p>${s.intro}</p>
       ${params.subtitle ? `<p style="margin: 4px 0;"><strong>${params.subtitle}</strong></p>` : ""}
+      ${params.peopleLine ? `<p style="margin: 4px 0;">${params.peopleLine}</p>` : ""}
       <p style="margin: 4px 0;">${s.code}: <strong>${params.confirmationCode}</strong></p>
       <p style="margin: 16px 0; font-weight: bold;">${s.pdfNote}</p>
       <div style="margin-top: 20px; padding: 15px; background: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
@@ -152,7 +171,7 @@ function buildConfirmationEmailHtml(params: { clubName: string; name: string; su
  * `attachments` field already expects (see e.g.
  * sendMonthlyRinkUtilizationReport's own .xlsx attachment in index.ts).
  */
-function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; qrPngBuffer: Buffer; lang: Lang }): Promise<string> {
+function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle: string; confirmationCode: string; peopleLine: string; qrPngBuffer: Buffer; lang: Lang }): Promise<string> {
   const s = STRINGS[params.lang];
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A5", margin: 40 });
@@ -173,6 +192,10 @@ function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle
     if (params.subtitle) {
       doc.moveDown(0.3);
       doc.fontSize(13).font("Bold").text(params.subtitle);
+    }
+    if (params.peopleLine) {
+      doc.moveDown(0.3);
+      doc.fontSize(11).font("Regular").text(params.peopleLine);
     }
     doc.moveDown(0.3);
     doc.fontSize(11).font("Regular").text(`${s.code}: ${params.confirmationCode}`);
@@ -301,6 +324,8 @@ async function sendPaymentConfirmationEmail(
         date?: string;
         startTime?: string;
         bundleId?: string;
+        adultCount?: number;
+        childCount?: number;
       }
     | undefined;
   const club = clubSnap.data() as { name?: string } | undefined;
@@ -321,6 +346,7 @@ async function sendPaymentConfirmationEmail(
   }
 
   const cancelUrl = `${appOrigin}${cancelPath(kind, registrationId, reg.cancellationToken)}`;
+  const peopleLine = buildPeopleLine(lang, reg.adultCount, reg.childCount);
 
   // The QR only ever reaches the customer via the PDF attachment below
   // (see buildConfirmationEmailHtml's own doc comment for why) — if PDF
@@ -335,6 +361,7 @@ async function sendPaymentConfirmationEmail(
       name: reg.name ?? "",
       subtitle,
       confirmationCode: reg.confirmationCode,
+      peopleLine,
       qrPngBuffer,
       lang
     });
@@ -352,6 +379,7 @@ async function sendPaymentConfirmationEmail(
         name: reg.name ?? "",
         subtitle,
         confirmationCode: reg.confirmationCode,
+        peopleLine,
         cancelUrl,
         lang
       })
