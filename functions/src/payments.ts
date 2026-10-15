@@ -9,6 +9,7 @@
 // rules have no client-writable path for that field at all — see
 // src/types/index.ts's Payment comment — so this Admin-SDK write is the
 // sole way it ever happens).
+import * as path from "path";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
@@ -16,6 +17,18 @@ import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import * as QRCode from "qrcode";
 import * as PDFDocument from "pdfkit";
+
+// pdfkit's built-in standard-14 fonts (Helvetica etc.) only support
+// WinAnsi-range characters — Slovak diacritics like ň/š/č/ž/ľ/ť render as
+// mangled glyphs (confirmed live: "Sršňov" came out as "Srš †ðv"). DejaVu
+// Sans has full coverage for Slovak/Czech text, is permissively licensed,
+// and ships here as a real file (not a dependency) specifically so pdfkit
+// can embed it directly — `../assets/fonts` because this file compiles to
+// functions/lib/payments.js, one level below functions/assets/fonts at
+// runtime, matching the directory firebase deploy actually uploads (the
+// whole functions/ tree is packaged, not just `lib/`).
+const FONT_REGULAR = path.join(__dirname, "../assets/fonts/DejaVuSans.ttf");
+const FONT_BOLD = path.join(__dirname, "../assets/fonts/DejaVuSans-Bold.ttf");
 
 // Same platform-level Connect secret stripeConnectCallback (index.ts)
 // already uses — defineSecret keys off the secret's NAME in Secret
@@ -148,18 +161,21 @@ function buildTicketPdfBase64(params: { clubName: string; name: string; subtitle
     doc.on("end", () => resolve(Buffer.concat(chunks).toString("base64")));
     doc.on("error", reject);
 
-    doc.fontSize(18).font("Helvetica-Bold").text(params.clubName, { align: "center" });
+    doc.registerFont("Regular", FONT_REGULAR);
+    doc.registerFont("Bold", FONT_BOLD);
+
+    doc.fontSize(18).font("Bold").text(params.clubName, { align: "center" });
     doc.moveDown(0.5);
-    doc.fontSize(14).text(s.ticketTitle, { align: "center" });
+    doc.fontSize(14).font("Bold").text(s.ticketTitle, { align: "center" });
     doc.moveDown(1);
 
-    doc.fontSize(11).font("Helvetica").text(params.name);
+    doc.fontSize(11).font("Regular").text(params.name);
     if (params.subtitle) {
       doc.moveDown(0.3);
-      doc.fontSize(13).font("Helvetica-Bold").text(params.subtitle);
+      doc.fontSize(13).font("Bold").text(params.subtitle);
     }
     doc.moveDown(0.3);
-    doc.fontSize(11).font("Helvetica").text(`${s.code}: ${params.confirmationCode}`);
+    doc.fontSize(11).font("Regular").text(`${s.code}: ${params.confirmationCode}`);
     doc.moveDown(1.5);
 
     const qrSize = 220;
