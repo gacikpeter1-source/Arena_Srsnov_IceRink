@@ -76,6 +76,21 @@ export default function RinkScheduleEditModal({
 
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
 
+  // Mirrors the exact "sameSlot" check rescheduleRinkScheduleEntry/
+  // rescheduleRinkScheduleOccurrence (lib/rinkSchedule.ts) make themselves:
+  // when the zone/date/time haven't actually changed, apply() patches the
+  // existing booking's other fields (name/rinkId/durationMinutes) in place
+  // and never calls createBooking at all — so there is no real slot to
+  // protect and the overlap-conflict check below must be skipped entirely
+  // for this case. Running it anyway was the actual bug behind "editing
+  // the team name/room/duration on an unmoved entry says the slot is
+  // already taken": findOverlapConflict only excludes THIS occurrence's
+  // own booking, not any other real (and already perfectly legitimate)
+  // booking that happens to physically overlap the same ice — a state of
+  // affairs that already existed before this edit and isn't being created
+  // by it, so it must never block a same-slot save.
+  const sameSlot = zoneId === occurrence.zoneId && date === occurrence.date && startTime === occurrence.startTime
+
   useEffect(() => {
     if (!isOpen) return
     setRinkId(occurrence.rinkId)
@@ -92,12 +107,20 @@ export default function RinkScheduleEditModal({
 
   useEffect(() => {
     if (!isOpen || !zoneId || !durationMinutes) return
+    // A same-slot edit never touches the real reservation at all (see
+    // sameSlot's own doc comment above) — showing a conflict banner here
+    // would misleadingly suggest the save is about to create a problem
+    // that, in fact, already existed and isn't changing.
+    if (sameSlot) {
+      setConflict(null)
+      return
+    }
     let cancelled = false
     const timer = setTimeout(() => {
       // Real interval overlap, not just an exact-slot match — see
       // findOverlapConflict's own doc comment. Excludes this occurrence's
-      // own booking so editing it in place (e.g. only the duration
-      // changed) never flags a conflict with itself.
+      // own booking so moving it to a new zone/date/time never flags a
+      // conflict against the slot it's currently leaving.
       findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id).then((result) => {
         if (!cancelled) setConflict(result)
       })
@@ -106,7 +129,7 @@ export default function RinkScheduleEditModal({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [isOpen, clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id])
+  }, [isOpen, clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id, sameSlot])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -129,19 +152,28 @@ export default function RinkScheduleEditModal({
         ? rescheduleRinkScheduleOccurrence(entry, occurrence.id, fields)
         : rescheduleRinkScheduleEntry(entry, fields)
     try {
-      // Real interval-overlap check before ever calling the reschedule —
-      // see findOverlapConflict's doc comment for why an exact-slot match
-      // alone isn't enough. Resolves one blocking conflict at a time and
-      // re-checks, since more than one zone can block a 'full' move.
-      let overlap = await findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id)
-      while (overlap) {
-        if (overlap.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
-          await resolveSlotConflict(overlap)
-          overlap = await findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id)
-        } else {
-          setError(t('rinkSchedule.slotUnavailable'))
-          setSaving(false)
-          return
+      // Skip the overlap-conflict gate entirely for a same-slot edit —
+      // see sameSlot's own doc comment above. apply() will patch the
+      // booking's other fields in place and never call createBooking, so
+      // there's no real reservation change here for a conflict check to
+      // protect; running it anyway was blocking a harmless team-name/
+      // room/duration-only edit whenever some other, already-legitimate
+      // booking happened to physically overlap the same unmoved slot.
+      if (!sameSlot) {
+        // Real interval-overlap check before ever calling the reschedule —
+        // see findOverlapConflict's doc comment for why an exact-slot match
+        // alone isn't enough. Resolves one blocking conflict at a time and
+        // re-checks, since more than one zone can block a 'full' move.
+        let overlap = await findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id)
+        while (overlap) {
+          if (overlap.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
+            await resolveSlotConflict(overlap)
+            overlap = await findOverlapConflict(clubId, rinkId, zoneId, zones, date, startTime, durationMinutes, occurrence.id)
+          } else {
+            setError(t('rinkSchedule.slotUnavailable'))
+            setSaving(false)
+            return
+          }
         }
       }
       await apply()
