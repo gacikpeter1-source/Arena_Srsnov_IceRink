@@ -586,6 +586,20 @@ export interface TrainingSession {
   createdAt: Date
 }
 
+// One per attendeeCount on a registration — its own QR code, scannable and
+// checkable-in independently of the others in the same registration (e.g.
+// an adult's ticket and a child's ticket on the same family registration).
+// `label` reflects the adultCount/childCount split captured at registration
+// time (see TrainingRegistration.adultCount/childCount) — 'person' when no
+// split was collected (a free event, or a registration made before this
+// field existed). `id` is just an index unique within the registration
+// (stringified), not a secret — the cancellationToken already embedded in
+// the ticket's QR URL is what proves legitimate possession.
+export interface RegistrationTicket {
+  id: string
+  label: 'adult' | 'child' | 'person'
+}
+
 // A customer's (no-login) registration for one specific TrainingSession —
 // used for standalone sessions and for each occurrence of a TrainingSeries.
 // Same shape/lifecycle as Booking above by design (atomic capacity check,
@@ -615,6 +629,19 @@ export interface TrainingRegistration {
   // the trainer sees this participant's name and confirmationCode
   // together (not anonymized).
   attendance?: { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }
+  // One ticket per attendeeCount, generated at registration time — see
+  // RegistrationTicket. Unset on a registration made before this feature
+  // existed; callers fall back to the whole-registration `attendance`
+  // field above in that case (see QrScanPage.tsx).
+  tickets?: RegistrationTicket[]
+  // Per-ticket check-in, keyed by RegistrationTicket.id — additive to
+  // `attendance` above, not a replacement: scanning one person's own QR
+  // marks just that entry here AND (if not already set) flips the
+  // whole-registration `attendance.checkedIn` too, so the existing
+  // roster/report views ("did this family show up") keep working
+  // unchanged while QR scanning becomes per-person. See
+  // markSessionTicketCheckIn in lib/training.ts.
+  ticketCheckIns?: Record<string, { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }>
   // Captured from the registrant's browser at signup so a later automatic
   // waitlist promotion (no browser session to read from) still emails
   // them in their own language. Unset on registrations from before this
@@ -670,6 +697,15 @@ export interface TrainingBundleRegistration {
   pendingExpiresAt?: Date
   waitlistPosition?: number
   attendanceBySession?: Record<string, { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }>
+  // See TrainingRegistration.tickets — same ticket identities (adult/child/
+  // person) are shared across every session in the bundle, since it's the
+  // same enrolled people throughout; only the check-in STATE is per
+  // session (below), matching attendanceBySession's own per-session shape.
+  tickets?: RegistrationTicket[]
+  // Per-ticket check-in, keyed by sessionId then RegistrationTicket.id —
+  // bundle sibling of TrainingRegistration.ticketCheckIns, additive to
+  // attendanceBySession the same way.
+  ticketCheckInsBySession?: Record<string, Record<string, { checkedIn: boolean; checkedInAt?: Date; checkedInBy?: string }>>
   // See TrainingRegistration.language.
   language?: SupportedLanguage
   // See TrainingRegistration.attendeeCount — same meaning, scoped to the bundle's own confirmedCount.

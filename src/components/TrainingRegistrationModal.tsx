@@ -122,7 +122,8 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
               trainerName: bundle.trainerName,
               name: formData.name,
               email: formData.email,
-              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes }))
+              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes })),
+              tickets: registered.tickets
             },
             window.location.origin,
             lang
@@ -172,7 +173,8 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
               durationMinutes: session.durationMinutes,
               trainerName: session.trainerName ?? '',
               name: formData.name,
-              email: formData.email
+              email: formData.email,
+              tickets: registered.tickets
             },
             window.location.origin,
             lang

@@ -444,7 +444,13 @@
     "alreadyScannedWarning": "This code was already checked in at {{time}} — make sure this isn't the same code being shared by more than one person.",
     "pickSession": "Which session?",
     "selectSessionPlaceholder": "Select a session...",
-    "scanNext": "Scan next"
+    "scanNext": "Scan next",
+    "ticketProgress": "Checked in: {{checked}}/{{total}} people",
+    "ticketLabel": {
+      "adult": "Adult",
+      "child": "Child",
+      "person": "Person"
+    }
   },
   "rinkSchedule": {
     "title": "Rink schedule",

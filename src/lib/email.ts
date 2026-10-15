@@ -6,7 +6,7 @@ import { buildGoogleCalendarUrl, buildIcsContent, IcsEventInput } from './ics'
 import { PENDING_CONFIRMATION_MINUTES } from './bookings'
 import { TRAINING_PENDING_CONFIRMATION_MINUTES } from './training'
 import { localizedName } from './utils'
-import { Club, Zone } from '@/types'
+import { Club, RegistrationTicket, Zone } from '@/types'
 
 interface MailAttachment {
   filename: string
@@ -75,6 +75,35 @@ function infoRow(label: string, value: string, borderColor = '#FDB913'): string 
       <span style="color: #000;"> ${value}</span>
     </div>
   `
+}
+
+/**
+ * One QR code per ticket (see RegistrationTicket in src/types/index.ts) —
+ * an adult's ticket and a child's ticket on the same registration each get
+ * their own code, scannable/checkable-in independently (QrScanPage.tsx
+ * reads the `?ticket=` param this appends to the cancel URL). When
+ * `tickets` is undefined (a registration from before this field existed),
+ * falls back to a single QR with no `?ticket=` param — QrScanPage.tsx's own
+ * fallback then checks in the whole registration at once, same as before
+ * this feature. Shared by both the session and bundle confirmation emails
+ * so the two never render this differently.
+ */
+async function buildTicketQrBlocksHtml(
+  cancelUrl: string,
+  tickets: RegistrationTicket[] | undefined,
+  t: (key: string) => string
+): Promise<string> {
+  const list = tickets && tickets.length > 0 ? tickets : [null]
+  const blocks = await Promise.all(
+    list.map(async (ticket) => {
+      const url = ticket ? `${cancelUrl}?ticket=${ticket.id}` : cancelUrl
+      const qrDataUrl = await generateQrDataUrl(url).catch(() => null)
+      if (!qrDataUrl) return ''
+      const label = ticket && list.length > 1 ? `<p style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #333;">${t(`qrScan.ticketLabel.${ticket.label}`)}</p>` : ''
+      return `<div style="display: inline-block; margin: 8px; text-align: center;">${label}<img src="${qrDataUrl}" alt="QR" width="140" height="140" style="background: white; padding: 8px; border-radius: 8px;" /></div>`
+    })
+  )
+  return blocks.join('')
 }
 
 interface BookingEmailInfo {
@@ -340,6 +369,11 @@ interface TrainingRegEmailInfo {
   trainerName: string
   name: string
   email: string
+  // One QR per ticket instead of one for the whole registration — see
+  // buildTicketQrBlocksHtml. Optional only so the Pick<>-narrowed variants
+  // used by the pending/waitlist/cancellation emails above (which never
+  // embed a QR at all) don't need to carry it.
+  tickets?: RegistrationTicket[]
 }
 
 export async function queueTrainingPendingConfirmationEmail(
@@ -380,7 +414,7 @@ export async function queueTrainingConfirmationEmail(
 ): Promise<void> {
   const t = i18n.getFixedT(lang)
   const cancelUrl = `${cancelBaseUrl}/treningy/zrusit/${reg.registrationId}/${reg.cancellationToken}`
-  const qrDataUrl = await generateQrDataUrl(cancelUrl).catch(() => null)
+  const qrBlocksHtml = await buildTicketQrBlocksHtml(cancelUrl, reg.tickets, t)
 
   const icsEvent: IcsEventInput = {
     uid: `${reg.registrationId}@${new URL(cancelBaseUrl).hostname}`,
@@ -407,7 +441,7 @@ export async function queueTrainingConfirmationEmail(
       <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
         ${t('trainingEmail.cancelButton')}
       </a>
-      ${qrDataUrl ? `<div style="margin-top: 15px;"><img src="${qrDataUrl}" alt="QR" width="140" height="140" style="background: white; padding: 8px; border-radius: 8px;" /></div>` : ''}
+      ${qrBlocksHtml ? `<div style="margin-top: 15px;">${qrBlocksHtml}</div>` : ''}
     </div>
   `
   await queueEmail(
@@ -468,6 +502,8 @@ interface BundleRegEmailInfo {
   name: string
   email: string
   sessions: { date: string; startTime: string; durationMinutes: number }[]
+  // See TrainingRegEmailInfo.tickets.
+  tickets?: RegistrationTicket[]
 }
 
 export async function queueBundlePendingConfirmationEmail(
@@ -506,6 +542,7 @@ export async function queueBundleConfirmationEmail(
 ): Promise<void> {
   const t = i18n.getFixedT(lang)
   const cancelUrl = `${cancelBaseUrl}/treningy/kurz/zrusit/${reg.registrationId}/${reg.cancellationToken}`
+  const qrBlocksHtml = await buildTicketQrBlocksHtml(cancelUrl, reg.tickets, t)
   const hostname = new URL(cancelBaseUrl).hostname
 
   const icsEvents: IcsEventInput[] = reg.sessions.map((s, i) => ({
@@ -536,6 +573,7 @@ export async function queueBundleConfirmationEmail(
       <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
         ${t('trainingEmail.cancelButton')}
       </a>
+      ${qrBlocksHtml ? `<div style="margin-top: 15px;">${qrBlocksHtml}</div>` : ''}
     </div>
   `
   await queueEmail(

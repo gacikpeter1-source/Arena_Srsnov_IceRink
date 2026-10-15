@@ -5,9 +5,9 @@ import QrScannerWorkerPath from 'qr-scanner/qr-scanner-worker.min.js?url'
 import { collection, doc, getDoc, getDocs, query, Timestamp, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
-import { markSessionAttendance, markBundleSessionAttendance } from '@/lib/training'
+import { markSessionAttendance, markBundleSessionAttendance, markSessionTicketCheckIn, markBundleTicketCheckIn } from '@/lib/training'
 import { formatDateISO } from '@/lib/utils'
-import { TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
+import { RegistrationTicket, TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BackButton from '@/components/BackButton'
@@ -27,11 +27,19 @@ type Result =
       kind: 'session'
       reg: TrainingRegistration & { id: string }
       session: (TrainingSession & { id: string }) | null
+      // Set when the scanned QR names one specific person's own ticket
+      // (?ticket=<id> — see RegistrationTicket); null for an older QR that
+      // predates per-ticket codes, or a registration with no `tickets` at
+      // all, in which case this page falls back to the old whole-
+      // registration check-in behavior.
+      ticket: RegistrationTicket | null
       // Snapshotted at scan time, never updated afterward — distinguishes
       // "this code was already used on an earlier scan" (real reuse/sharing
-      // warning) from "I just marked it present in this very scan" (which
-      // also sets reg.attendance.checkedIn, but isn't reuse).
+      // warning) from "I just marked it present in this very scan". Reads
+      // the per-ticket state when `ticket` is set, else the whole-
+      // registration `attendance` field (old behavior).
       wasAlreadyCheckedIn: boolean
+      wasAlreadyCheckedInAt: Date | undefined
     }
   | {
       kind: 'bundle'
@@ -39,24 +47,34 @@ type Result =
       bundle: (TrainingBundle & { id: string }) | null
       sessions: (TrainingSession & { id: string })[]
       selectedSessionId: string | null
+      ticket: RegistrationTicket | null
       // Snapshotted at scan time, keyed by sessionId — see the session
       // variant's wasAlreadyCheckedIn for why this can't just read the
-      // live (locally-mutated) reg.attendanceBySession instead.
+      // live (locally-mutated) reg.attendanceBySession/ticketCheckInsBySession
+      // instead.
       originalAttendanceBySession: TrainingBundleRegistration['attendanceBySession']
+      originalTicketCheckInsBySession: TrainingBundleRegistration['ticketCheckInsBySession']
     }
   | { kind: 'unsupported' }
   | { kind: 'invalid' }
 
 /**
  * Entrance QR-scan check-in — a trainer/assistant/owner/superadmin points
- * the device camera at the same confirmation QR a customer already got
- * emailed (the training cancel-link QR, see queueTrainingConfirmationEmail/
- * queueBundleConfirmationEmail in lib/email.ts) and checks the whole party
- * in with one tap, writing into the exact same attendance/attendanceBySession
- * fields TrainerRosterModal.tsx's manual roster check-in already uses — see
- * CLAUDE.md's "Fáza 5" note for the full rationale (attendeeCount is what
- * lets one scan cover a family/group). Ice-booking QRs are recognized but
- * not actionable here — Booking has no attendance concept yet.
+ * the device camera at a confirmation QR a customer already got emailed
+ * (the training cancel-link URL, see queueTrainingConfirmationEmail/
+ * queueBundleConfirmationEmail in lib/email.ts and payments.ts's own
+ * ticket-PDF builder). Each person on a registration gets their own QR —
+ * one per RegistrationTicket, encoded as the same cancel-link URL plus a
+ * `?ticket=<id>` param — so scanning one person's ticket only checks THAT
+ * person in, writing per-ticket state via markSessionTicketCheckIn/
+ * markBundleTicketCheckIn while also keeping the older whole-registration
+ * `attendance`/`attendanceBySession` fields (which TrainerRosterModal.tsx's
+ * manual roster still reads) in sync. An older QR with no `?ticket=` param,
+ * or a registration with no `tickets` array at all (predates this feature),
+ * falls back to the original whole-party check-in in one tap — see
+ * CLAUDE.md's "Fáza 5" note for that original rationale. Ice-booking QRs
+ * are recognized but not actionable here — Booking has no attendance
+ * concept yet.
  */
 export default function QrScanPage() {
   const { t } = useTranslation()
@@ -92,13 +110,15 @@ export default function QrScanPage() {
 
   const handleScan = async (data: string) => {
     scannerRef.current?.stop()
-    let path: string
+    let url: URL
     try {
-      path = new URL(data).pathname
+      url = new URL(data)
     } catch {
       setResult({ kind: 'invalid' })
       return
     }
+    const path = url.pathname
+    const ticketId = url.searchParams.get('ticket')
 
     const sessionMatch = path.match(/^\/treningy\/zrusit\/([^/]+)\/([^/]+)$/)
     const bundleMatch = path.match(/^\/treningy\/kurz\/zrusit\/([^/]+)\/([^/]+)$/)
@@ -114,7 +134,10 @@ export default function QrScanPage() {
       const reg = { id: snap.id, ...snap.data() } as TrainingRegistration & { id: string }
       const sessionSnap = await getDoc(doc(db, 'trainingSessions', reg.sessionId))
       const session = sessionSnap.exists() ? ({ id: sessionSnap.id, ...sessionSnap.data() } as TrainingSession & { id: string }) : null
-      setResult({ kind: 'session', reg, session, wasAlreadyCheckedIn: reg.attendance?.checkedIn === true })
+      const ticket = ticketId ? (reg.tickets?.find((t) => t.id === ticketId) ?? null) : null
+      const wasAlreadyCheckedIn = ticket ? reg.ticketCheckIns?.[ticket.id]?.checkedIn === true : reg.attendance?.checkedIn === true
+      const wasAlreadyCheckedInAt = ticket ? reg.ticketCheckIns?.[ticket.id]?.checkedInAt : reg.attendance?.checkedInAt
+      setResult({ kind: 'session', reg, session, ticket, wasAlreadyCheckedIn, wasAlreadyCheckedInAt })
     } else if (bundleMatch) {
       const [, regId, token] = bundleMatch
       const snap = await getDoc(doc(db, 'trainingBundleRegistrations', regId))
@@ -131,13 +154,16 @@ export default function QrScanPage() {
         .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
       const today = formatDateISO(new Date())
       const todaysSessions = sessions.filter((s) => s.date === today)
+      const ticket = ticketId ? (reg.tickets?.find((t) => t.id === ticketId) ?? null) : null
       setResult({
         kind: 'bundle',
         reg,
         bundle,
         sessions,
         selectedSessionId: todaysSessions.length === 1 ? todaysSessions[0].id : null,
-        originalAttendanceBySession: reg.attendanceBySession
+        ticket,
+        originalAttendanceBySession: reg.attendanceBySession,
+        originalTicketCheckInsBySession: reg.ticketCheckInsBySession
       })
     } else if (isBooking) {
       setResult({ kind: 'unsupported' })
@@ -150,8 +176,20 @@ export default function QrScanPage() {
     if (!result || result.kind !== 'session' || !user) return
     setBusyId(result.reg.id)
     try {
-      await markSessionAttendance(result.reg.id, true, user.uid)
-      setResult({ ...result, reg: { ...result.reg, attendance: { checkedIn: true } } })
+      if (result.ticket) {
+        await markSessionTicketCheckIn(result.reg.id, result.ticket.id, true, user.uid)
+        setResult({
+          ...result,
+          reg: {
+            ...result.reg,
+            ticketCheckIns: { ...result.reg.ticketCheckIns, [result.ticket.id]: { checkedIn: true } },
+            attendance: { checkedIn: true }
+          }
+        })
+      } else {
+        await markSessionAttendance(result.reg.id, true, user.uid)
+        setResult({ ...result, reg: { ...result.reg, attendance: { checkedIn: true } } })
+      }
     } finally {
       setBusyId(null)
     }
@@ -161,18 +199,52 @@ export default function QrScanPage() {
     if (!result || result.kind !== 'bundle' || !result.selectedSessionId || !user) return
     setBusyId(result.reg.id)
     try {
-      await markBundleSessionAttendance(result.reg.id, result.selectedSessionId, true, user.uid)
-      setResult({
-        ...result,
-        reg: {
-          ...result.reg,
-          attendanceBySession: { ...result.reg.attendanceBySession, [result.selectedSessionId]: { checkedIn: true } }
-        }
-      })
+      if (result.ticket) {
+        await markBundleTicketCheckIn(result.reg.id, result.selectedSessionId, result.ticket.id, true, user.uid)
+        setResult({
+          ...result,
+          reg: {
+            ...result.reg,
+            ticketCheckInsBySession: {
+              ...result.reg.ticketCheckInsBySession,
+              [result.selectedSessionId]: {
+                ...result.reg.ticketCheckInsBySession?.[result.selectedSessionId],
+                [result.ticket.id]: { checkedIn: true }
+              }
+            },
+            attendanceBySession: { ...result.reg.attendanceBySession, [result.selectedSessionId]: { checkedIn: true } }
+          }
+        })
+      } else {
+        await markBundleSessionAttendance(result.reg.id, result.selectedSessionId, true, user.uid)
+        setResult({
+          ...result,
+          reg: {
+            ...result.reg,
+            attendanceBySession: { ...result.reg.attendanceBySession, [result.selectedSessionId]: { checkedIn: true } }
+          }
+        })
+      }
     } finally {
       setBusyId(null)
     }
   }
+
+  // Per-ticket progress across the whole registration (session variant) —
+  // shown alongside a single-ticket scan so staff can see "2/3 people
+  // checked in" even though this scan only covers one of them.
+  const sessionTicketProgress =
+    result?.kind === 'session' && result.reg.tickets
+      ? { checked: result.reg.tickets.filter((t) => result.reg.ticketCheckIns?.[t.id]?.checkedIn).length, total: result.reg.tickets.length }
+      : null
+  const bundleTicketProgress =
+    result?.kind === 'bundle' && result.reg.tickets && result.selectedSessionId
+      ? {
+          checked: result.reg.tickets.filter((t) => result.reg.ticketCheckInsBySession?.[result.selectedSessionId as string]?.[t.id]?.checkedIn)
+            .length,
+          total: result.reg.tickets.length
+        }
+      : null
 
   if (staff && !canScan) {
     return (
@@ -209,13 +281,21 @@ export default function QrScanPage() {
             {result.kind === 'invalid' && <p className="text-status-danger text-sm">{t('qrScan.invalidCode')}</p>}
             {result.kind === 'unsupported' && <p className="text-status-muted text-sm">{t('qrScan.bookingNotSupported')}</p>}
 
-            {result.kind === 'session' && (
+            {result.kind === 'session' && (() => {
+              const isCheckedIn = result.ticket ? result.reg.ticketCheckIns?.[result.ticket.id]?.checkedIn === true : result.reg.attendance?.checkedIn === true
+              return (
               <div className="space-y-3">
                 <div className="text-text-secondary text-sm space-y-1">
+                  {result.ticket && (
+                    <p className="text-white font-semibold">{t(`qrScan.ticketLabel.${result.ticket.label}`)}</p>
+                  )}
                   <p>{t('common.dateAtTime', { date: result.session?.date ?? result.reg.date, startTime: result.session?.startTime ?? result.reg.startTime })}</p>
                   <p className="mono text-primary">{result.reg.confirmationCode}</p>
                   {(result.reg.attendeeCount ?? 1) > 1 && (
                     <p>{t('trainerRoster.groupSize', { count: result.reg.attendeeCount })}</p>
+                  )}
+                  {sessionTicketProgress && (
+                    <p>{t('qrScan.ticketProgress', { checked: sessionTicketProgress.checked, total: sessionTicketProgress.total })}</p>
                   )}
                 </div>
                 {(result.reg.status === 'cancelled' || result.reg.status === 'expired') && (
@@ -226,28 +306,52 @@ export default function QrScanPage() {
                 )}
                 {result.wasAlreadyCheckedIn && (
                   <p className="text-status-danger text-sm font-semibold bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
-                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(result.reg.attendance?.checkedInAt) })}
+                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(result.wasAlreadyCheckedInAt) })}
                   </p>
                 )}
                 {result.reg.status !== 'cancelled' && result.reg.status !== 'expired' && (
                   <Button
                     onClick={handleMarkSessionPresent}
-                    disabled={busyId === result.reg.id || result.reg.attendance?.checkedIn}
+                    disabled={busyId === result.reg.id || isCheckedIn}
                     className="w-full bg-primary hover:bg-primary-gold text-primary-foreground"
                   >
-                    {result.reg.attendance?.checkedIn ? t('trainerRoster.checkedIn') : t('trainerRoster.markPresent')}
+                    {isCheckedIn ? t('trainerRoster.checkedIn') : t('trainerRoster.markPresent')}
                   </Button>
                 )}
               </div>
-            )}
+              )
+            })()}
 
-            {result.kind === 'bundle' && (
+            {result.kind === 'bundle' && (() => {
+              const selectedId = result.selectedSessionId
+              const isCheckedIn = selectedId
+                ? result.ticket
+                  ? result.reg.ticketCheckInsBySession?.[selectedId]?.[result.ticket.id]?.checkedIn === true
+                  : result.reg.attendanceBySession?.[selectedId]?.checkedIn === true
+                : false
+              const wasAlreadyCheckedIn = selectedId
+                ? result.ticket
+                  ? result.originalTicketCheckInsBySession?.[selectedId]?.[result.ticket.id]?.checkedIn === true
+                  : result.originalAttendanceBySession?.[selectedId]?.checkedIn === true
+                : false
+              const wasAlreadyCheckedInAt = selectedId
+                ? result.ticket
+                  ? result.originalTicketCheckInsBySession?.[selectedId]?.[result.ticket.id]?.checkedInAt
+                  : result.originalAttendanceBySession?.[selectedId]?.checkedInAt
+                : undefined
+              return (
               <div className="space-y-3">
                 <div className="text-text-secondary text-sm space-y-1">
+                  {result.ticket && (
+                    <p className="text-white font-semibold">{t(`qrScan.ticketLabel.${result.ticket.label}`)}</p>
+                  )}
                   {result.bundle && <p className="text-white">{result.bundle.title}</p>}
                   <p className="mono text-primary">{result.reg.confirmationCode}</p>
                   {(result.reg.attendeeCount ?? 1) > 1 && (
                     <p>{t('trainerRoster.groupSize', { count: result.reg.attendeeCount })}</p>
+                  )}
+                  {bundleTicketProgress && (
+                    <p>{t('qrScan.ticketProgress', { checked: bundleTicketProgress.checked, total: bundleTicketProgress.total })}</p>
                   )}
                 </div>
                 {(result.reg.status === 'cancelled' || result.reg.status === 'expired') && (
@@ -268,30 +372,33 @@ export default function QrScanPage() {
                       {result.sessions.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.date} {s.startTime}
-                          {result.reg.attendanceBySession?.[s.id]?.checkedIn ? ` (${t('trainerRoster.checkedIn')})` : ''}
+                          {(result.ticket
+                            ? result.reg.ticketCheckInsBySession?.[s.id]?.[result.ticket.id]?.checkedIn
+                            : result.reg.attendanceBySession?.[s.id]?.checkedIn)
+                            ? ` (${t('trainerRoster.checkedIn')})`
+                            : ''}
                         </option>
                       ))}
                     </select>
                   </div>
                 )}
-                {result.selectedSessionId && result.originalAttendanceBySession?.[result.selectedSessionId]?.checkedIn && (
+                {wasAlreadyCheckedIn && (
                   <p className="text-status-danger text-sm font-semibold bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
-                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(result.originalAttendanceBySession[result.selectedSessionId].checkedInAt) })}
+                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(wasAlreadyCheckedInAt) })}
                   </p>
                 )}
                 {result.reg.status !== 'cancelled' && result.reg.status !== 'expired' && (
                   <Button
                     onClick={handleMarkBundlePresent}
-                    disabled={busyId === result.reg.id || !result.selectedSessionId || !!result.reg.attendanceBySession?.[result.selectedSessionId ?? '']?.checkedIn}
+                    disabled={busyId === result.reg.id || !result.selectedSessionId || isCheckedIn}
                     className="w-full bg-primary hover:bg-primary-gold text-primary-foreground"
                   >
-                    {result.selectedSessionId && result.reg.attendanceBySession?.[result.selectedSessionId]?.checkedIn
-                      ? t('trainerRoster.checkedIn')
-                      : t('trainerRoster.markPresent')}
+                    {isCheckedIn ? t('trainerRoster.checkedIn') : t('trainerRoster.markPresent')}
                   </Button>
                 )}
               </div>
-            )}
+              )
+            })()}
 
             <Button variant="outline" onClick={startScanning} className="w-full border-border text-white">
               {t('qrScan.scanNext')}
