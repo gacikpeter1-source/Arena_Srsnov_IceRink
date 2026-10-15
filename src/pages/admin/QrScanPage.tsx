@@ -6,6 +6,7 @@ import { collection, doc, getDoc, getDocs, query, Timestamp, where } from 'fireb
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { markSessionAttendance, markBundleSessionAttendance } from '@/lib/training'
+import { triggerGateOpen } from '@/lib/gate'
 import { formatDateISO } from '@/lib/utils'
 import { TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -147,18 +148,21 @@ export default function QrScanPage() {
   }
 
   const handleMarkSessionPresent = async () => {
-    if (!result || result.kind !== 'session' || !user) return
+    if (!result || result.kind !== 'session' || !user || !staff) return
     setBusyId(result.reg.id)
     try {
       await markSessionAttendance(result.reg.id, true, user.uid)
       setResult({ ...result, reg: { ...result.reg, attendance: { checkedIn: true } } })
+      // See lib/gate.ts's own doc comment — fire-and-forget, never blocks
+      // or fails the check-in itself.
+      triggerGateOpen(staff.clubId)
     } finally {
       setBusyId(null)
     }
   }
 
   const handleMarkBundlePresent = async () => {
-    if (!result || result.kind !== 'bundle' || !result.selectedSessionId || !user) return
+    if (!result || result.kind !== 'bundle' || !result.selectedSessionId || !user || !staff) return
     setBusyId(result.reg.id)
     try {
       await markBundleSessionAttendance(result.reg.id, result.selectedSessionId, true, user.uid)
@@ -169,6 +173,7 @@ export default function QrScanPage() {
           attendanceBySession: { ...result.reg.attendanceBySession, [result.selectedSessionId]: { checkedIn: true } }
         }
       })
+      triggerGateOpen(staff.clubId)
     } finally {
       setBusyId(null)
     }

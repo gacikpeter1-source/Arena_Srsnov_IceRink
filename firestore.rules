@@ -350,6 +350,18 @@ service cloud.firestore {
       allow update: if isOwnerOrAbove();
     }
 
+    // One doc per club — a fire-and-forget signal QrScanPage.tsx writes
+    // right after a successful entrance scan, picked up by the gateStatus
+    // Cloud Function (functions/src/gate.ts) that the ESP32 turnstile
+    // controller polls. Nothing here is itself a security boundary (the
+    // real "is this ticket valid" check already happened before this
+    // write) — write access is just scoped to the same roles that can use
+    // the scanner at all. No client ever reads this back, only the Cloud
+    // Function (Admin SDK, bypasses rules), so there's no read rule.
+    match /gateTriggers/{clubId} {
+      allow write: if isTrainer() || isStaffMember();
+    }
+
     // A participant who showed up without registering — informal log,
     // deliberately kept available for people who don't use the app.
     match /trainingWalkIns/{walkInId} {
