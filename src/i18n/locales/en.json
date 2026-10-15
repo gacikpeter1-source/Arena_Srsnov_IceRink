@@ -457,6 +457,7 @@
     "tvShortcutHint": "Or type this short address on the TV's remote:",
     "newEntry": "New entry",
     "teamName": "Team / group",
+    "renameWholeSeries": "Rename every occurrence in this series (time and recurrence stay unchanged)",
     "room": "Room",
     "roomPlaceholder": "Optional — can be filled in later",
     "awayRoom": "Away team room",

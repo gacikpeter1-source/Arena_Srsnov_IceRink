@@ -322,6 +322,28 @@ export async function rescheduleRinkScheduleOccurrence(
   await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { occurrenceRooms, occurrenceAwayRooms })
 }
 
+/**
+ * Renames every live occurrence of a recurring series at once — e.g. a
+ * club wants to correct/clarify a team name ("HT8" -> "Hokejová trieda")
+ * across the whole standing series, not retype it one occurrence at a
+ * time via rescheduleRinkScheduleOccurrence. Deliberately touches ONLY
+ * each occurrence's own `name` field — every occurrence's own date/time/
+ * zone/room/duration (including any that have individually diverged via a
+ * past per-occurrence edit) are left completely untouched, since renaming
+ * is the one thing this is for. Also updates the entry doc's own
+ * `teamName` so the zero-live-occurrences fallback (see
+ * fetchRinkScheduleOccurrences's own doc comment) shows the new name too,
+ * even though a series with live occurrences never actually reads that
+ * copy for display.
+ */
+export async function renameRinkScheduleEntrySeries(entry: RinkScheduleEntry & { id: string }, teamName: string): Promise<void> {
+  if (!entry.seriesId) throw new Error('This entry is not part of a recurring series')
+  const bookings = await fetchSeriesBookings(entry.seriesId)
+  const live = bookings.filter((b) => b.status !== 'cancelled')
+  await Promise.all(live.map((b) => updateDoc(doc(db, 'bookings', b.id), { name: teamName })))
+  await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { teamName })
+}
+
 // Weekly default used by "Opakovať" on RinkSchedulePage.tsx's entries
 // table — a quick, no-extra-input way to turn an already-created single
 // entry into a recurring one, mirroring the same frequency/count the

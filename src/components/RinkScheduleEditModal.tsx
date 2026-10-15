@@ -7,6 +7,7 @@ import { Label } from './ui/label'
 import {
   rescheduleRinkScheduleEntry,
   rescheduleRinkScheduleOccurrence,
+  renameRinkScheduleEntrySeries,
   RinkScheduleOccurrenceFields
 } from '@/lib/rinkSchedule'
 import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
@@ -73,6 +74,10 @@ export default function RinkScheduleEditModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [conflict, setConflict] = useState<SlotConflict | null>(null)
+  // Only ever offered for a recurring entry (see the checkbox's own JSX) —
+  // when checked, the name change is propagated to every live occurrence
+  // in the series via renameRinkScheduleEntrySeries, not just this one.
+  const [renameWholeSeries, setRenameWholeSeries] = useState(false)
 
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
 
@@ -102,6 +107,7 @@ export default function RinkScheduleEditModal({
     setStartTime(occurrence.startTime)
     setDurationMinutes(occurrence.durationMinutes)
     setError(null)
+    setRenameWholeSeries(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, occurrence.id])
 
@@ -177,6 +183,14 @@ export default function RinkScheduleEditModal({
         }
       }
       await apply()
+      // Propagates just the new name to every other live occurrence in the
+      // series, after apply() above — so it picks up this occurrence's own
+      // (possibly just-recreated, if the slot moved) booking id rather than
+      // a stale one. This occurrence's own name gets written twice (once by
+      // apply(), once here), which is harmless — same value either way.
+      if (entry.seriesId && renameWholeSeries) {
+        await renameRinkScheduleEntrySeries(entry, fields.teamName)
+      }
       onSaved()
       onClose()
     } catch (err) {
@@ -248,6 +262,12 @@ export default function RinkScheduleEditModal({
             <div className="sm:col-span-2">
               <Label className="text-white">{t('rinkSchedule.teamName')}</Label>
               <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} className="bg-background-dark border-border text-white" required />
+              {entry.seriesId && (
+                <label className="flex items-center gap-2 mt-2 text-sm text-text-secondary">
+                  <input type="checkbox" checked={renameWholeSeries} onChange={(e) => setRenameWholeSeries(e.target.checked)} />
+                  {t('rinkSchedule.renameWholeSeries')}
+                </label>
+              )}
             </div>
             <div>
               <Label className="text-white">{t('common.date')}</Label>
