@@ -195,6 +195,20 @@ export async function fetchRinkScheduleOccurrences(
   return []
 }
 
+export interface RescheduleResult {
+  // True when the move actually created a replacement booking AND the old
+  // one failed to cancel — most commonly because the signed-in account is
+  // isTrainer()-only, which firestore.rules only lets cancel a booking
+  // starting more than 24h out (the same public self-cancel cutoff a
+  // customer gets, see CLAUDE.md's "Cancellation lockdown" section) —
+  // isStaffMember() has no such limit. When true, the OLD booking is left
+  // behind, still 'confirmed' and still occupying its original slot/
+  // showing on the TV board, even though the entry itself now correctly
+  // points at the new one — see RinkScheduleEditModal.tsx's own handling,
+  // which surfaces this to staff instead of letting it pass silently.
+  oldBookingCancelFailed: boolean
+}
+
 /**
  * Moves a single (non-recurring) entry's own booking to a new rink/zone/
  * date/time/duration/team/room, or just edits those fields in place when
@@ -206,7 +220,7 @@ export async function fetchRinkScheduleOccurrences(
 export async function rescheduleRinkScheduleEntry(
   entry: RinkScheduleEntry & { id: string },
   fields: RinkScheduleOccurrenceFields
-): Promise<void> {
+): Promise<RescheduleResult> {
   if (!entry.bookingId) throw new Error('This entry has no single booking to reschedule')
   const bookingRef = doc(db, 'bookings', entry.bookingId)
   const oldSnap = await getDoc(bookingRef)
@@ -224,6 +238,7 @@ export async function rescheduleRinkScheduleEntry(
     oldBooking.startTime === fields.startTime
 
   let newBookingId = entry.bookingId
+  let oldBookingCancelFailed = false
   if (sameSlot) {
     await updateDoc(bookingRef, { name: fields.teamName, rinkId: fields.rinkId, durationMinutes: fields.durationMinutes })
   } else {
@@ -241,8 +256,12 @@ export async function rescheduleRinkScheduleEntry(
     })
     // Only release the old slot once the new one is confirmed held — if
     // createBooking throws (slot taken), the team keeps its original ice
-    // rather than ending up with neither.
-    await cancelBooking(entry.bookingId).catch(() => {})
+    // rather than ending up with neither. See RescheduleResult's own doc
+    // comment for why this can still fail (and why that's now reported,
+    // not swallowed).
+    await cancelBooking(entry.bookingId).catch(() => {
+      oldBookingCancelFailed = true
+    })
     newBookingId = created.id
   }
 
@@ -257,6 +276,7 @@ export async function rescheduleRinkScheduleEntry(
     room: fields.room ? fields.room : deleteField(),
     awayRoom: fields.awayRoom ? fields.awayRoom : deleteField()
   })
+  return { oldBookingCancelFailed }
 }
 
 /**
@@ -272,7 +292,7 @@ export async function rescheduleRinkScheduleOccurrence(
   entry: RinkScheduleEntry & { id: string },
   oldBookingId: string,
   fields: RinkScheduleOccurrenceFields
-): Promise<void> {
+): Promise<RescheduleResult> {
   const bookingRef = doc(db, 'bookings', oldBookingId)
   const oldSnap = await getDoc(bookingRef)
   const oldBooking = oldSnap.exists() ? (oldSnap.data() as Booking) : null
@@ -284,6 +304,7 @@ export async function rescheduleRinkScheduleOccurrence(
     oldBooking.startTime === fields.startTime
 
   let newBookingId = oldBookingId
+  let oldBookingCancelFailed = false
   if (sameSlot) {
     await updateDoc(bookingRef, { name: fields.teamName, rinkId: fields.rinkId, durationMinutes: fields.durationMinutes })
   } else {
@@ -300,7 +321,10 @@ export async function rescheduleRinkScheduleOccurrence(
       timezone: fields.timezone,
       ...(entry.seriesId ? { seriesId: entry.seriesId } : {})
     })
-    await cancelBooking(oldBookingId).catch(() => {})
+    // See RescheduleResult's own doc comment for why this can fail.
+    await cancelBooking(oldBookingId).catch(() => {
+      oldBookingCancelFailed = true
+    })
     newBookingId = created.id
   }
 
@@ -320,6 +344,7 @@ export async function rescheduleRinkScheduleOccurrence(
   delete occurrenceAwayRooms[oldBookingId]
   occurrenceAwayRooms[newBookingId] = fields.awayRoom ?? ''
   await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { occurrenceRooms, occurrenceAwayRooms })
+  return { oldBookingCancelFailed }
 }
 
 /**
@@ -354,6 +379,13 @@ export interface SeriesTimeShiftResult {
   // skips, same reasoning as the batch schedule generators elsewhere in
   // this app).
   skippedDates: string[]
+  // Each date whose OLD booking (at the slot being left behind) failed to
+  // cancel after the new one was already created — see RescheduleResult's
+  // own doc comment for why (most commonly an isTrainer()-only account
+  // hitting the 24h public-cancel cutoff). Unlike skippedDates, the move
+  // itself DID happen here — this is purely "the old slot is still
+  // reserved and needs manual cleanup", already counted in movedCount.
+  cancelFailedDates: string[]
 }
 
 /**
@@ -388,6 +420,7 @@ export async function rescheduleRinkScheduleEntrySeriesTime(
   const occurrenceAwayRooms = { ...entry.occurrenceAwayRooms }
   let movedCount = 0
   const skippedDates: string[] = []
+  const cancelFailedDates: string[] = []
 
   for (const booking of live) {
     const sameSlot = booking.rinkId === fields.rinkId && booking.zoneId === fields.zoneId && booking.startTime === fields.startTime
@@ -411,7 +444,9 @@ export async function rescheduleRinkScheduleEntrySeriesTime(
         timezone: fields.timezone,
         seriesId: entry.seriesId
       })
-      await cancelBooking(booking.id).catch(() => {})
+      await cancelBooking(booking.id).catch(() => {
+        cancelFailedDates.push(booking.date)
+      })
       // Only carry forward a room override that actually existed — unlike
       // the single-occurrence reschedule (which always writes '' from
       // explicit form input), there's no new room value being entered
@@ -437,7 +472,7 @@ export async function rescheduleRinkScheduleEntrySeriesTime(
   }
 
   await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), { occurrenceRooms, occurrenceAwayRooms })
-  return { movedCount, skippedDates }
+  return { movedCount, skippedDates, cancelFailedDates }
 }
 
 // Weekly default used by "Opakovať" on RinkSchedulePage.tsx's entries

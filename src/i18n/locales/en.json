@@ -460,6 +460,8 @@
     "renameWholeSeries": "Rename every occurrence in this series (time and recurrence stay unchanged)",
     "moveWholeSeriesTime": "Also move every other occurrence in this series to this new time (each occurrence's own date stays the same)",
     "seriesTimeShiftPartial": "Moved {{moved}} occurrence(s). These dates couldn't be moved because the new time is already taken — please edit them one at a time: {{dates}}",
+    "oldSlotCancelFailed": "The occurrence was moved, but the old reservation couldn't be cancelled (likely because your account doesn't have permission to). The old slot may still block ice and show as a duplicate on the TV board — ask an Assistant/Owner/Superadmin to cancel it manually in Administration.",
+    "seriesTimeShiftCancelFailed": "Warning: while moving the series, the old reservations for these dates couldn't be cancelled (likely a permission issue with your account) and may show as duplicates — ask an Assistant/Owner/Superadmin to cancel them manually in Administration: {{dates}}",
     "room": "Room",
     "roomPlaceholder": "Optional — can be filled in later",
     "awayRoom": "Away team room",

@@ -460,6 +460,8 @@
     "renameWholeSeries": "Premenovať všetky termíny v tejto sérii (čas a opakovanie sa nezmenia)",
     "moveWholeSeriesTime": "Posunúť na tento nový čas aj všetky ostatné termíny v tejto sérii (dátumy jednotlivých termínov ostanú nezmenené)",
     "seriesTimeShiftPartial": "Presunutých termínov: {{moved}}. Nasledujúce dátumy sa presunúť nepodarilo, pretože nový čas je už obsadený — upravte ich prosím jednotlivo: {{dates}}",
+    "oldSlotCancelFailed": "Termín bol presunutý, ale pôvodnú rezerváciu sa nepodarilo zrušiť (pravdepodobne nedostatočné oprávnenie vášho konta). Pôvodný termín môže naďalej blokovať ľad a zobrazovať sa duplicitne na TV obrazovke — požiadajte Asistenta/Majiteľa/Superadmina, aby ho ručne zrušil v Administrácii.",
+    "seriesTimeShiftCancelFailed": "Pozor: pri presune série sa pôvodné rezervácie pre tieto dátumy nepodarilo zrušiť (pravdepodobne nedostatočné oprávnenie vášho konta) a môžu sa zobrazovať duplicitne — požiadajte Asistenta/Majiteľa/Superadmina, aby ich ručne zrušil v Administrácii: {{dates}}",
     "room": "Šatňa",
     "roomPlaceholder": "Voliteľné — dá sa doplniť aj neskôr",
     "awayRoom": "Šatňa hostí",

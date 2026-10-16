@@ -197,7 +197,16 @@ export default function RinkScheduleEditModal({
           }
         }
       }
-      await apply()
+      const applyResult = await apply()
+      // See RescheduleResult's own doc comment (lib/rinkSchedule.ts) — a
+      // move that actually happened (new booking created) but couldn't
+      // release the old slot leaves a stale 'confirmed' booking behind,
+      // which the TV board (reading bookings directly) then shows as a
+      // phantom duplicate alongside the real, moved entry. Surfacing this
+      // immediately beats letting it pile up silently.
+      if (applyResult.oldBookingCancelFailed) {
+        alert(t('rinkSchedule.oldSlotCancelFailed'))
+      }
       // Propagates the new rink/zone/time to every other live occurrence in
       // the series, after apply() above — so it picks up this occurrence's
       // own (just-recreated) booking already at the new slot and simply
@@ -206,6 +215,9 @@ export default function RinkScheduleEditModal({
         const shiftResult = await rescheduleRinkScheduleEntrySeriesTime(entry, { rinkId, zoneId, startTime, durationMinutes, timezone })
         if (shiftResult.skippedDates.length > 0) {
           alert(t('rinkSchedule.seriesTimeShiftPartial', { moved: shiftResult.movedCount, dates: shiftResult.skippedDates.join(', ') }))
+        }
+        if (shiftResult.cancelFailedDates.length > 0) {
+          alert(t('rinkSchedule.seriesTimeShiftCancelFailed', { dates: shiftResult.cancelFailedDates.join(', ') }))
         }
       }
       // Propagates just the new name to every other live occurrence in the
