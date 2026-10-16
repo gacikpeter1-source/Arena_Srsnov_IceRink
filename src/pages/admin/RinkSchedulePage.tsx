@@ -125,7 +125,17 @@ export default function RinkSchedulePage() {
   }, [activeRinks])
 
   useEffect(() => {
-    if (zonesForRink.length && !zonesForRink.some((z) => z.id === zoneId)) setZoneId(zonesForRink[0].id)
+    // The zone picker is hidden (see its own comment in the JSX below) —
+    // every new entry always books the rink's whole-rink 'full' zone,
+    // computed here instead of left to a dropdown. Falls back to whatever
+    // zone exists if a rink somehow has no 'full' zone configured, rather
+    // than leaving zoneId empty and blocking the form.
+    const fullZone = zonesForRink.find((z) => z.mode === 'full')
+    if (fullZone) {
+      if (zoneId !== fullZone.id) setZoneId(fullZone.id)
+    } else if (zonesForRink.length && !zonesForRink.some((z) => z.id === zoneId)) {
+      setZoneId(zonesForRink[0].id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zonesForRink])
 
@@ -439,14 +449,13 @@ export default function RinkSchedulePage() {
                 ))}
               </select>
             </div>
-            <div>
-              <Label className="text-white">{t('admin.zone')}</Label>
-              <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
-                {zonesForRink.map((z) => (
-                  <option key={z.id} value={z.id} className="bg-background-dark text-white">{localizedName(z, i18n.language)}</option>
-                ))}
-              </select>
-            </div>
+            {/* Zone picker deliberately hidden, not removed — a club asked to
+                stop choosing a specific half/third split here at all and
+                instead note that themselves in the team-name text; every new
+                entry now always books the rink's own 'full' zone (see the
+                zonesForRink effect below). The underlying Zone data/logic is
+                untouched, so this can be turned back on later with just a UI
+                change if a club wants it again. */}
             <div className="sm:col-span-2">
               <Label className="text-white">{t('rinkSchedule.teamName')}</Label>
               <Input

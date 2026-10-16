@@ -86,8 +86,6 @@ export default function RinkScheduleEditModal({
   // rescheduleRinkScheduleEntrySeriesTime.
   const [moveWholeSeriesTime, setMoveWholeSeriesTime] = useState(false)
 
-  const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
-
   // Mirrors the exact "sameSlot" check rescheduleRinkScheduleEntry/
   // rescheduleRinkScheduleOccurrence (lib/rinkSchedule.ts) make themselves:
   // when the zone/date/time haven't actually changed, apply() patches the
@@ -278,8 +276,16 @@ export default function RinkScheduleEditModal({
                 onChange={(e) => {
                   const nextRinkId = e.target.value
                   setRinkId(nextRinkId)
-                  const firstZone = zones.filter((z) => z.rinkId === nextRinkId).sort((a, b) => a.slotIndex - b.slotIndex)[0]
-                  if (firstZone) setZoneId(firstZone.id)
+                  // Zone picker is hidden (see its own comment below) — when
+                  // staff moves an entry to a different rink, default to
+                  // that rink's 'full' zone rather than leaving zoneId
+                  // pointing at a zone that doesn't even belong to the new
+                  // rink. An entry left on its original rink keeps whatever
+                  // zone it already had untouched (zoneId's own state is
+                  // never otherwise written).
+                  const rinkZones = zones.filter((z) => z.rinkId === nextRinkId)
+                  const fullZone = rinkZones.find((z) => z.mode === 'full') ?? rinkZones.sort((a, b) => a.slotIndex - b.slotIndex)[0]
+                  if (fullZone) setZoneId(fullZone.id)
                 }}
                 className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2"
               >
@@ -288,14 +294,12 @@ export default function RinkScheduleEditModal({
                 ))}
               </select>
             </div>
-            <div>
-              <Label className="text-white">{t('admin.zone')}</Label>
-              <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
-                {zonesForRink.map((z) => (
-                  <option key={z.id} value={z.id} className="bg-background-dark text-white">{localizedName(z, i18n.language)}</option>
-                ))}
-              </select>
-            </div>
+            {/* Zone picker deliberately hidden, not removed — see
+                RinkSchedulePage.tsx's own matching comment. Editing an
+                entry here now always keeps its existing zone (zoneId's
+                state is seeded from the occurrence and never changed
+                except by the rink select above), it just can't be
+                reassigned to a different zone from this form any more. */}
             <div className="sm:col-span-2">
               <Label className="text-white">{t('rinkSchedule.teamName')}</Label>
               <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} className="bg-background-dark border-border text-white" required />
