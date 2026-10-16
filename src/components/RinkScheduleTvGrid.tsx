@@ -204,6 +204,20 @@ function RinkBoardColumn({
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const lastItemsRef = useRef(items)
+  // Caps how many consecutive setScale adjustments this pass may make for
+  // one `items` generation — without this, a borderline case where shrinking
+  // the font causes a line-clamped name/room to unwrap (reducing scrollHeight
+  // more than the font change alone would) and growing it back wraps the
+  // same text again can bounce between the shrink/grow branches below
+  // forever, each bounce a fresh synchronous setState inside this very
+  // useLayoutEffect — exactly the pattern that hangs the tab or gets this
+  // whole app torn down by AppErrorBoundary (no error boundary existed
+  // before this fix, so a kiosk screen stuck like this had no way back
+  // except someone manually refreshing it). Past the cap, this just stops
+  // adjusting and accepts whatever scale it's already at, rather than
+  // spinning forever.
+  const attemptsRef = useRef(0)
+  const MAX_ADJUST_ATTEMPTS = 12
 
   const slots = groupIntoSlots(items)
   const liveSlots = slots.filter((s) => s.startMin <= nowMin)
@@ -219,17 +233,20 @@ function RinkBoardColumn({
   useLayoutEffect(() => {
     if (lastItemsRef.current !== items) {
       lastItemsRef.current = items
+      attemptsRef.current = 0
       if (scale !== 1) {
         setScale(1)
         return
       }
     }
+    if (attemptsRef.current >= MAX_ADJUST_ATTEMPTS) return
     const container = containerRef.current
     const list = listRef.current
     if (!container || !list) return
     const available = container.clientHeight
     const needed = list.scrollHeight
     if (needed > available + 1 && scale > 0.05) {
+      attemptsRef.current += 1
       const ratio = (available / needed) * 0.97
       setScale((s) => Math.max(0.05, Math.min(1, s * ratio)))
     } else if (needed < available * 0.92 && scale < 1) {
@@ -245,6 +262,7 @@ function RinkBoardColumn({
       // next cells also inside `needed`, so that naive ratio would
       // overshoot; damping lets repeated effect re-runs (same mechanism
       // the shrink branch already relies on) converge without oscillating.
+      attemptsRef.current += 1
       const slack = available / needed
       const growRatio = 1 + (slack - 1) * 0.5
       setScale((s) => Math.max(0.05, Math.min(1, s * growRatio)))
