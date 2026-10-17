@@ -6,7 +6,7 @@ import { buildGoogleCalendarUrl, buildIcsContent, IcsEventInput } from './ics'
 import { PENDING_CONFIRMATION_MINUTES } from './bookings'
 import { TRAINING_PENDING_CONFIRMATION_MINUTES } from './training'
 import { localizedName } from './utils'
-import { Club, RegistrationTicket, Zone } from '@/types'
+import { Club, Zone } from '@/types'
 
 interface MailAttachment {
   filename: string
@@ -75,35 +75,6 @@ function infoRow(label: string, value: string, borderColor = '#FDB913'): string 
       <span style="color: #000;"> ${value}</span>
     </div>
   `
-}
-
-/**
- * One QR code per ticket (see RegistrationTicket in src/types/index.ts) —
- * an adult's ticket and a child's ticket on the same registration each get
- * their own code, scannable/checkable-in independently (QrScanPage.tsx
- * reads the `?ticket=` param this appends to the cancel URL). When
- * `tickets` is undefined (a registration from before this field existed),
- * falls back to a single QR with no `?ticket=` param — QrScanPage.tsx's own
- * fallback then checks in the whole registration at once, same as before
- * this feature. Shared by both the session and bundle confirmation emails
- * so the two never render this differently.
- */
-async function buildTicketQrBlocksHtml(
-  cancelUrl: string,
-  tickets: RegistrationTicket[] | undefined,
-  t: (key: string) => string
-): Promise<string> {
-  const list = tickets && tickets.length > 0 ? tickets : [null]
-  const blocks = await Promise.all(
-    list.map(async (ticket) => {
-      const url = ticket ? `${cancelUrl}?ticket=${ticket.id}` : cancelUrl
-      const qrDataUrl = await generateQrDataUrl(url).catch(() => null)
-      if (!qrDataUrl) return ''
-      const label = ticket && list.length > 1 ? `<p style="margin: 0 0 6px; font-size: 13px; font-weight: bold; color: #333;">${t(`qrScan.ticketLabel.${ticket.label}`)}</p>` : ''
-      return `<div style="display: inline-block; margin: 8px; text-align: center;">${label}<img src="${qrDataUrl}" alt="QR" width="140" height="140" style="background: white; padding: 8px; border-radius: 8px;" /></div>`
-    })
-  )
-  return blocks.join('')
 }
 
 interface BookingEmailInfo {
@@ -369,11 +340,6 @@ interface TrainingRegEmailInfo {
   trainerName: string
   name: string
   email: string
-  // One QR per ticket instead of one for the whole registration — see
-  // buildTicketQrBlocksHtml. Optional only so the Pick<>-narrowed variants
-  // used by the pending/waitlist/cancellation emails above (which never
-  // embed a QR at all) don't need to carry it.
-  tickets?: RegistrationTicket[]
 }
 
 export async function queueTrainingPendingConfirmationEmail(
@@ -403,52 +369,6 @@ export async function queueTrainingPendingConfirmationEmail(
     reg.email,
     t('trainingEmail.confirmPendingSubject', { club: club.name }),
     emailShell(club, t('trainingEmail.confirmPendingTitle'), body, t('email.footer', { club: club.name }))
-  )
-}
-
-export async function queueTrainingConfirmationEmail(
-  club: Club,
-  reg: TrainingRegEmailInfo,
-  cancelBaseUrl: string,
-  lang: SupportedLanguage
-): Promise<void> {
-  const t = i18n.getFixedT(lang)
-  const cancelUrl = `${cancelBaseUrl}/treningy/zrusit/${reg.registrationId}/${reg.cancellationToken}`
-  const qrBlocksHtml = await buildTicketQrBlocksHtml(cancelUrl, reg.tickets, t)
-
-  const icsEvent: IcsEventInput = {
-    uid: `${reg.registrationId}@${new URL(cancelBaseUrl).hostname}`,
-    title: t('trainingCalendar.eventTitle', { club: club.name, trainer: reg.trainerName }),
-    description: t('calendar.eventDescription', { code: reg.confirmationCode, url: cancelUrl }),
-    location: club.contact.address || club.name,
-    date: reg.date,
-    startTime: reg.startTime,
-    durationMinutes: reg.durationMinutes,
-    timezone: club.timezone
-  }
-
-  const body = `
-    <p>${t('email.greeting', { name: reg.name })}</p>
-    <p>${t('trainingEmail.confirmedIntro')}</p>
-    ${infoRow(t('trainingEmail.trainer'), reg.trainerName)}
-    ${infoRow(t('email.date'), reg.date)}
-    ${infoRow(t('email.time'), reg.startTime)}
-    ${infoRow(t('email.duration'), t('common.minutes', { count: reg.durationMinutes }))}
-    ${infoRow(t('email.confirmationCode'), reg.confirmationCode)}
-    ${calendarLinkButton(t('calendar.addToGoogle'), buildGoogleCalendarUrl(icsEvent))}
-    <div style="margin-top: 20px; padding: 15px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
-      <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${t('email.needToCancel')}</p>
-      <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-        ${t('trainingEmail.cancelButton')}
-      </a>
-      ${qrBlocksHtml ? `<div style="margin-top: 15px;">${qrBlocksHtml}</div>` : ''}
-    </div>
-  `
-  await queueEmail(
-    reg.email,
-    t('trainingEmail.confirmedSubject', { club: club.name }),
-    emailShell(club, t('trainingEmail.confirmedTitle'), body, t('email.footer', { club: club.name })),
-    [icsAttachment(`${club.name}-training.ics`, [icsEvent])]
   )
 }
 
@@ -501,9 +421,6 @@ interface BundleRegEmailInfo {
   trainerName: string
   name: string
   email: string
-  sessions: { date: string; startTime: string; durationMinutes: number }[]
-  // See TrainingRegEmailInfo.tickets.
-  tickets?: RegistrationTicket[]
 }
 
 export async function queueBundlePendingConfirmationEmail(
@@ -531,56 +448,6 @@ export async function queueBundlePendingConfirmationEmail(
     reg.email,
     t('trainingEmail.confirmPendingSubject', { club: club.name }),
     emailShell(club, t('trainingEmail.confirmPendingTitle'), body, t('email.footer', { club: club.name }))
-  )
-}
-
-export async function queueBundleConfirmationEmail(
-  club: Club,
-  reg: BundleRegEmailInfo,
-  cancelBaseUrl: string,
-  lang: SupportedLanguage
-): Promise<void> {
-  const t = i18n.getFixedT(lang)
-  const cancelUrl = `${cancelBaseUrl}/treningy/kurz/zrusit/${reg.registrationId}/${reg.cancellationToken}`
-  const qrBlocksHtml = await buildTicketQrBlocksHtml(cancelUrl, reg.tickets, t)
-  const hostname = new URL(cancelBaseUrl).hostname
-
-  const icsEvents: IcsEventInput[] = reg.sessions.map((s, i) => ({
-    uid: `${reg.registrationId}-${i}@${hostname}`,
-    title: t('trainingCalendar.eventTitle', { club: club.name, trainer: reg.trainerName }),
-    description: t('calendar.eventDescription', { code: reg.confirmationCode, url: cancelUrl }),
-    location: club.contact.address || club.name,
-    date: s.date,
-    startTime: s.startTime,
-    durationMinutes: s.durationMinutes,
-    timezone: club.timezone
-  }))
-
-  const datesList = reg.sessions.map((s) => `<li>${s.date} — ${s.startTime}</li>`).join('')
-
-  const body = `
-    <p>${t('email.greeting', { name: reg.name })}</p>
-    <p>${t('trainingEmail.bundleConfirmedIntro', { count: reg.sessions.length })}</p>
-    ${infoRow(t('trainingEmail.bundleTitle'), reg.title)}
-    ${infoRow(t('trainingEmail.trainer'), reg.trainerName)}
-    ${infoRow(t('email.confirmationCode'), reg.confirmationCode)}
-    <div style="margin: 16px 0; padding: 10px; background: white; border-left: 4px solid #FDB913;">
-      <p style="font-weight: bold; color: #666; margin: 0 0 8px;">${t('email.seriesDatesLabel')}</p>
-      <ul style="margin: 0; padding-left: 20px;">${datesList}</ul>
-    </div>
-    <div style="margin-top: 20px; padding: 15px; background: white; border: 2px solid #e5e7eb; border-radius: 8px; text-align: center;">
-      <p style="margin: 0 0 15px; font-size: 14px; color: #666;">${t('email.needToCancel')}</p>
-      <a href="${cancelUrl}" style="display: inline-block; padding: 12px 30px; background: #dc2626; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-        ${t('trainingEmail.cancelButton')}
-      </a>
-      ${qrBlocksHtml ? `<div style="margin-top: 15px;">${qrBlocksHtml}</div>` : ''}
-    </div>
-  `
-  await queueEmail(
-    reg.email,
-    t('trainingEmail.bundleConfirmedSubject', { club: club.name }),
-    emailShell(club, t('trainingEmail.bundleConfirmedTitle'), body, t('email.footer', { club: club.name })),
-    [icsAttachment(`${club.name}-${reg.title}.ics`, icsEvents)]
   )
 }
 

@@ -62,9 +62,9 @@ type Result =
 /**
  * Entrance QR-scan check-in — a trainer/assistant/owner/superadmin points
  * the device camera at a confirmation QR a customer already got emailed
- * (the training cancel-link URL, see queueTrainingConfirmationEmail/
- * queueBundleConfirmationEmail in lib/email.ts and payments.ts's own
- * ticket-PDF builder). Each person on a registration gets their own QR —
+ * (the training cancel-link URL, see sendTrainingConfirmationEmail in
+ * functions/src/payments.ts, which builds every registration's PDF
+ * ticket). Each person on a registration gets their own QR —
  * one per RegistrationTicket, encoded as the same cancel-link URL plus a
  * `?ticket=<id>` param — so scanning one person's ticket only checks THAT
  * person in, writing per-ticket state via markSessionTicketCheckIn/

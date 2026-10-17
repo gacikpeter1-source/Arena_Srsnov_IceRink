@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useClubData } from '@/hooks/useClubData'
 import { cancelSessionRegistration, cancelBundleRegistration, isPastTrainingCancellationCutoff } from '@/lib/training'
-import {
-  queueTrainingCancellationEmail,
-  queueBundleCancellationEmail,
-  queueTrainingConfirmationEmail,
-  queueBundleConfirmationEmail
-} from '@/lib/email'
+import { queueTrainingCancellationEmail, queueBundleCancellationEmail } from '@/lib/email'
+import { sendTrainingConfirmationEmail } from '@/lib/trainingConfirmationEmail'
 import { isSupportedLanguage } from '@/i18n'
 import { TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -111,23 +107,7 @@ export default function TrainingCancelPage({ kind }: TrainingCancelPageProps) {
           isSupportedLanguage(i18n.language) ? i18n.language : 'en'
         )
         if (promoted) {
-          await queueTrainingConfirmationEmail(
-            club,
-            {
-              registrationId: promoted.id,
-              cancellationToken: promoted.cancellationToken,
-              confirmationCode: promoted.confirmationCode,
-              date: promoted.date,
-              startTime: promoted.startTime,
-              durationMinutes: promoted.durationMinutes,
-              trainerName: label.trainerName,
-              name: promoted.name,
-              email: promoted.email,
-              tickets: promoted.tickets
-            },
-            window.location.origin,
-            promoted.language ?? 'sk'
-          ).catch(() => {})
+          await sendTrainingConfirmationEmail({ clubId: club.id, kind: 'session', registrationId: promoted.id }).catch(() => {})
         }
       } else {
         const bundleReg = reg as TrainingBundleRegistration
@@ -144,26 +124,7 @@ export default function TrainingCancelPage({ kind }: TrainingCancelPageProps) {
           isSupportedLanguage(i18n.language) ? i18n.language : 'en'
         )
         if (promoted) {
-          const sessionsSnap = await getDocs(query(collection(db, 'trainingSessions'), where('bundleId', '==', bundleReg.bundleId)))
-          const bundleSessions = sessionsSnap.docs
-            .map((d) => d.data() as TrainingSession)
-            .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
-          await queueBundleConfirmationEmail(
-            club,
-            {
-              registrationId: promoted.id,
-              cancellationToken: promoted.cancellationToken,
-              confirmationCode: promoted.confirmationCode,
-              title: label.title,
-              trainerName: label.trainerName,
-              name: promoted.name,
-              email: promoted.email,
-              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes })),
-              tickets: promoted.tickets
-            },
-            window.location.origin,
-            promoted.language ?? 'sk'
-          ).catch(() => {})
+          await sendTrainingConfirmationEmail({ clubId: club.id, kind: 'bundle', registrationId: promoted.id }).catch(() => {})
         }
       }
       setState('cancelled')

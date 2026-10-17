@@ -1,20 +1,17 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { collection, getDocs, query, where } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { registerForSession, registerForBundle, SessionUnavailableError, PAYMENT_PENDING_HOLD_MINUTES } from '@/lib/training'
 import { createTicketCheckoutSession } from '@/lib/payments'
+import { sendTrainingConfirmationEmail } from '@/lib/trainingConfirmationEmail'
 import {
   queueTrainingPendingConfirmationEmail,
   queueBundlePendingConfirmationEmail,
   queueTrainingWaitlistEmail,
-  queueBundleWaitlistEmail,
-  queueTrainingConfirmationEmail,
-  queueBundleConfirmationEmail
+  queueBundleWaitlistEmail
 } from '@/lib/email'
 import { isSupportedLanguage } from '@/i18n'
 import { Club, TrainingBundle, TrainingSeries, TrainingSession } from '@/types'
@@ -108,26 +105,7 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           return
         }
         if (registered.status === 'confirmed') {
-          const sessionsSnap = await getDocs(query(collection(db, 'trainingSessions'), where('bundleId', '==', bundle.id)))
-          const bundleSessions = sessionsSnap.docs
-            .map((d) => d.data() as TrainingSession)
-            .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
-          await queueBundleConfirmationEmail(
-            club,
-            {
-              registrationId: registered.id,
-              cancellationToken: registered.cancellationToken,
-              confirmationCode: registered.confirmationCode,
-              title: bundle.title,
-              trainerName: bundle.trainerName,
-              name: formData.name,
-              email: formData.email,
-              sessions: bundleSessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes })),
-              tickets: registered.tickets
-            },
-            window.location.origin,
-            lang
-          )
+          await sendTrainingConfirmationEmail({ clubId: club.id, kind: 'bundle', registrationId: registered.id })
         } else if (registered.status === 'pending') {
           await queueBundlePendingConfirmationEmail(
             club,
@@ -162,23 +140,7 @@ export default function TrainingRegistrationModal({ isOpen, onClose, club, sessi
           return
         }
         if (registered.status === 'confirmed') {
-          await queueTrainingConfirmationEmail(
-            club,
-            {
-              registrationId: registered.id,
-              cancellationToken: registered.cancellationToken,
-              confirmationCode: registered.confirmationCode,
-              date: session.date,
-              startTime: session.startTime,
-              durationMinutes: session.durationMinutes,
-              trainerName: session.trainerName ?? '',
-              name: formData.name,
-              email: formData.email,
-              tickets: registered.tickets
-            },
-            window.location.origin,
-            lang
-          )
+          await sendTrainingConfirmationEmail({ clubId: club.id, kind: 'session', registrationId: registered.id })
         } else if (registered.status === 'pending') {
           await queueTrainingPendingConfirmationEmail(
             club,

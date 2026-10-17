@@ -124,6 +124,34 @@ via `firebase functions:secrets:set SMTP_URI` / `MAIL_FROM` before
 install works fine, either approach is interchangeable — don't run
 both at once (double-send).
 
+**Training registration confirmation emails always deliver their ticket
+QR(s) as a PDF attachment, never as an inline `<img>`.** A paid (Stripe
+Connect) training/bundle registration's confirmation email always built
+its ticket QR codes as a real PDF attachment (`sendTicketConfirmationEmail`
+→ `buildTicketsPdfBase64`, `functions/src/payments.ts`, one PDF page per
+`RegistrationTicket` — see "Entrance QR-scan check-in" further down for
+what a ticket is) — a free (non-payment) registration used a different,
+older mechanism instead: `queueTrainingConfirmationEmail`/
+`queueBundleConfirmationEmail` (`src/lib/email.ts`) built the same QR
+codes as inline `data:` URI `<img>` tags directly in the HTML body. Several
+mobile mail clients (confirmed live: Gmail on iOS) silently strip or fail
+to render an inline image like that, leaving a blank box where the QR
+should be — the exact problem the paid flow's PDF attachment had already
+been built to avoid, just never extended to the free path. Fixed by
+routing the free path through the same server-side builder: a new public
+`sendTrainingConfirmationEmail` callable (`functions/src/payments.ts`,
+exported from `index.ts`) re-reads the registration and calls
+`sendTicketConfirmationEmail` directly (no Stripe/webhook involved) —
+`src/lib/trainingConfirmationEmail.ts` is the client-side wrapper, called
+from the three places a free registration goes `'confirmed'`
+(`TrainingRegistrationModal.tsx`'s instant-confirm, `TrainingConfirmPage.tsx`'s
+pending→confirmed link click, and `TrainingCancelPage.tsx`'s waitlist
+promotion) in place of the old inline-image queueing. The inline-image
+builder (`buildTicketQrBlocksHtml`) and the two functions that only ever
+called it were deleted from `src/lib/email.ts` as dead code — every other
+`queue*Email` function in that file (pending-confirm, waitlist,
+cancellation) never embedded a QR at all and is unaffected.
+
 ## QR codes
 Any active staff role (assistant/owner/superadmin — not `pending`) can
 generate and download QR codes from the admin dashboard's QR panel,

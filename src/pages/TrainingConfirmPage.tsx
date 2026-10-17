@@ -3,9 +3,8 @@ import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useClubData } from '@/hooks/useClubData'
 import { confirmSessionRegistration, confirmBundleRegistration, TrainingConfirmationError } from '@/lib/training'
-import { queueTrainingConfirmationEmail, queueBundleConfirmationEmail } from '@/lib/email'
-import { isSupportedLanguage } from '@/i18n'
-import { doc, getDocs, collection, query, where, getDoc } from 'firebase/firestore'
+import { sendTrainingConfirmationEmail } from '@/lib/trainingConfirmationEmail'
+import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { TrainingBundle, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,7 +24,7 @@ interface TrainingConfirmPageProps {
  * (two routes in App.tsx point at the same component).
  */
 export default function TrainingConfirmPage({ kind }: TrainingConfirmPageProps) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { regId, token } = useParams<{ regId: string; token: string }>()
   const { club } = useClubData()
   const [state, setState] = useState<State>('confirming')
@@ -51,23 +50,7 @@ export default function TrainingConfirmPage({ kind }: TrainingConfirmPageProps) 
           })
           setState('confirmed')
           if (!alreadyConfirmed) {
-            queueTrainingConfirmationEmail(
-              club,
-              {
-                registrationId: regId,
-                cancellationToken: confirmed.cancellationToken,
-                confirmationCode: confirmed.confirmationCode,
-                date: confirmed.date,
-                startTime: confirmed.startTime,
-                durationMinutes: confirmed.durationMinutes,
-                trainerName,
-                name: confirmed.name,
-                email: confirmed.email,
-                tickets: confirmed.tickets
-              },
-              window.location.origin,
-              isSupportedLanguage(i18n.language) ? i18n.language : 'en'
-            )
+            sendTrainingConfirmationEmail({ clubId: club.id, kind: 'session', registrationId: regId })
           }
         } else {
           const { registration: confirmed, alreadyConfirmed } = await confirmBundleRegistration(regId, token)
@@ -76,28 +59,7 @@ export default function TrainingConfirmPage({ kind }: TrainingConfirmPageProps) 
           setDetails({ date: '', startTime: '', confirmationCode: confirmed.confirmationCode, title: bundle?.title ?? '' })
           setState('confirmed')
           if (!alreadyConfirmed && bundle) {
-            const sessionsSnap = await getDocs(
-              query(collection(db, 'trainingSessions'), where('bundleId', '==', confirmed.bundleId))
-            )
-            const sessions = sessionsSnap.docs
-              .map((d) => d.data() as TrainingSession)
-              .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)))
-            queueBundleConfirmationEmail(
-              club,
-              {
-                registrationId: regId,
-                cancellationToken: confirmed.cancellationToken,
-                confirmationCode: confirmed.confirmationCode,
-                title: bundle.title,
-                trainerName: bundle.trainerName,
-                name: confirmed.name,
-                email: confirmed.email,
-                sessions: sessions.map((s) => ({ date: s.date, startTime: s.startTime, durationMinutes: s.durationMinutes })),
-                tickets: confirmed.tickets
-              },
-              window.location.origin,
-              isSupportedLanguage(i18n.language) ? i18n.language : 'en'
-            )
+            sendTrainingConfirmationEmail({ clubId: club.id, kind: 'bundle', registrationId: regId })
           }
         }
       } catch (err) {

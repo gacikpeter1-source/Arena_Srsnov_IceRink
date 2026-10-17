@@ -339,7 +339,19 @@ export const createTicketCheckoutSession = onCall({ secrets: [stripeSecretKey] }
   return { url: session.url };
 });
 
-async function sendPaymentConfirmationEmail(
+/**
+ * Builds and queues a session/bundle registration's real confirmation
+ * email — a PDF attachment with one ticket (QR code) per
+ * RegistrationTicket, the calendar invite, and the cancel link. Shared by
+ * both real-money flows: the Stripe webhook below (once a payment
+ * actually clears) and the public sendTrainingConfirmationEmail callable
+ * (for a FREE registration, called directly by the client the moment it
+ * goes 'confirmed' — see src/lib/trainingConfirmationEmail.ts). Neither
+ * caller decides what this builds; this function is the one place a
+ * registration's confirmation email is ever assembled, so the two flows
+ * can never drift apart on content.
+ */
+async function sendTicketConfirmationEmail(
   db: FirebaseFirestore.Firestore,
   appOrigin: string,
   clubId: string,
@@ -366,7 +378,7 @@ async function sendPaymentConfirmationEmail(
     | undefined;
   const club = clubSnap.data() as { name?: string } | undefined;
   if (!reg?.email || !reg.cancellationToken || !reg.confirmationCode) {
-    logger.warn("sendPaymentConfirmationEmail: registration missing email/token/code", { registrationId });
+    logger.warn("sendTicketConfirmationEmail: registration missing email/token/code", { registrationId });
     return;
   }
 
@@ -508,7 +520,7 @@ export const stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhoo
   if (justPaid) {
     try {
       const appOrigin = session.success_url ? new URL(session.success_url).origin : "";
-      await sendPaymentConfirmationEmail(db, appOrigin, clubId, kind, registrationId);
+      await sendTicketConfirmationEmail(db, appOrigin, clubId, kind, registrationId);
     } catch (err) {
       // The payment itself is already recorded at this point — a failure
       // here only means the confirmation email didn't go out, not that
@@ -521,4 +533,52 @@ export const stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhoo
   }
 
   res.status(200).send("ok");
+});
+
+interface SendTrainingConfirmationEmailInput {
+  clubId: string;
+  kind: RegistrationKind;
+  registrationId: string;
+  // See CreateTicketCheckoutSessionInput's own doc comment above — same
+  // "frontend has to tell us its own origin" reasoning.
+  appOrigin: string;
+}
+
+/**
+ * Sends a FREE (non-payment) registration's real confirmation email —
+ * called directly by the client the moment a session/bundle registration
+ * goes 'confirmed' (instant-confirm, clicking the pending-confirmation
+ * email link, or a waitlist promotion; see
+ * src/lib/trainingConfirmationEmail.ts for the three call sites). Reuses
+ * sendTicketConfirmationEmail as-is — the exact same PDF-ticket-per-
+ * RegistrationTicket builder the Stripe webhook above already uses for a
+ * PAID registration — so a free registration's QR reaches the customer
+ * the identical, already-proven way (a real PDF attachment) instead of
+ * the old inline <img> the free path used to build client-side, which
+ * several mobile mail clients (confirmed live: Gmail on iOS) silently
+ * drop or fail to render.
+ *
+ * Public/no-auth, same trust level as createTicketCheckoutSession above —
+ * knowing a registration's Firestore auto-id is already the de facto
+ * "proof this is yours" this app accepts elsewhere. Re-reads the
+ * registration itself (rather than trusting whatever the client claims)
+ * so this can never be used to email someone else's ticket to the wrong
+ * club/registration pairing.
+ */
+export const sendTrainingConfirmationEmail = onCall(async (request) => {
+  const data = (request.data ?? {}) as Partial<SendTrainingConfirmationEmailInput>;
+  const { clubId, kind, registrationId, appOrigin } = data;
+  if (!clubId || !registrationId || !appOrigin || (kind !== "session" && kind !== "bundle")) {
+    throw new HttpsError("invalid-argument", "Missing clubId/kind/registrationId/appOrigin.");
+  }
+
+  const db = getFirestore();
+  const regSnap = await db.doc(`${registrationCollection(kind)}/${registrationId}`).get();
+  const reg = regSnap.data() as { clubId?: string } | undefined;
+  if (!reg || reg.clubId !== clubId) {
+    throw new HttpsError("not-found", "Registration not found.");
+  }
+
+  await sendTicketConfirmationEmail(db, appOrigin, clubId, kind, registrationId);
+  return { ok: true };
 });
