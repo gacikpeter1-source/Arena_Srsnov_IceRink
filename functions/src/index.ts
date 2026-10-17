@@ -18,7 +18,7 @@ import * as XLSX from "xlsx";
 import { getGameGenerator } from "./cognitiveGames/registry";
 import { buildPlanFromTasks, buildIntervalPlanFromTasks, totalPlanDurationMs } from "./cognitiveGames/engine";
 export { createTicketCheckoutSession, stripeWebhook } from "./payments";
-export { gateStatus } from "./gate";
+export { gateStatus, gateScanCheckIn } from "./gate";
 
 initializeApp();
 
