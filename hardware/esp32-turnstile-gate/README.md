@@ -96,8 +96,8 @@ ESP32 GPIO13 ──────────────────────�
 ESP32 GPIO12 ──[ resistor, 220-330Ω ]───────────► LED anode (long leg)
 LED cathode (short leg) ────────────────────────► ESP32 GND
 
-ESP32 GPIO16 (RX2) ◄────────────────────────────  GM65 TX
-ESP32 GPIO17 (TX2) ─────────────────────────────► GM65 RX
+ESP32 GPIO18 (RX2) ◄────────────────────────────  GM65 TX
+ESP32 GPIO19 (TX2) ─────────────────────────────► GM65 RX
 GM65 VCC ────────────────────────────────────────  check the module's own
                                                     label/datasheet — most
                                                     common GM65 breakouts
@@ -118,6 +118,13 @@ Key points:
 - **GM65 wiring is crossed** (TX-to-RX, RX-to-TX) — a very common first
   mistake is wiring TX-to-TX/RX-to-RX, which looks "matched" by name but
   means neither side can hear the other.
+- **Avoid GPIO16/17 on an ESP32-WROVER board (the variant with built-in
+  PSRAM)** — those two pins are wired internally to the PSRAM chip and
+  aren't real general-purpose pins on that variant, so anything connected
+  there can receive zero bytes no matter how correctly it's wired. This
+  firmware defaults to GPIO18/19 specifically to sidestep that — if you
+  ever repurpose other pins, avoid 16/17 unless you've confirmed your
+  exact board has no PSRAM.
 - **GM65 baud rate**: `GM65_BAUD_RATE` in the firmware defaults to the
   module's own common factory default, 9600. If scans don't produce
   readable text in the Serial Monitor, check the GM65's own

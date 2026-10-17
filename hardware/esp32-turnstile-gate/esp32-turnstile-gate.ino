@@ -40,8 +40,15 @@ const char* GATE_SCAN_CHECKIN_BASE_URL = "https://us-central1-arena-srsnov-reser
 // ---- Pins (see README.md for the matching breadboard wiring) ----
 const int SERVO_PIN = 13;        // signal wire to the servo (orange/white)
 const int STATUS_LED_PIN = 12;   // through a resistor to GND
-const int GM65_RX_PIN = 16;      // ESP32 RX2 <- GM65 TX
-const int GM65_TX_PIN = 17;      // ESP32 TX2 -> GM65 RX
+// Deliberately NOT GPIO16/17: on an ESP32-WROVER module (the variant with
+// built-in PSRAM), those two pins are wired internally to the PSRAM chip
+// and aren't available as general-purpose UART pins at all — connecting
+// anything there can silently receive zero bytes no matter how correctly
+// it's wired, which is exactly the symptom a real build hit (GM65 beeped
+// on every scan, but literally nothing ever arrived on UART2). GPIO18/19
+// have no such conflict on any common ESP32 dev board.
+const int GM65_RX_PIN = 18;      // ESP32 RX2 <- GM65 TX
+const int GM65_TX_PIN = 19;      // ESP32 TX2 -> GM65 RX
 const long GM65_BAUD_RATE = 9600;  // GM65's own default — see README if yours differs
 
 // ---- Behaviour ----
