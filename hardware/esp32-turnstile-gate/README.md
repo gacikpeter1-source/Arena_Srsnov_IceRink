@@ -181,8 +181,14 @@ Key points:
 
 1. Arduino IDE → Boards Manager → install "esp32" (by Espressif Systems).
 2. Library Manager → install "ESP32Servo".
-3. Library Manager → install "Adafruit SSD1306" — when prompted to also
-   install its dependency "Adafruit GFX Library", accept that too.
+3. Library Manager → install "Adafruit SH110X" — when prompted to also
+   install its dependency "Adafruit GFX Library", accept that too. Most
+   cheap 7-pin SPI OLEDs bigger than 0.96" (1.3"/1.5", ~3.5cm wide) use an
+   SH1106 controller despite the identical pinout — if yours is a smaller
+   0.96" module and the screen stays black with this library, try
+   "Adafruit SSD1306" instead (swap the `#include`, the `display` object's
+   type to `Adafruit_SSD1306`, `SH110X_WHITE` back to `SSD1306_WHITE`, and
+   `display.begin(0, true)` back to `display.begin(SSD1306_SWITCHCAPVCC)`).
 4. Open `esp32-turnstile-gate.ino`, fill in `WIFI_SSID`, `WIFI_PASSWORD`,
    `CLUB_ID`, and both base URLs (see "One-time server setup" above).
 5. Select your exact ESP32 board under Tools → Board, plug it in via USB,

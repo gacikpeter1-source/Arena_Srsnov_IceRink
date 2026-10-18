@@ -22,8 +22,14 @@
 //
 // Required Arduino IDE libraries (Library Manager):
 //   - "ESP32Servo" by Kevin Harrington / John K. Bennett
-//   - "Adafruit SSD1306" (pulls in "Adafruit GFX Library" as a dependency —
-//     accept installing it too when prompted)
+//   - "Adafruit SH110X" (pulls in "Adafruit GFX Library" as a dependency —
+//     accept installing it too when prompted). Most cheap 7-pin SPI OLEDs
+//     bigger than 0.96" (1.3"/1.5", ~3.5cm wide) are driven by an SH1106
+//     controller, not SSD1306, despite looking identical and having the
+//     same GND/VCC/SCK/SDA/RES/DC/CS pinout — a real unit's screen stayed
+//     completely black with correctly verified wiring and no reported
+//     error (SPI has no handshake, so a wrong-driver `begin()` call still
+//     "succeeds") until this was swapped in.
 // Everything else (WiFi, HTTPClient, WiFiClientSecure, HardwareSerial, SPI)
 // ships with the "esp32" board package itself.
 
@@ -33,7 +39,7 @@
 #include <ESP32Servo.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_SH110X.h>
 
 // ---- Fill these in ----
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
@@ -84,7 +90,7 @@ const unsigned long REJECT_DISPLAY_MS = 2000;  // how long the OLED shows a reje
 Servo turnstileServo;
 HardwareSerial gm65(2);  // UART2
 SPIClass oledSPI(VSPI);
-Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &oledSPI, OLED_DC_PIN, OLED_RST_PIN, OLED_CS_PIN);
+Adafruit_SH1106G display(OLED_WIDTH, OLED_HEIGHT, &oledSPI, OLED_DC_PIN, OLED_RST_PIN, OLED_CS_PIN);
 
 String gm65Buffer = "";
 unsigned long lastPollMs = 0;
@@ -95,7 +101,7 @@ unsigned long lastPollMs = 0;
 void showStatus(const String& line1, const String& line2) {
   display.clearDisplay();
   display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
+  display.setTextColor(SH110X_WHITE);
   display.setCursor(0, 0);
   display.println(line1);
   display.setCursor(0, 16);
@@ -131,7 +137,7 @@ void setup() {
   digitalWrite(STATUS_LED_PIN, LOW);
 
   oledSPI.begin(OLED_SCLK_PIN, -1, OLED_MOSI_PIN, OLED_CS_PIN);
-  if (!display.begin(SSD1306_SWITCHCAPVCC)) {
+  if (!display.begin(0, true)) {
     Serial.println("OLED init failed — check wiring");
   }
   display.setRotation(0);
