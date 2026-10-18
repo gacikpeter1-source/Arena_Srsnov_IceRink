@@ -12,18 +12,28 @@
 //      the SAME physical gate still opens from a phone-confirmed scan.
 // Both paths run every loop() iteration, independent of each other.
 //
-// See README.md in this same folder for wiring (servo, LED, GM65) and
-// setup instructions.
+// A small SPI OLED shows live status (WiFi connected / QR read / approved
+// / rejected) — added specifically so this is debuggable once mounted at
+// the real turnstile and running off a wall adapter with no PC/Serial
+// Monitor attached at all.
 //
-// Required Arduino IDE library (Library Manager):
+// See README.md in this same folder for wiring (servo, LED, GM65, OLED)
+// and setup instructions.
+//
+// Required Arduino IDE libraries (Library Manager):
 //   - "ESP32Servo" by Kevin Harrington / John K. Bennett
-// Everything else (WiFi, HTTPClient, WiFiClientSecure, HardwareSerial)
+//   - "Adafruit SSD1306" (pulls in "Adafruit GFX Library" as a dependency —
+//     accept installing it too when prompted)
+// Everything else (WiFi, HTTPClient, WiFiClientSecure, HardwareSerial, SPI)
 // ships with the "esp32" board package itself.
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ESP32Servo.h>
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 // ---- Fill these in ----
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
@@ -51,19 +61,54 @@ const int GM65_RX_PIN = 18;      // ESP32 RX2 <- GM65 TX
 const int GM65_TX_PIN = 19;      // ESP32 TX2 -> GM65 RX
 const long GM65_BAUD_RATE = 9600;  // GM65's own default — see README if yours differs
 
+// ---- OLED (SPI) — pins chosen to avoid every pin already used above.
+// Standard 7-pin SPI OLED module labeling: GND, VCC, D0/SCK/CLK, D1/MOSI/
+// DIN, RES/RST, DC, CS. If your module has only 6 pins (no CS — tied to
+// GND internally), just leave OLED_CS_PIN's wire disconnected; the
+// firmware still works, it only ever drives that pin, nothing reads it.
+const int OLED_SCLK_PIN = 14;   // OLED D0 / SCK / CLK
+const int OLED_MOSI_PIN = 27;   // OLED D1 / MOSI / DIN / SDA
+const int OLED_DC_PIN = 25;     // OLED DC
+const int OLED_RST_PIN = 33;    // OLED RES / RST
+const int OLED_CS_PIN = 26;     // OLED CS (leave unconnected if your module has none)
+const int OLED_WIDTH = 128;
+const int OLED_HEIGHT = 64;
+
 // ---- Behaviour ----
 const int CLOSED_ANGLE = 0;      // degrees — turnstile arm locked/blocking
 const int OPEN_ANGLE = 90;       // degrees — turnstile arm released
 const unsigned long OPEN_DURATION_MS = 4000;   // how long the arm stays released
 const unsigned long POLL_INTERVAL_MS = 1000;   // how often to check the phone-fallback trigger
+const unsigned long REJECT_DISPLAY_MS = 2000;  // how long the OLED shows a rejection before returning to idle
 
 Servo turnstileServo;
 HardwareSerial gm65(2);  // UART2
+SPIClass oledSPI(VSPI);
+Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &oledSPI, OLED_DC_PIN, OLED_RST_PIN, OLED_CS_PIN);
 
 String gm65Buffer = "";
 unsigned long lastPollMs = 0;
 
+// Every on-screen status is exactly two short lines — this is the one
+// place that ever writes to the OLED, so every message in the whole
+// sketch goes through here and stays visually consistent.
+void showStatus(const String& line1, const String& line2) {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println(line1);
+  display.setCursor(0, 16);
+  display.println(line2);
+  display.display();
+}
+
+void showIdle() {
+  showStatus("Pripravene", "Naskenujte listok");
+}
+
 void connectWifi() {
+  showStatus("Pripajam sa", "na WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to WiFi");
@@ -74,6 +119,9 @@ void connectWifi() {
   }
   Serial.println(" connected, IP: " + WiFi.localIP().toString());
   digitalWrite(STATUS_LED_PIN, LOW);
+  showStatus("WiFi pripojene", WiFi.localIP().toString());
+  delay(1500);
+  showIdle();
 }
 
 void setup() {
@@ -81,6 +129,13 @@ void setup() {
   gm65.begin(GM65_BAUD_RATE, SERIAL_8N1, GM65_RX_PIN, GM65_TX_PIN);
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LOW);
+
+  oledSPI.begin(OLED_SCLK_PIN, -1, OLED_MOSI_PIN, OLED_CS_PIN);
+  if (!display.begin(SSD1306_SWITCHCAPVCC)) {
+    Serial.println("OLED init failed — check wiring");
+  }
+  display.setRotation(0);
+  showStatus("Startujem...", "");
 
   // Standard hobby servos expect a 50Hz signal with a 1000-2000us pulse
   // width — these are the library defaults ESP32Servo's attach() uses
@@ -98,6 +153,7 @@ void openGateOnce() {
   delay(OPEN_DURATION_MS);
   turnstileServo.write(CLOSED_ANGLE);
   digitalWrite(STATUS_LED_PIN, LOW);
+  showIdle();
 }
 
 // Percent-encodes a string for safe embedding as one query-parameter VALUE
@@ -149,11 +205,16 @@ bool httpGetReturnsOne(const String& url) {
 // already used) server-side and tells us whether to open the gate.
 void checkInScannedTicket(const String& scannedText) {
   Serial.println("GM65 scanned: " + scannedText);
+  showStatus("QR kod precitany", "Overujem...");
   String url = String(GATE_SCAN_CHECKIN_BASE_URL) + "?clubId=" + CLUB_ID + "&data=" + urlEncode(scannedText);
   if (httpGetReturnsOne(url)) {
+    showStatus("QR schvaleny", "Vstup povoleny");
     openGateOnce();
   } else {
     Serial.println("Scan rejected (invalid, already used, or not confirmed)");
+    showStatus("QR kod nie je platny", "Skuste znova");
+    delay(REJECT_DISPLAY_MS);
+    showIdle();
   }
 }
 
@@ -198,6 +259,7 @@ void pollFallbackTrigger() {
   lastPollMs = now;
   String url = String(GATE_STATUS_BASE_URL) + "?clubId=" + CLUB_ID;
   if (httpGetReturnsOne(url)) {
+    showStatus("Telefon potvrdeny", "Vstup povoleny");
     openGateOnce();
   }
 }
