@@ -159,14 +159,19 @@ void checkInScannedTicket(const String& scannedText) {
 
 // Reads whatever the GM65 has sent so far over UART2, one character at a
 // time, accumulating into a line buffer until the module's own line
-// terminator (\n, possibly preceded by \r) — this runs on every loop()
-// iteration with no blocking delay, so a scan is never missed while the
-// fallback poll below is also running.
+// terminator — this runs on every loop() iteration with no blocking delay,
+// so a scan is never missed while the fallback poll below is also running.
+// Treats EITHER \r or \n as a terminator (not just \n): a real unit of this
+// module was confirmed, via a raw byte dump during bring-up, to end its
+// output in just \r with no trailing \n at all — requiring \n specifically
+// would have silently swallowed every single scan. Flushing on \r AND \n
+// still handles a module that sends the more common \r\n pair safely: the
+// second character arrives with the buffer already empty, so the
+// length()>0 guard skips firing a duplicate check-in for the same scan.
 void pollGm65() {
   while (gm65.available()) {
     char c = gm65.read();
-    if (c == '\r') continue;
-    if (c == '\n') {
+    if (c == '\r' || c == '\n') {
       if (gm65Buffer.length() > 0) {
         checkInScannedTicket(gm65Buffer);
         gm65Buffer = "";

@@ -131,6 +131,23 @@ Key points:
   documentation/configuration barcodes — some units ship set to a
   different rate and need either a config scan to change it, or the
   firmware constant updated to match.
+- **A real unit shipped configured for USB output (keyboard/virtual COM
+  port), not TTL serial, and produced zero bytes on UART2 no matter how
+  correctly it was wired or what baud rate was tried** — confirmed via a
+  temporary raw-byte Serial dump in `pollGm65()` (print every received
+  byte's hex value, with no line-terminator logic, before falling back to
+  the real parsing). The fix is a one-time configuration scan: the
+  manufacturer's own manual (Hangzhou Grow Technology, "GM65 Bar Code
+  Reader Module User Manual") has a "Series Output"/TTL-232 setup barcode
+  under its "Communication interface" section — scan that once with the
+  GM65 itself (not with a phone) to switch it into real UART mode. Search
+  for the exact manual PDF matching your unit's silkscreen/labeling if the
+  one above doesn't match, since OEM manual revisions vary.
+- **The module's own line terminator may be a bare `\r` with no trailing
+  `\n`** — confirmed via the same raw-byte dump above. `pollGm65()`
+  deliberately flushes on either `\r` or `\n` for this reason (see its own
+  comment) rather than requiring `\n` specifically, which would otherwise
+  silently discard every scan from a unit like this.
 - The servo's signal wire (GPIO13) and the LED's resistor leg (GPIO12)
   are unchanged from the original prototype — see their own notes above.
 
