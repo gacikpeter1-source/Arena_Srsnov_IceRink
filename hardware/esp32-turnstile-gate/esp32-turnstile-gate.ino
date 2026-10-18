@@ -29,7 +29,12 @@
 //     same GND/VCC/SCK/SDA/RES/DC/CS pinout — a real unit's screen stayed
 //     completely black with correctly verified wiring and no reported
 //     error (SPI has no handshake, so a wrong-driver `begin()` call still
-//     "succeeds") until this was swapped in.
+//     "succeeds") until this was swapped in. Uses the library's SOFTWARE
+//     SPI constructor (plain bit-banged digitalWrite on whichever GPIOs,
+//     no SPIClass/hardware-SPI peripheral involved) rather than hardware
+//     SPI — confirmed working against this exact SH1106 display on a
+//     separate project; hardware SPI's own constructor is a plausible
+//     second thing to try if a future unit still stays black with this.
 // Everything else (WiFi, HTTPClient, WiFiClientSecure, HardwareSerial, SPI)
 // ships with the "esp32" board package itself.
 
@@ -89,8 +94,10 @@ const unsigned long REJECT_DISPLAY_MS = 2000;  // how long the OLED shows a reje
 
 Servo turnstileServo;
 HardwareSerial gm65(2);  // UART2
-SPIClass oledSPI(VSPI);
-Adafruit_SH1106G display(OLED_WIDTH, OLED_HEIGHT, &oledSPI, OLED_DC_PIN, OLED_RST_PIN, OLED_CS_PIN);
+// Software SPI (bit-banged, no SPIClass/hardware-SPI peripheral) — see the
+// file's own top comment for why this constructor was chosen over hardware
+// SPI. Argument order here is (width, height, mosi, sclk, dc, rst, cs).
+Adafruit_SH1106G display(OLED_WIDTH, OLED_HEIGHT, OLED_MOSI_PIN, OLED_SCLK_PIN, OLED_DC_PIN, OLED_RST_PIN, OLED_CS_PIN);
 
 String gm65Buffer = "";
 unsigned long lastPollMs = 0;
@@ -136,7 +143,6 @@ void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LOW);
 
-  oledSPI.begin(OLED_SCLK_PIN, -1, OLED_MOSI_PIN, OLED_CS_PIN);
   if (!display.begin(0, true)) {
     Serial.println("OLED init failed — check wiring");
   }
