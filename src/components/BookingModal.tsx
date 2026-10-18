@@ -333,8 +333,15 @@ export default function BookingModal({
               id="attendee-count"
               type="number"
               min={1}
-              value={attendeeCount}
-              onChange={(e) => setAttendeeCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              // Deliberately NOT clamped to the real floor (1) on every
+              // keystroke — see TrainingRegistrationModal.tsx's matching
+              // field for why: a live clamp meant deleting the field's only
+              // digit immediately snapped it back to "1" before the user
+              // could type a replacement. The real floor is enforced on
+              // blur instead, so the field can sit genuinely empty mid-edit.
+              value={attendeeCount || ''}
+              onChange={(e) => setAttendeeCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              onBlur={() => setAttendeeCount((c) => Math.max(1, c))}
               className="bg-background-dark border-border text-white max-w-[100px]"
             />
           </div>
