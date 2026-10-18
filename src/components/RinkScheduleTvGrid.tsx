@@ -141,18 +141,20 @@ function renderSlotCell(
                   wrapping raw text directly doesn't reliably clip/clamp in
                   practice, a real screenshot once showed a long team name
                   overflowing straight through the Time column instead.
-                  `line-clamp-3` (not `truncate`): a name/room value wraps
-                  across up to three lines rather than being cut to a
-                  single-line ellipsis — staff need to actually read the
-                  full value, not just recognize it was cut short. A real
-                  club name ("Tréning amatérskych hokejistov") or zone label
-                  ("Tretina k Rolbovni") still didn't fully fit at 2 lines,
-                  caught live the same way as the rest of this board's
-                  sizing; 3 lines is still a bound (not unlimited wrapping,
-                  so one outlier value can't blow out a row's height
-                  arbitrarily), just a more generous one. LATER_FONT_MAX_REM
-                  was trimmed to leave headroom for a genuinely 3-line
-                  row. */}
+                  Deliberately NO `line-clamp` any more (an earlier version
+                  capped this at 3 lines): a hard line-clamp doesn't just
+                  truncate the text visually, it caps the element's own
+                  rendered height at exactly N lines — which hides the
+                  overflow from RinkBoardColumn's own scrollHeight
+                  measurement below, so an unusually long name's extra lines
+                  were silently discarded on EVERY screen, not shrunk to
+                  fit on a smaller one. A real club asked specifically for
+                  "full text always visible, regardless of TV size" with
+                  other events shrinking to make room instead — removing the
+                  cap lets a long name wrap across as many lines as it
+                  genuinely needs, so that real height feeds into the
+                  existing measure-and-shrink loop and the rest of the
+                  "later" tier correctly scales down to compensate. */}
               {/* Team/Skupina (Name) is deliberately the one column that's
                   LARGER than the row's own base font (1.15em, vs.
                   Time/Šatňa's 1em) — it's the single thing staff actually
@@ -160,14 +162,14 @@ function renderSlotCell(
                   the most prominent text on the board, not just "the same
                   size as everything else". */}
               <span className={GRID_CELL}>
-                <span className="min-w-0 flex-1 line-clamp-3 leading-tight text-[1.15em]">
+                <span className="min-w-0 flex-1 leading-tight text-[1.15em]">
                   {it.label}
                   {it.liveScore ? ` (${it.liveScore})` : ''}
                 </span>
               </span>
               <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER} mono`}>{minutesToTime(slot.startMin)}</span>
               <span className={`${GRID_CELL_CENTER} ${GRID_DIVIDER}`}>
-                <span className="min-w-0 flex-1 line-clamp-2 leading-tight text-center">{roomValue ?? '—'}</span>
+                <span className="min-w-0 flex-1 leading-tight text-center">{roomValue ?? '—'}</span>
               </span>
             </div>
           )
