@@ -32,6 +32,20 @@ function formatDigits(digits: string): string {
   return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2, 4)}` : digits
 }
 
+// Fills in whatever digits weren't typed, on the assumption that what IS
+// there is the leading part of a round time — "10" (hour only) becomes
+// "10:00", "9" becomes "09:00", "103" becomes "10:30" (second minute digit
+// defaults to 0, same as the hour/minute pair's own tens-first reading
+// everywhere else in this mask). Only called on blur, never mid-typing —
+// padding while the user might still type more would make a 3rd/4th digit
+// impossible to enter at all.
+function padIncompleteDigits(digits: string): string {
+  if (digits.length === 0 || digits.length >= 4) return digits
+  if (digits.length === 1) return '0' + digits + '00'
+  if (digits.length === 2) return digits + '00'
+  return digits + '0'
+}
+
 // Native <input type="time"> renders its displayed text (AM/PM vs 24h)
 // from whichever locale the VISITOR'S OWN browser/OS happens to be
 // configured in — not from this page's language, and (confirmed: neither
@@ -45,10 +59,27 @@ function formatDigits(digits: string): string {
 // dark-mode styling either (unlike type="date", which stays native —
 // see src/index.css's color-scheme rule for that one).
 const TimeInput = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, onChange, ...props }, ref) => {
+  ({ className, onChange, onBlur, ...props }, ref) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       e.target.value = formatDigits(clampDigits(extractDigits(e.target.value)))
       onChange?.(e)
+    }
+    // A time left half-typed (e.g. just "10" for a round "10:00") fails
+    // this field's own pattern validation and silently blocks native form
+    // submission with no visible error — exactly what happened when a
+    // real customer typed only the hour, expecting the minutes to default
+    // to zero the way they're used to. Completing it here on blur (the
+    // same "real floor enforced on blur, not mid-keystroke" convention
+    // this app already uses for number-of-people inputs) means the field
+    // is always either empty or a genuinely valid "HH:MM" by the time the
+    // browser checks it, regardless of how few digits were actually typed.
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      const padded = formatDigits(clampDigits(padIncompleteDigits(extractDigits(e.target.value))))
+      if (padded !== e.target.value) {
+        e.target.value = padded
+        onChange?.(e as unknown as React.ChangeEvent<HTMLInputElement>)
+      }
+      onBlur?.(e)
     }
     return (
       <input
@@ -59,6 +90,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, InputProps>(
         pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
         maxLength={5}
         onChange={handleChange}
+        onBlur={handleBlur}
         className={cn(baseClassName, 'mono', className)}
         ref={ref}
         {...props}
