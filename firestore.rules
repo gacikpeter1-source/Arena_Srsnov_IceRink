@@ -204,6 +204,16 @@ service cloud.firestore {
       allow update: if
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['expiresAt']) && !('expiresAt' in request.resource.data))
         || ('expiresAt' in resource.data && resource.data.expiresAt < request.time);
+      // Staff/trainer: full overwrite rights, even over a still-valid lock —
+      // backs CreateBookingInput.allowOverlap (lib/bookings.ts), which
+      // lib/rinkSchedule.ts always sets so staff can stack several
+      // standing-schedule entries onto the same rink/zone/time. The
+      // client-side `allowOverlap` flag alone was never enough — it only
+      // skips createBooking's own SlotUnavailableError throw, it doesn't
+      // change what these rules themselves allow, so this branch is what
+      // actually lets that overwrite commit (this was missing entirely
+      // until a real "Opakovať" click on an overlapping slot hit a 403).
+      allow update: if isTrainer() || isStaffMember();
     }
 
     // ---------------------------------------------------------------
