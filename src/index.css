@@ -187,3 +187,18 @@ select {
   background-size: 1rem;
   padding-right: 2.5rem !important;
 }
+
+/* Same root cause, different native control: a <input type="date"> on
+   this app's dark background rendered its own native spinner glyphs and
+   calendar popup in the browser's default (light-mode) colors — dark
+   text on a dark box, unreadable. `color-scheme` is the one CSS lever
+   that actually reaches into that native rendering (there's no
+   per-element markup to restyle the way the <select> fix above adds its
+   own chevron), telling the browser this control should use its
+   dark-appropriate palette instead of guessing from the page background.
+   <input type="time"> doesn't need this any more — components/ui/input.tsx
+   renders every time field as a plain masked text input instead of the
+   native control, so there's no native time popup left to fix. */
+input[type='date'] {
+  color-scheme: dark;
+}
