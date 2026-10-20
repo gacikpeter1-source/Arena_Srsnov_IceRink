@@ -10,8 +10,7 @@ import {
   startRinkScheduleEntryRepeat,
   RINK_SCHEDULE_FOREVER_WINDOW
 } from '@/lib/rinkSchedule'
-import { findSlotConflict, findOverlapConflict, resolveSlotConflict, SlotConflict } from '@/lib/rinkConflicts'
-import { SlotUnavailableError, SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking, isPastAdminVisibilityCutoff } from '@/lib/bookings'
+import { SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking, isPastAdminVisibilityCutoff } from '@/lib/bookings'
 import { formatDateISO, addDays, localizedName, withRoomPrefix } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
@@ -27,24 +26,21 @@ import RoomPrefixInput from '@/components/RoomPrefixInput'
 
 /**
  * Staff/trainer "who has the ice when" schedule — see CLAUDE.md's "Rink
- * team schedule" section. Every entry blocks real ice (createBooking/
- * createBookingSeries under the hood via lib/rinkSchedule.ts), so this
- * page is deliberately just a manual create form + Excel import + a flat
- * list, not a second source of availability truth — the atomic booking
- * transaction is what actually prevents a double-booking, this page just
- * surfaces its result.
+ * team schedule" section. Every entry still creates a real Booking
+ * (createBooking/createBookingSeries under the hood via
+ * lib/rinkSchedule.ts), so it still shows on the TV board, exports, and
+ * utilization reports — but every call in that file now passes
+ * allowOverlap: true, so staff can stack several entries onto the same
+ * rink/zone/time with no blocking at all (per explicit club request —
+ * see lib/rinkSchedule.ts's own top-of-file doc comment). The public
+ * customer-facing /book flow never sets that flag, so a real customer
+ * booking is still fully protected against double-booking either way.
  */
 export default function RinkSchedulePage() {
   const { t, i18n } = useTranslation()
   const { user, staff } = useAuth()
   const { club, rinks, zones } = useClubData()
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
-  // Overwriting someone else's real reservation is a bigger action than
-  // just planning a schedule entry — restricted to ice-rink staff
-  // (assistant/owner/superadmin), not a plain trainer account, even
-  // though a trainer can otherwise fully use this page. Mirrors the same
-  // gate on TournamentDetailPage.tsx's own conflict-replace flow.
-  const canReplaceReservations = staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
 
   const [entries, setEntries] = useState<(RinkScheduleEntry & { id: string })[]>([])
   const [occurrencesByEntry, setOccurrencesByEntry] = useState<Map<string, (Booking & { id: string })[]>>(new Map())
@@ -82,7 +78,6 @@ export default function RinkSchedulePage() {
   const [untilDate, setUntilDate] = useState(() => formatDateISO(addDays(new Date(), 56)))
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [conflict, setConflict] = useState<SlotConflict | null>(null)
 
   const activeRinks = rinks.filter((r) => r.active).sort((a, b) => a.sortOrder - b.sortOrder)
   const zonesForRink = zones.filter((z) => z.rinkId === rinkId).sort((a, b) => a.slotIndex - b.slotIndex)
@@ -139,32 +134,6 @@ export default function RinkSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zonesForRink])
 
-  // Proactive heads-up before submitting: lets staff see, while still
-  // picking rink/zone/date/time/duration, whether a tournament match (or
-  // another schedule entry) already occupies overlapping ice — a real
-  // time-interval check (findOverlapConflict), not just an exact-slot
-  // match, since sessions here don't all start on a clean grid (see
-  // CLAUDE.md's "Tournament ↔ rink schedule conflicts" section). Debounced
-  // since it fires on every keystroke in the time/duration fields.
-  useEffect(() => {
-    // An informational entry deliberately never checks for conflicts — the
-    // whole point is to allow it onto an already-occupied day/time.
-    if (isInformational || !club || !rinkId || !zoneId || !date || !startTime || !durationMinutes) {
-      setConflict(null)
-      return
-    }
-    let cancelled = false
-    const timer = setTimeout(() => {
-      findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes).then((result) => {
-        if (!cancelled) setConflict(result)
-      })
-    }, 300)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [club, rinkId, zoneId, zones, date, startTime, durationMinutes, isInformational])
-
   const handleFrequencyChange = (next: SeriesFrequency) => {
     setFrequency(next)
     setCount((c) => Math.min(c, SERIES_MAX_OCCURRENCES[next]))
@@ -201,66 +170,21 @@ export default function RinkSchedulePage() {
       informational: isInformational
     }
     try {
-      if (isInformational) {
-        // No createBooking call at all — skip the overlap check/conflict-
-        // replace flow entirely, since colliding with something else is
-        // exactly what this is for.
-        await createRinkScheduleEntry(entryInput)
-        setTeamName('')
-        setRoom('')
-        setAwayRoom('')
-        refresh()
-        return
-      }
-      if (!recurrence && !repeatForeverFrequency) {
-        // Real interval-overlap check before ever calling createBooking —
-        // its own transaction only locks the exact zoneId+startTime being
-        // requested, so it would happily create a 'full' booking even
-        // while a half/third zone on the same rink already covers that
-        // time. A rink can have more than one thing blocking a requested
-        // slot (e.g. both halves already taken), so this resolves one
-        // conflict at a time and re-checks until the slot is genuinely
-        // free or the user declines a replace.
-        let overlap = await findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes)
-        while (overlap) {
-          if (overlap.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: overlap.label }))) {
-            await resolveSlotConflict(overlap)
-            overlap = await findOverlapConflict(club.id, rinkId, zoneId, zones, date, startTime, durationMinutes)
-          } else {
-            setError(t('rinkSchedule.slotUnavailable'))
-            setCreating(false)
-            return
-          }
-        }
-      }
+      // No overlap/conflict check at all any more — per explicit club
+      // request, staff can stack several standing-schedule entries onto
+      // the same rink/zone/time with zero blocking (see this file's own
+      // top-of-file doc comment and CreateBookingInput.allowOverlap in
+      // lib/bookings.ts). createRinkScheduleEntry always passes
+      // allowOverlap: true under the hood, so it never throws
+      // SlotUnavailableError for this tool any more — a real Booking is
+      // still created either way, it just never excludes another one.
       await createRinkScheduleEntry(entryInput)
       setTeamName('')
       setRoom('')
       setAwayRoom('')
       refresh()
-    } catch (err) {
-      if (err instanceof SlotUnavailableError && !recurrence) {
-        // Fallback for a race the proactive overlap check above couldn't
-        // catch (someone else booked the exact same slot in between) —
-        // exact-slot lookup, same as before.
-        const found = await findSlotConflict(club.id, zoneId, date, startTime)
-        if (found?.ownerId && canReplaceReservations && confirm(t('rinkSchedule.confirmReplace', { label: found.label }))) {
-          try {
-            await resolveSlotConflict(found)
-            await createRinkScheduleEntry(entryInput)
-            setTeamName('')
-            setRoom('')
-            setAwayRoom('')
-            refresh()
-          } catch {
-            setError(t('common.error'))
-          }
-        } else {
-          setError(t('rinkSchedule.slotUnavailable'))
-        }
-      } else {
-        setError(err instanceof SlotUnavailableError ? t('rinkSchedule.slotUnavailable') : t('common.error'))
-      }
+    } catch {
+      setError(t('common.error'))
     } finally {
       setCreating(false)
     }
@@ -434,13 +358,6 @@ export default function RinkSchedulePage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-4">
             {error && <p className="text-status-danger text-sm sm:col-span-4">{error}</p>}
-            {!error && conflict && (
-              <p className="text-status-warning text-sm sm:col-span-4">
-                {conflict.ownerId
-                  ? t('rinkSchedule.conflictNotice', { label: conflict.label })
-                  : t('rinkSchedule.conflictNoticeBooking')}
-              </p>
-            )}
             <div>
               <Label className="text-white">{t('admin.rink')}</Label>
               <select value={rinkId} onChange={(e) => setRinkId(e.target.value)} className="w-full bg-background-dark border border-border text-white rounded-md px-3 py-2">
@@ -794,7 +711,6 @@ export default function RinkSchedulePage() {
 
       {editing && club && (
         <RinkScheduleEditModal
-          clubId={club.id}
           timezone={club.timezone}
           rinks={activeRinks}
           zones={zones}
@@ -802,7 +718,6 @@ export default function RinkSchedulePage() {
           occurrence={editing.occurrence}
           currentRoom={editing.entry.occurrenceRooms?.[editing.occurrence.id] ?? editing.entry.room}
           currentAwayRoom={editing.entry.occurrenceAwayRooms?.[editing.occurrence.id] ?? editing.entry.awayRoom}
-          canReplaceReservations={canReplaceReservations}
           isOpen={!!editing}
           onClose={() => setEditing(null)}
           onSaved={refresh}

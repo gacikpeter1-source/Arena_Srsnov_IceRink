@@ -14,17 +14,19 @@ import { Booking, RinkScheduleEntry, SeriesFrequency } from '@/types'
 
 // A staff/trainer schedule of standing team-practice/public-skating
 // blocks — see CLAUDE.md's "Rink team schedule" section for the full
-// rationale. Every ordinary entry always blocks real ice via the exact
-// same createBooking/createBookingSeries transaction the customer-facing
-// booking flow uses, so it can never silently double-book a zone/time a
-// customer (or another entry) already holds — a collision throws the
-// same SlotUnavailableError (see lib/bookings.ts) that flow already
-// surfaces, and the caller (RinkSchedulePage.tsx) shows it the same way.
-// The one deliberate exception is an `isInformational` entry (see its own
-// doc comment on the type) — created with `informational: true` below,
-// which skips createBooking/the conflict check entirely so staff can
-// write a planning note onto an already-full day/time without it
-// colliding with anything.
+// rationale. Every ordinary entry still creates a real Booking via the
+// exact same createBooking/createBookingSeries transaction the customer-
+// facing booking flow uses (so it still shows on the TV board, exports,
+// and utilization reports), but every call in this file passes
+// `allowOverlap: true` — per explicit club request, staff can stack
+// several standing-schedule entries onto the same rink/zone/time with no
+// blocking at all (a club running two teams' practices on the same half
+// at once, logged as two separate entries, shouldn't need a workaround).
+// The public customer-facing /book flow never sets this flag, so a real
+// customer booking is still fully protected against double-booking either
+// way. An `isInformational` entry (see its own doc comment on the type)
+// goes further still — created with `informational: true` below, it skips
+// createBooking entirely, so it never creates a real Booking at all.
 
 // How many real future occurrences a `repeatForever` entry keeps alive at
 // once — kept in sync with functions/src/index.ts's own copy of this
@@ -99,7 +101,8 @@ export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInpu
       email: input.createdByEmail,
       phone: '',
       timezone: input.timezone,
-      recurrence: input.recurrence
+      recurrence: input.recurrence,
+      allowOverlap: true
     })
     await setDoc(entryRef, { ...base, seriesId: series.seriesId })
     return entryRef.id
@@ -130,7 +133,8 @@ export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInpu
           email: input.createdByEmail,
           phone: '',
           timezone: input.timezone,
-          seriesId
+          seriesId,
+          allowOverlap: true
         })
       } catch (err) {
         if (!(err instanceof SlotUnavailableError)) throw err
@@ -150,7 +154,8 @@ export async function createRinkScheduleEntry(input: CreateRinkScheduleEntryInpu
     name: input.teamName,
     email: input.createdByEmail,
     phone: '',
-    timezone: input.timezone
+    timezone: input.timezone,
+    allowOverlap: true
   })
   await setDoc(entryRef, { ...base, bookingId: booking.id })
   return entryRef.id
@@ -252,7 +257,8 @@ export async function rescheduleRinkScheduleEntry(
       name: fields.teamName,
       email: oldBooking?.email ?? '',
       phone: oldBooking?.phone ?? '',
-      timezone: fields.timezone
+      timezone: fields.timezone,
+      allowOverlap: true
     })
     // Only release the old slot once the new one is confirmed held — if
     // createBooking throws (slot taken), the team keeps its original ice
@@ -319,6 +325,7 @@ export async function rescheduleRinkScheduleOccurrence(
       email: oldBooking?.email ?? '',
       phone: oldBooking?.phone ?? '',
       timezone: fields.timezone,
+      allowOverlap: true,
       ...(entry.seriesId ? { seriesId: entry.seriesId } : {})
     })
     // See RescheduleResult's own doc comment for why this can fail.
@@ -442,7 +449,8 @@ export async function rescheduleRinkScheduleEntrySeriesTime(
         email: booking.email ?? '',
         phone: booking.phone ?? '',
         timezone: fields.timezone,
-        seriesId: entry.seriesId
+        seriesId: entry.seriesId,
+        allowOverlap: true
       })
       await cancelBooking(booking.id).catch(() => {
         cancelFailedDates.push(booking.date)
@@ -523,7 +531,8 @@ export async function startRinkScheduleEntryRepeat(
         email: booking.email,
         phone: booking.phone,
         timezone,
-        seriesId: seriesRef.id
+        seriesId: seriesRef.id,
+        allowOverlap: true
       })
     } catch (err) {
       if (!(err instanceof SlotUnavailableError)) throw err

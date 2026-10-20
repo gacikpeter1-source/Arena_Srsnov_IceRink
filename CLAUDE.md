@@ -3185,6 +3185,60 @@ those stay on the faster exact-match `lockedSlotsRange` check, since
 they're approximate at-a-glance indicators rather than what actually gates
 a real booking attempt.
 
+### Rink-schedule entries can now overlap freely — the conflict-replace flow above was removed from this one tool
+
+A club owner reported being unable to create a rink-schedule entry at
+all whenever its zone overlapped something already on the board (two
+teams' practices on the same half at once, logged as two separate
+entries) — exactly the protection the two sections above were built to
+provide, but for this one tool it got in the way more than it helped:
+staff running `/admin/rozvrh` know their own ice better than an
+automatic overlap check does, and want to log 4-5 entries onto the same
+rink/zone/time with zero friction, not a replace-or-decline prompt each
+time. Per explicit instruction, this is scoped to **only** rink-schedule
+entries — the public customer-facing `/book` flow's own double-booking
+protection (`BookingPage.tsx`/`BookingModal.tsx`, `computeOverlapBlockedKeys`)
+is completely untouched, and so is `TournamentDetailPage.tsx`'s own
+conflict-replace flow described above.
+
+`CreateBookingInput`/`CreateSeriesInput` (`src/lib/bookings.ts`) gained
+an `allowOverlap?: boolean` flag: inside `createBooking`'s transaction,
+an already-locked `slotLocks` doc only throws `SlotUnavailableError` when
+this flag is unset — set, the transaction still writes a real `Booking`
+and the same `slotLocks` doc (so the entry still shows on the TV board,
+exports, and utilization reports, and still counts as "taken" for
+anything that reads `slotLocks`/`fetchLockedSlots` afterwards), it just
+never excludes a second one. `createBookingSeries` threads the same flag
+straight through to its own `createBooking` call. Every call in
+`src/lib/rinkSchedule.ts` (all of `createRinkScheduleEntry`'s three
+paths, `rescheduleRinkScheduleEntry`, `rescheduleRinkScheduleOccurrence`,
+`rescheduleRinkScheduleEntrySeriesTime`, `startRinkScheduleEntryRepeat`)
+now passes `allowOverlap: true` — no other caller in the codebase sets
+it, so every other domain's protection is unchanged.
+
+Since `createRinkScheduleEntry`/`rescheduleRinkScheduleEntry`/
+`rescheduleRinkScheduleOccurrence` can no longer throw
+`SlotUnavailableError`, the proactive/reactive `findOverlapConflict`/
+`findSlotConflict`/`resolveSlotConflict` usage the two sections above
+describe for `RinkSchedulePage.tsx`'s create form and
+`RinkScheduleEditModal.tsx`'s edit/reschedule flow is gone — both now
+just call straight through and show a generic error only for a genuinely
+unexpected failure. `canReplaceReservations` (the assistant/owner/
+superadmin-only gate on offering to replace someone else's reservation)
+was removed from both files along with it, since there's no longer
+anything here to offer to replace. `RinkScheduleImportPanel.tsx`'s bulk
+Excel importer was already excluded from the conflict-replace flow
+(see "Deliberately out of scope for this pass" above) and needed no
+change — it still just fails a colliding row the same way it always did,
+which for this importer still means a genuine exact-slot collision
+against the same booking import template's own prior row, now simply
+rarer since the underlying entries it imports onto no longer block each
+other either. `findOverlapConflict`/`findSlotConflict`/`resolveSlotConflict`
+themselves are untouched and still live in `lib/rinkConflicts.ts` — they're
+still exactly what `TournamentDetailPage.tsx`'s own manual match form and
+`BookingModal.tsx`/`BookingPage.tsx` use, this change only removed their
+two call sites inside the rink-schedule tool.
+
 ### 'thirdsCombined' — two adjacent thirds booked as one zone
 
 A club wanted two more options in `RinkSchedulePage.tsx`'s zone picker:

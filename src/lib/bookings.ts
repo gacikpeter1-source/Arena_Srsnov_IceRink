@@ -178,6 +178,15 @@ export interface CreateBookingInput {
   // Purely informational (doesn't affect slot availability), unlike the
   // training domain's attendeeCount which reserves real capacity.
   attendeeCount?: number
+  // Skips the "is this slot already taken" check entirely — a real Booking
+  // is still created and the slot lock still written (so this booking is
+  // the one `fetchLockedSlots`/the public /book calendar sees as "taken"
+  // afterwards), it just never throws SlotUnavailableError against an
+  // existing one. Used only by lib/rinkSchedule.ts's own calls, at a
+  // club's explicit request to let staff stack several standing-schedule
+  // entries onto the same rink/zone/time with zero blocking — the public
+  // customer-facing /book flow never sets this.
+  allowOverlap?: boolean
 }
 
 export interface CreatedBooking {
@@ -216,7 +225,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
 
   return runTransaction(db, async (tx) => {
     const lockSnap = await tx.get(lockRef)
-    if (lockSnap.exists() && !isLockExpired(lockSnap.data().expiresAt)) {
+    if (lockSnap.exists() && !isLockExpired(lockSnap.data().expiresAt) && !input.allowOverlap) {
       throw new SlotUnavailableError()
     }
 
@@ -364,6 +373,8 @@ export interface CreateSeriesInput {
   recurrence: SeriesRecurrence
   // See CreateBookingInput.attendeeCount — applied to every occurrence.
   attendeeCount?: number
+  // See CreateBookingInput.allowOverlap — applied to every occurrence.
+  allowOverlap?: boolean
 }
 
 export interface SeriesOccurrenceResult {
@@ -456,7 +467,8 @@ export async function createBookingSeries(input: CreateSeriesInput): Promise<Cre
         phone: input.phone,
         timezone: input.timezone,
         seriesId: seriesRef.id,
-        attendeeCount: input.attendeeCount
+        attendeeCount: input.attendeeCount,
+        allowOverlap: input.allowOverlap
       })
       created.push({ bookingId: booking.id, date, confirmationCode: booking.confirmationCode })
     } catch (err) {
