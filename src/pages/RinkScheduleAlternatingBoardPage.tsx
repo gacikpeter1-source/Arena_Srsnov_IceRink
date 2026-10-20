@@ -159,7 +159,7 @@ export default function RinkScheduleAlternatingBoardPage() {
           lets the row grow just enough to fit them legibly when at least
           one is checked, while staying as compact as before when none
           are. */}
-      <div className="shrink-0 flex items-center gap-4 rounded-xl border border-border bg-background-card px-4 py-2" style={{ minHeight: '6vh' }}>
+      <div className="shrink-0 flex items-center gap-4 rounded-xl border border-border bg-background-card px-4 py-2" style={{ minHeight: '10vh' }}>
         <div className="min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-5 gap-y-0.5">
           {PRICE_ROWS.map((row) => (
             <span key={row.label} className="text-[clamp(0.75rem,1.3vw,1.15rem)] font-semibold text-text-secondary whitespace-nowrap">
@@ -171,13 +171,21 @@ export default function RinkScheduleAlternatingBoardPage() {
           </span>
         </div>
 
+        {/* Grown from clamp(56px,10vh,96px) — a real customer couldn't scan
+            this QR from a weaker/lower-resolution TV with their own phone
+            camera even though it worked fine on a high-end phone against a
+            good TV. The raster source is a fixed 512px (lib/qrcode.ts), so
+            there's plenty of headroom to display it larger without any
+            blur (`imageRendering: pixelated` keeps the downscale crisp at
+            any size up to that). Sized the same for the phone-number QR(s)
+            below, since the two sit side by side in the same row. */}
         {freeIceListQrDataUrl && (
           <div className="shrink-0 flex flex-col items-center gap-0.5">
             <img
               src={freeIceListQrDataUrl}
               alt={t('admin.freeIceListQrLabel')}
               className="rounded bg-white p-1"
-              style={{ width: 'clamp(56px, 10vh, 96px)', height: 'clamp(56px, 10vh, 96px)', imageRendering: 'pixelated' }}
+              style={{ width: 'clamp(90px, 16vh, 160px)', height: 'clamp(90px, 16vh, 160px)', imageRendering: 'pixelated' }}
             />
             <span className="text-[clamp(0.5rem,0.8vw,0.7rem)] text-text-secondary whitespace-nowrap">{t('admin.freeIceListQrLabel')}</span>
           </div>
@@ -192,7 +200,7 @@ export default function RinkScheduleAlternatingBoardPage() {
                     src={phoneQrDataUrls[entry.id]}
                     alt={entry.label}
                     className="rounded bg-white p-1"
-                    style={{ width: 'clamp(56px, 10vh, 96px)', height: 'clamp(56px, 10vh, 96px)', imageRendering: 'pixelated' }}
+                    style={{ width: 'clamp(90px, 16vh, 160px)', height: 'clamp(90px, 16vh, 160px)', imageRendering: 'pixelated' }}
                   />
                 )}
                 <span className="text-[clamp(0.5rem,0.8vw,0.7rem)] text-text-secondary whitespace-nowrap">{entry.label}</span>
