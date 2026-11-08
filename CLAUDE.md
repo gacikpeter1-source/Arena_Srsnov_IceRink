@@ -3239,6 +3239,89 @@ still exactly what `TournamentDetailPage.tsx`'s own manual match form and
 `BookingModal.tsx`/`BookingPage.tsx` use, this change only removed their
 two call sites inside the rink-schedule tool.
 
+### Re-introducing a conflict CHOICE at creation time (not automatic blocking), plus converting a "donekonečna" series to a fixed count
+
+The section above removed automatic overlap blocking from this tool
+entirely, per explicit club request — staff can stack entries with zero
+friction, which is still exactly how it works today. But once the whole
+schedule was rebuilt as `repeatForever` series (see the club's own
+after-the-fact clarification earlier in this file about what the "demo"
+data actually was), two new, related problems surfaced: staff editing a
+wrong time/room/name, or adding a new event meant to supersede an old one,
+had no way to ask "should this replace what's already here?" — it would
+just silently stack forever; and there was no way to turn an already-
+`repeatForever` series into one with a known end once staff decided it
+shouldn't keep renewing automatically. Both are opt-in, staff-driven
+conveniences layered back on top of the zero-blocking behavior above —
+nothing here makes `createRinkScheduleEntry`/`allowOverlap` throw again.
+
+**Creation-time conflict choice.** `RinkSchedulePage.tsx`'s `handleSubmit`
+now runs `findConflicts` (local to that file — a plain client-side scan
+over the already-loaded `entries`/`occurrencesByEntry` state, not a new
+Firestore query, since this is a single-admin-at-a-time tool and that
+state is already kept fresh by `refresh()`) before ever calling
+`createRinkScheduleEntry`, matching only on exact rink/date/start-time —
+deliberately not zone, since every new entry already always targets the
+rink's own `'full'` zone (see the zone-picker-hidden note above) and this
+is meant to catch "is this time already spoken for," not re-litigate a
+zone split this tool no longer uses. Skipped entirely for an
+`isInformational` entry (no real occurrence to collide with in the first
+place). When one or more live occurrences already match, the form instead
+holds the pending `CreateRinkScheduleEntryInput` and shows
+`RinkScheduleConflictModal.tsx` with three choices, exactly per the club's
+own framing ("nahradiť jednorazovo alebo donekonečna"):
+- **Replace just this one occurrence** — cancels (`cancelBooking`) only
+  the conflicting occurrence(s) at that exact date/time, leaving the rest
+  of whatever series they belonged to untouched, then creates the new
+  entry.
+- **Replace permanently** — deletes the ENTIRE conflicting entry
+  (`deleteRinkScheduleEntry`, every occurrence, forever — the whole
+  series/single booking), then creates the new entry. Several conflicts
+  can belong to the same entry (rare, but possible after a prior
+  allow-overlap stack) — deduped to one `deleteRinkScheduleEntry` call per
+  distinct entry, not per occurrence.
+- **Add anyway (keep both)** — proceeds exactly as before this feature,
+  no cancellation at all.
+A fourth, implicit option (closing the dialog) cancels the whole create
+attempt with nothing written. `submitEntry` (the actual
+`createRinkScheduleEntry` call plus form-reset/`refresh()`) was factored
+out of `handleSubmit` specifically so both the no-conflict path and
+`handleConflictResolve` (after resolving/skipping the conflict) call the
+exact same creation logic.
+
+**Converting a `repeatForever` entry to a fixed count.**
+`convertForeverToBounded` (`lib/rinkSchedule.ts`) is the reverse direction
+of the existing `startRinkScheduleEntryRepeat` (single → bounded): it
+turns an already-`repeatForever` entry into a normal bounded series with a
+chosen count or end date, surfaced as a "Zmeniť na presný počet" button
+next to "Zmazať sériu" in `RinkSchedulePage.tsx`'s entries table (shown
+only when `entry.repeatForever` is true), opening
+`RinkScheduleForeverConversionModal.tsx`. Unlike
+`startRinkScheduleEntryRepeat`, every live occurrence here already shares
+one real `seriesId` (a `repeatForever` entry has always had one, just
+with no `bookingSeries` doc describing it) — so there's no booking to
+re-tag with a new id, only a `bookingSeries` doc to write retroactively,
+written at that SAME `seriesId` as its own Firestore document id (not a
+fresh one), so every already-existing booking's own `seriesId` field
+already points at it with nothing else needing to change. The target date
+list is computed from the EARLIEST currently-live occurrence, not the
+entry's own (stale — see `fetchRinkScheduleOccurrences`' own doc comment)
+`date` field, since a `repeatForever` entry's rolling window has
+typically moved well past its original start date by the time anyone
+converts it. Any live occurrence beyond the requested count/date is
+cancelled (the series is shrinking); any target date not yet covered by
+an existing occurrence is created the same skip-don't-fail way
+`createBookingSeries`/`startRinkScheduleEntryRepeat` already use
+elsewhere in this file (the series is growing — converting "donekonečna"
+to a LARGER fixed count than the current 8-occurrence window is just as
+valid as shrinking it). Clearing `repeatForever` on the entry doc is what
+actually stops `topUpForeverRinkScheduleEntries`
+(`functions/src/index.ts`, which only ever queries `repeatForever ==
+true`) from continuing to extend this series after the conversion — the
+frequency (daily/weekly) itself isn't offered as a choice in the modal,
+since it's already fixed by however the series was originally set up and
+this feature only changes WHEN it stops, not its interval.
+
 ### 'thirdsCombined' — two adjacent thirds booked as one zone
 
 A club wanted two more options in `RinkSchedulePage.tsx`'s zone picker:

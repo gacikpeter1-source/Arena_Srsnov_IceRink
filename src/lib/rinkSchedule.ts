@@ -561,6 +561,104 @@ export async function startRinkScheduleEntryRepeat(
   })
 }
 
+export interface ConvertForeverResult {
+  addedCount: number
+  cancelledCount: number
+}
+
+/**
+ * Converts an existing `repeatForever` entry into a normal bounded
+ * recurring series with a fixed count/end date — the reverse direction of
+ * startRinkScheduleEntryRepeat (single -> bounded) — for when a club
+ * decides a standing "donekonečna" block should actually stop after a
+ * known number of occurrences. Unlike startRinkScheduleEntryRepeat, every
+ * live occurrence here already shares one real seriesId (a repeatForever
+ * entry has always had one, just with no BookingSeries doc describing it —
+ * see RinkScheduleEntry.repeatForever's own doc comment), so there's no
+ * booking to re-tag with a new id — only a BookingSeries doc to write
+ * retroactively, using that SAME seriesId as its own Firestore document id
+ * (not a fresh one), so every already-existing booking's own `seriesId`
+ * field already points at it with nothing else needing to change.
+ *
+ * The target date list is computed from the EARLIEST currently-live
+ * occurrence, not the entry's own `date` field — that field is stale the
+ * moment any occurrence is edited/rolled forward (see
+ * fetchRinkScheduleOccurrences' own doc comment), and a repeatForever
+ * entry's rolling window has typically moved well past its original start
+ * date by the time anyone converts it. Any live occurrence beyond the
+ * requested count is cancelled (the series is shrinking); any target date
+ * not yet covered by an existing occurrence is created the same skip-
+ * don't-fail way createBookingSeries/startRinkScheduleEntryRepeat already
+ * use elsewhere in this file (the series is growing). Clearing
+ * `repeatForever` is what actually stops `topUpForeverRinkScheduleEntries`
+ * (functions/src/index.ts, which only ever queries `repeatForever == true`)
+ * from keeping re-extending this series after this call.
+ */
+export async function convertForeverToBounded(
+  entry: RinkScheduleEntry & { id: string },
+  timezone: string,
+  recurrence: SeriesRecurrence
+): Promise<ConvertForeverResult> {
+  if (!entry.repeatForever || !entry.seriesId) throw new Error('This entry is not a repeatForever series')
+  const bookings = await fetchSeriesBookings(entry.seriesId)
+  const live = bookings.filter((b) => b.status !== 'cancelled').sort((a, b) => a.date.localeCompare(b.date))
+  if (live.length === 0) throw new Error('This series has no live occurrences left')
+
+  const targetDates = computeSeriesDates(live[0].date, recurrence)
+  const targetDateSet = new Set(targetDates)
+  const liveDateSet = new Set(live.map((b) => b.date))
+
+  const toCancel = live.filter((b) => !targetDateSet.has(b.date))
+  await Promise.all(toCancel.map((b) => cancelBooking(b.id).catch(() => {})))
+
+  const toCreate = targetDates.filter((d) => !liveDateSet.has(d))
+  let addedCount = 0
+  for (const date of toCreate) {
+    try {
+      await createBooking({
+        clubId: entry.clubId,
+        rinkId: entry.rinkId,
+        zoneId: entry.zoneId,
+        date,
+        startTime: entry.startTime,
+        durationMinutes: entry.durationMinutes,
+        name: entry.teamName,
+        email: live[0].email ?? '',
+        phone: live[0].phone ?? '',
+        timezone,
+        seriesId: entry.seriesId,
+        allowOverlap: true
+      })
+      addedCount++
+    } catch (err) {
+      if (!(err instanceof SlotUnavailableError)) throw err
+    }
+  }
+
+  await setDoc(doc(db, 'bookingSeries', entry.seriesId), {
+    clubId: entry.clubId,
+    rinkId: entry.rinkId,
+    zoneId: entry.zoneId,
+    frequency: recurrence.frequency,
+    dayOfWeek: new Date(`${live[0].date}T00:00:00`).getDay(),
+    startTime: entry.startTime,
+    durationMinutes: entry.durationMinutes,
+    name: entry.teamName,
+    email: live[0].email ?? '',
+    phone: live[0].phone ?? '',
+    cancellationToken: generateToken(),
+    tokenExpiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    createdAt: serverTimestamp()
+  })
+
+  await updateDoc(doc(db, 'rinkScheduleEntries', entry.id), {
+    repeatForever: deleteField(),
+    frequency: recurrence.frequency
+  })
+
+  return { addedCount, cancelledCount: toCancel.length }
+}
+
 export async function fetchRinkScheduleEntries(clubId: string): Promise<(RinkScheduleEntry & { id: string })[]> {
   const snap = await getDocs(query(collection(db, 'rinkScheduleEntries'), where('clubId', '==', clubId)))
   return snap.docs

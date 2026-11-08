@@ -8,7 +8,8 @@ import {
   fetchRinkScheduleEntries,
   fetchRinkScheduleOccurrences,
   startRinkScheduleEntryRepeat,
-  RINK_SCHEDULE_FOREVER_WINDOW
+  RINK_SCHEDULE_FOREVER_WINDOW,
+  CreateRinkScheduleEntryInput
 } from '@/lib/rinkSchedule'
 import { SeriesRecurrence, SERIES_MAX_OCCURRENCES, cancelBooking, isPastAdminVisibilityCutoff } from '@/lib/bookings'
 import { formatDateISO, addDays, localizedName, withRoomPrefix } from '@/lib/utils'
@@ -21,6 +22,8 @@ import { Label } from '@/components/ui/label'
 import BackButton from '@/components/BackButton'
 import RinkScheduleImportPanel from '@/components/RinkScheduleImportPanel'
 import RinkScheduleEditModal from '@/components/RinkScheduleEditModal'
+import RinkScheduleConflictModal, { RinkScheduleConflictItem } from '@/components/RinkScheduleConflictModal'
+import RinkScheduleForeverConversionModal from '@/components/RinkScheduleForeverConversionModal'
 import QrCodeDisplay from '@/components/QrCodeDisplay'
 import RoomPrefixInput from '@/components/RoomPrefixInput'
 
@@ -47,6 +50,15 @@ export default function RinkSchedulePage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ entry: RinkScheduleEntry & { id: string }; occurrence: Booking & { id: string } } | null>(null)
+  // See findConflicts/handleConflictResolve below — set when the create
+  // form's target rink/date/time already matches one or more live
+  // occurrences, pausing the actual createRinkScheduleEntry call until
+  // staff picks how to resolve it.
+  const [pendingConflict, setPendingConflict] = useState<{ conflicts: RinkScheduleConflictItem[]; entryInput: CreateRinkScheduleEntryInput } | null>(null)
+  // The repeatForever entry currently being converted to a bounded series
+  // via RinkScheduleForeverConversionModal (see its own "convert" button
+  // in the entries table below).
+  const [convertingEntry, setConvertingEntry] = useState<(RinkScheduleEntry & { id: string }) | null>(null)
 
   // Quick filters over the entries table below — independent of the
   // create-form's own rinkId/date/startTime state above, so picking a
@@ -139,11 +151,44 @@ export default function RinkSchedulePage() {
     setCount((c) => Math.min(c, SERIES_MAX_OCCURRENCES[next]))
   }
 
+  // Finds every currently-live occurrence sharing the exact same rink/date/
+  // start time as the one about to be created — scanned client-side over
+  // the already-loaded entries/occurrencesByEntry state (kept fresh by
+  // refresh(), called after every create/delete on this page) rather than
+  // a fresh Firestore query, since this is a single-admin-at-a-time tool.
+  // Used by handleSubmit below to decide whether to show
+  // RinkScheduleConflictModal before actually creating anything.
+  const findConflicts = (targetRinkId: string, targetDate: string, targetStartTime: string): RinkScheduleConflictItem[] => {
+    const conflicts: RinkScheduleConflictItem[] = []
+    for (const entry of entries) {
+      for (const occurrence of occurrencesByEntry.get(entry.id) ?? []) {
+        if (occurrence.rinkId === targetRinkId && occurrence.date === targetDate && occurrence.startTime === targetStartTime) {
+          conflicts.push({ entry, occurrence })
+        }
+      }
+    }
+    return conflicts
+  }
+
+  const submitEntry = async (entryInput: CreateRinkScheduleEntryInput) => {
+    setCreating(true)
+    setError(null)
+    try {
+      await createRinkScheduleEntry(entryInput)
+      setTeamName('')
+      setRoom('')
+      setAwayRoom('')
+      refresh()
+    } catch {
+      setError(t('common.error'))
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!club || !user || !staff || !rinkId || !zoneId || !teamName.trim()) return
-    setCreating(true)
-    setError(null)
     const recurrence: SeriesRecurrence | undefined =
       !isInformational && repeat && recurrenceType !== 'forever'
         ? recurrenceType === 'count'
@@ -151,7 +196,7 @@ export default function RinkSchedulePage() {
           : { type: 'until', frequency, endDate: untilDate }
         : undefined
     const repeatForeverFrequency = !isInformational && repeat && recurrenceType === 'forever' ? frequency : undefined
-    const entryInput = {
+    const entryInput: CreateRinkScheduleEntryInput = {
       clubId: club.id,
       rinkId,
       zoneId,
@@ -169,26 +214,42 @@ export default function RinkSchedulePage() {
       repeatForeverFrequency,
       informational: isInformational
     }
-    try {
-      // No overlap/conflict check at all any more — per explicit club
-      // request, staff can stack several standing-schedule entries onto
-      // the same rink/zone/time with zero blocking (see this file's own
-      // top-of-file doc comment and CreateBookingInput.allowOverlap in
-      // lib/bookings.ts). createRinkScheduleEntry always passes
-      // allowOverlap: true under the hood, so it never throws
-      // SlotUnavailableError for this tool any more — a real Booking is
-      // still created either way, it just never excludes another one.
-      await createRinkScheduleEntry(entryInput)
-      setTeamName('')
-      setRoom('')
-      setAwayRoom('')
-      refresh()
-    } catch {
-      setError(t('common.error'))
-    } finally {
-      setCreating(false)
+    // createRinkScheduleEntry itself still never blocks on this (it always
+    // passes allowOverlap: true — see this file's own top-of-file doc
+    // comment and CreateBookingInput.allowOverlap in lib/bookings.ts), so
+    // this proactive check is purely a staff-facing heads-up/choice, not a
+    // hard stop: skipped entirely for an informational entry, which has no
+    // real occurrence to collide with in the first place.
+    if (!isInformational) {
+      const conflicts = findConflicts(rinkId, date, startTime)
+      if (conflicts.length > 0) {
+        setPendingConflict({ conflicts, entryInput })
+        return
+      }
     }
+    await submitEntry(entryInput)
   }
+
+  // Resolves RinkScheduleConflictModal's choice, then (for every choice but
+  // an outright cancel) proceeds to create the originally-pending entry —
+  // see RinkScheduleConflictModal's own doc comment for what each action
+  // means. Cancelling/deleting the conflicting occurrence(s)/entry(ies)
+  // first, before creating, means a 'full'-zone new entry doesn't end up
+  // "conflicting with itself" in some later read of the data.
+  const handleConflictResolve = async (action: 'occurrence' | 'series' | 'skip') => {
+    if (!pendingConflict) return
+    const { conflicts, entryInput } = pendingConflict
+    setPendingConflict(null)
+    if (action === 'occurrence') {
+      await Promise.all(conflicts.map((c) => cancelBooking(c.occurrence.id).catch(() => {})))
+    } else if (action === 'series') {
+      const uniqueEntries = Array.from(new Map(conflicts.map((c) => [c.entry.id, c.entry])).values())
+      await Promise.all(uniqueEntries.map((e) => deleteRinkScheduleEntry(e).catch(() => {})))
+    }
+    await submitEntry(entryInput)
+  }
+
+  const handleConflictCancel = () => setPendingConflict(null)
 
   // d.m.yyyy, built directly from the stored ISO string's own parts — no
   // UTC/local ambiguity for a pure string reformat, same technique
@@ -691,6 +752,17 @@ export default function RinkSchedulePage() {
                                 <Button size="sm" variant="destructive" className={actionBtnClass} disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
                                   {t('rinkSchedule.deleteSeries')}
                                 </Button>
+                                {entry.repeatForever && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className={actionBtnClass}
+                                    disabled={busyId === entry.id}
+                                    onClick={() => setConvertingEntry(entry)}
+                                  >
+                                    {t('rinkSchedule.convertToFixedCount')}
+                                  </Button>
+                                )}
                               </>
                             ) : (
                               <Button size="sm" variant="destructive" className={actionBtnClass} disabled={busyId === entry.id} onClick={() => handleDelete(entry)}>
@@ -720,6 +792,23 @@ export default function RinkSchedulePage() {
           currentAwayRoom={editing.entry.occurrenceAwayRooms?.[editing.occurrence.id] ?? editing.entry.awayRoom}
           isOpen={!!editing}
           onClose={() => setEditing(null)}
+          onSaved={refresh}
+        />
+      )}
+
+      {pendingConflict && (
+        <RinkScheduleConflictModal
+          conflicts={pendingConflict.conflicts}
+          onResolve={handleConflictResolve}
+          onCancel={handleConflictCancel}
+        />
+      )}
+
+      {convertingEntry && club && (
+        <RinkScheduleForeverConversionModal
+          timezone={club.timezone}
+          entry={convertingEntry}
+          onClose={() => setConvertingEntry(null)}
           onSaved={refresh}
         />
       )}

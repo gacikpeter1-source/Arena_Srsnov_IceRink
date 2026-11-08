@@ -516,7 +516,18 @@
     "boardNoneForRink": "Dnes nie je nič naplánované.",
     "alternatingTitle": "Striedavá TV obrazovka (striedačka)",
     "alternatingHint": "Strieda aktuálny rozvrh ľadu s rozpisom voľných ľadov na prenájom — určené pre obrazovku na striedačke (iné miesto ako hlavná TV v chodbách). Rýchlosť striedania zmeníte parametrom v adrese, napr. ?interval=15 (v sekundách, predvolene 10).",
-    "openAlternatingScreen": "Otvoriť striedavú obrazovku"
+    "openAlternatingScreen": "Otvoriť striedavú obrazovku",
+    "conflictTitle": "Termín je už obsadený",
+    "conflictIntro": "V tomto čase už existuje nasledujúca udalosť (udalosti). Čo chcete urobiť?",
+    "conflictReplaceOccurrence": "Nahradiť len tento jeden termín",
+    "conflictReplaceSeries": "Nahradiť natrvalo (zmazať celú sériu/záznam)",
+    "conflictKeepBoth": "Pridať aj tak (ponechať obe)",
+    "conflictCancel": "Zrušiť pridávanie",
+    "convertToFixedCount": "Zmeniť na presný počet",
+    "convertToFixedCountTitle": "Zmeniť „donekonečna“ na presný počet opakovaní",
+    "convertToFixedCountHint": "Táto séria sa doteraz automaticky predlžovala bez konca. Po tejto zmene sa už nebude dopĺňať — zastaví sa po zvolenom počte termínov (alebo do zvoleného dátumu), presne ako bežná opakovaná rezervácia.",
+    "convertToFixedCountSuccess": "Hotovo — pridaných termínov: {{added}}, zrušených termínov: {{cancelled}}.",
+    "convertToFixedCountConfirm": "Zmeniť túto sériu na presný počet opakovaní?"
   },
   "freeIce": {
     "title": "Voľné ľady na prenájom",

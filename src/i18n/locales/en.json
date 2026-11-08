@@ -516,7 +516,18 @@
     "boardNoneForRink": "Nothing scheduled today.",
     "alternatingTitle": "Alternating TV screen (bench)",
     "alternatingHint": "Cycles between the current ice schedule and the free-ice-for-rent listing — meant for a screen at the players' bench (a different spot than the main hallway TV). Change the cycle speed with a URL parameter, e.g. ?interval=15 (seconds, default 10).",
-    "openAlternatingScreen": "Open alternating screen"
+    "openAlternatingScreen": "Open alternating screen",
+    "conflictTitle": "This slot is already taken",
+    "conflictIntro": "The following event(s) already exist at this exact time. What would you like to do?",
+    "conflictReplaceOccurrence": "Replace just this one occurrence",
+    "conflictReplaceSeries": "Replace permanently (delete the whole series/entry)",
+    "conflictKeepBoth": "Add anyway (keep both)",
+    "conflictCancel": "Cancel adding",
+    "convertToFixedCount": "Change to a fixed count",
+    "convertToFixedCountTitle": "Change \"Indefinitely\" to a fixed number of occurrences",
+    "convertToFixedCountHint": "This series has been extending itself automatically with no end. After this change it will stop topping up — it will end after the chosen number of occurrences (or the chosen date), just like a normal recurring reservation.",
+    "convertToFixedCountSuccess": "Done — occurrences added: {{added}}, occurrences cancelled: {{cancelled}}.",
+    "convertToFixedCountConfirm": "Change this series to a fixed number of occurrences?"
   },
   "freeIce": {
     "title": "Free ice for rent",
