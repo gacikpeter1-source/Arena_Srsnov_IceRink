@@ -2958,16 +2958,40 @@ exceptions was asked for, so neither was extended.
 scheduled Cloud Function (`onSchedule`, every 30 minutes — frequent
 enough that a finished occurrence disappears reasonably close to, not
 long after, its grace window) rather than a client-triggered job, since
-"delete once 2 hours old" has no natural event to hang off of. For each
+"delete once old" has no natural event to hang off of. For each
 `RinkScheduleEntry`: a single-occurrence entry (`bookingId` set) is
 deleted together with its one `Booking` once `startAtUtc + durationMinutes
-+ 2h` has passed (or immediately if the booking's already gone some other
-way — nothing left for the entry to point at either way); a recurring
-entry (`seriesId` set) has each of its own occurrences — every real
-`Booking` sharing that `seriesId`, all created up front by
-`createBookingSeries` with no "generate more later" job — aged out
-individually, and the entry doc itself is only deleted once *every*
-occurrence it ever had is gone. `startAtUtc` (stamped on every booking
++ RINK_SCHEDULE_CLEANUP_DELAY_HOURS` has passed (or immediately if the
+booking's already gone some other way — nothing left for the entry to
+point at either way); a recurring entry (`seriesId` set) has each of its
+own occurrences — every real `Booking` sharing that `seriesId`, all
+created up front by `createBookingSeries` with no "generate more later"
+job — aged out individually, and the entry doc itself is only deleted
+once *every* occurrence it ever had is gone.
+
+**Follow-up: the delay was originally a much more aggressive 2 hours
+("nepotrebuje tieto dáta") — now it's `DATA_RETENTION_DAYS * 24` (60
+days), the same window `cleanupOldBookings`/`cleanupOldFreeIceSlots`
+already use.** The 2-hour number was purely a database-hygiene choice,
+never a UI one — `RinkSchedulePage.tsx`'s own admin list already hides
+anything past `ADMIN_VISIBILITY_CUTOFF_HOURS` (1 hour, display-only, see
+the "Booking data retention" section below) regardless of whether the
+underlying doc still physically exists, so 2 hours vs. 60 days was never
+visible to staff either way. It WAS a real, previously-unnoticed problem
+for `sendMonthlyRinkUtilizationReport` (also below): that report only
+runs on the 1st of the following month, by which point a booking deleted
+after just 2 hours had already been gone for weeks — every one-off or
+bounded (non-`repeatForever`) rink-schedule entry was silently invisible
+to the monthly report the whole time, undercounting real ice usage.
+Reusing `DATA_RETENTION_DAYS` closes that gap — a rink-schedule booking
+now survives exactly as long as every other kind already did, long
+enough for the very next monthly report to see it, same safety margin
+that constant's own doc comment already explains. A `repeatForever`
+entry's own exclusion from this job's entry-doc-deletion logic is
+unaffected by this change and unrelated to the delay value itself — see
+that `continue` branch's own comment for why it has to stay excluded
+regardless (its occurrences are never all simultaneously gone, since
+`topUpForeverRinkScheduleEntries` keeps extending the series forever). `startAtUtc` (stamped on every booking
 since the cancellation-cutoff feature made it required) is what lets this
 job compute a real end instant without needing the club's `timezone` —
 same reason `firestore.rules`' own cutoff check doesn't need it either. A
@@ -4427,9 +4451,11 @@ deletes a `Booking` doc once it's `BOOKING_RETENTION_DAYS` (60) past its
 own end time, reusing the same `bookingEndMillis` helper
 `cleanupFinishedRinkScheduleEntries` already defined. This is deliberately
 broader than that existing job (which only ever touches
-`RinkScheduleEntry`-sourced bookings, and only after 2 hours) — a direct
-customer `/book` reservation or a tournament match's `blocksIce` booking
-had no cleanup at all before this and accumulated forever. Safe to delete
+`RinkScheduleEntry`-sourced bookings — now the same 60-day delay too, see
+that job's own "Follow-up" note above; originally a much more aggressive
+2 hours) — a direct customer `/book` reservation or a tournament match's
+`blocksIce` booking had no cleanup at all before this and accumulated
+forever. Safe to delete
 broadly because neither of those two other domains' own historical record
 depends on the Booking doc surviving: `TournamentMatch` carries its own
 `teamA`/`teamB`/score directly, so group standings/brackets are

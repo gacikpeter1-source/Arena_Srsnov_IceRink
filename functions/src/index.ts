@@ -248,12 +248,27 @@ export const startCognitiveSession = onCall(async (request) => {
 // "Rink team schedule" > "Fáza 3: cleanup" note) — an explicit, scoped
 // exception to this app's usual soft-cancel/keep-history stance: a club
 // operator asked for old rink-schedule occurrences to be hard-deleted
-// once they're a couple hours old ("nepotrebuje tieto dáta"), unlike ice
-// bookings made directly by a customer, training sessions, or tournament
-// matches, none of which this job touches. Runs every 30 minutes so a
-// finished occurrence disappears reasonably close to, not long after, the
-// grace window below.
-const RINK_SCHEDULE_CLEANUP_DELAY_HOURS = 2;
+// once they're old, unlike ice bookings made directly by a customer,
+// training sessions, or tournament matches, none of which this job
+// touches. Runs every 30 minutes so a finished occurrence disappears
+// reasonably close to, not long after, the grace window below.
+//
+// This delay used to be a much more aggressive 2 hours ("nepotrebuje
+// tieto dáta") — but that was purely a database-hygiene number, not a UI
+// one: the admin list (RinkSchedulePage.tsx) already hides anything past
+// ADMIN_VISIBILITY_CUTOFF_HOURS (1 hour, display-only — see
+// isPastAdminVisibilityCutoff in src/lib/bookings.ts) regardless of
+// whether the underlying doc still physically exists, so 2 hours vs. 60
+// days was never visible to staff either way. It WAS visible to
+// sendMonthlyRinkUtilizationReport below, though: that report only runs
+// on the 1st of the following month, by which point a booking deleted
+// after just 2 hours had already been gone for weeks — every one-off or
+// bounded (non-"donekonečna") rink-schedule entry was silently invisible
+// to the monthly report, undercounting real ice usage. Reusing
+// DATA_RETENTION_DAYS (shared with cleanupOldBookings/
+// cleanupOldFreeIceSlots below) closes that gap for free.
+const DATA_RETENTION_DAYS = 60; // see cleanupOldBookings's own doc comment further below for the full shared rationale
+const RINK_SCHEDULE_CLEANUP_DELAY_HOURS = DATA_RETENTION_DAYS * 24;
 const CLEANUP_BATCH_LIMIT = 400; // Firestore batches cap at 500 writes.
 
 function bookingEndMillis(booking: Record<string, unknown>): number | null {
@@ -289,15 +304,16 @@ export const cleanupFinishedRinkScheduleEntries = onSchedule("every 30 minutes",
     const entry = entryDoc.data();
 
     // A repeatForever entry (see RinkScheduleEntry's own doc comment in
-    // src/types/index.ts) is deliberately NOT covered by this 2-hour
-    // delete — topUpForeverRinkScheduleEntries below keeps creating new
-    // occurrences indefinitely, so "every occurrence gone" never
+    // src/types/index.ts) is deliberately NOT covered by this entry-doc
+    // deletion path — topUpForeverRinkScheduleEntries below keeps creating
+    // new occurrences indefinitely, so "every occurrence gone" never
     // naturally happens here, and the entry doc should never be deleted
     // except by an explicit "Zmazať celú sériu". Its old occurrence
-    // Bookings still get cleaned up eventually, just by the much longer
-    // 60-day cleanupOldBookings job instead (matching what staff were
-    // actually told to expect for this mode: data stays ~2 months, not
-    // 2 hours).
+    // Bookings still get cleaned up individually, just by the general
+    // cleanupOldBookings job below (same DATA_RETENTION_DAYS window as
+    // everything else now) rather than this job's own "all occurrences
+    // gone" batch logic, which would never fire for an entry that's
+    // perpetually topped back up.
     if (entry.repeatForever === true) continue;
 
     if (typeof entry.bookingId === "string") {
@@ -714,15 +730,15 @@ export const topUpForeverRinkScheduleEntries = onSchedule("every 24 hours", asyn
 
 // Permanently deletes any Booking doc — regardless of which domain created
 // it (a direct customer /book reservation, a rink-schedule-tool entry, or a
-// tournament match's blocksIce reservation) — once it's this many days past
-// its own end time. A rink-schedule-sourced booking is normally already long
-// gone well before this (cleanupFinishedRinkScheduleEntries above deletes
-// those within RINK_SCHEDULE_CLEANUP_DELAY_HOURS — except a repeatForever
-// entry's occurrences, deliberately excluded from that job so they get this
-// job's much longer 2-month-ish window instead, see that job's own skip
-// comment), so in practice this job mostly catches direct customer bookings
-// and tournament blocksIce bookings, neither of which had ANY cleanup before
-// this — they accumulated forever.
+// tournament match's blocksIce reservation) — once it's DATA_RETENTION_DAYS
+// (defined above, now shared with cleanupFinishedRinkScheduleEntries' own
+// hard-delete delay too — see that job's own doc comment for why) past its
+// own end time. A rink-schedule-sourced booking is usually already deleted
+// by that other job's own sweep by the time this one would reach it, which
+// is fine — this job already tolerates a missing doc. In practice this job
+// mostly catches direct customer bookings and tournament blocksIce
+// bookings, neither of which had ANY cleanup before this — they
+// accumulated forever.
 // 60 days is deliberately generous: it's what gives
 // sendMonthlyRinkUtilizationReport below a safe margin to still find last
 // month's data even if that job runs a few days late, while still bounding
@@ -737,7 +753,6 @@ export const topUpForeverRinkScheduleEntries = onSchedule("every 24 hours", asyn
 // accepts for that field. Shared with cleanupOldFreeIceSlots below — both
 // collections get the same 60-day window for the same reason (a safe
 // margin for the monthly report).
-const DATA_RETENTION_DAYS = 60;
 
 export const cleanupOldBookings = onSchedule("every 24 hours", async () => {
   const db = getFirestore();
