@@ -4595,6 +4595,29 @@ the moment "Export" is clicked. Fixed with a plain `latestRequestRef`
 callback checks against before touching state — a response for a request
 that's no longer the latest one is simply dropped.
 
+**"Zrušiť celú sériu" added next to the plain "Zrušiť" button, for a
+series-linked booking.** `AdminDashboardPage.tsx`'s bookings table only
+ever had the one `handleCancel` action (`cancelBooking`, one row at a
+time) — if the clicked row had a `seriesId` (a customer's own recurring
+booking, or one created through `RinkSchedulePage.tsx`'s tool), there was
+no way from this table to cancel the whole series at once; staff had to
+either cancel every occurrence one row at a time here, or go find the
+equivalent entry on `/admin/rozvrh` instead. A second, separate button
+(not a change to the existing one — an explicit, deliberately safer
+choice over overloading the single "Zrušiť" button, since this table
+also lists plain customer bookings whose series staff shouldn't
+accidentally wipe with one click meant for just that day) now shows
+next to it whenever `b.seriesId` is set, calling a new
+`cancelBookingSeriesAsStaff` (`lib/bookings.ts`). This is a staff-exempt
+sibling of the existing `cancelBookingSeries` (used by the customer
+self-service `/my-series` page) — it skips that function's
+`isPastCancellationCutoff` check entirely, same "staff are exempt from
+the public cutoff" stance `cancelBooking` itself and
+`deleteRinkScheduleEntry`'s own cancel-every-occurrence loop
+(`lib/rinkSchedule.ts`) already take, rather than reusing
+`cancelBookingSeries` as-is and accidentally blocking staff from
+cancelling a near-term occurrence the same way a customer would be.
+
 ## Product direction: this app is the integration hub
 Superseded the original plan below — THIS app (not Arena-Srsnov) is now 
 the core of the final product. `/` is a branded hub home screen (club 

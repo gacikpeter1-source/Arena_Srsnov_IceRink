@@ -546,6 +546,33 @@ export async function cancelBookingSeries(
 }
 
 /**
+ * Same idea as cancelBookingSeries above, but for staff cancelling from
+ * AdminDashboardPage.tsx's bookings table — staff are exempt from the
+ * public CANCELLATION_CUTOFF_HOURS window (same "staff are exempt" stance
+ * cancelBooking itself already takes, and the same reasoning
+ * deleteRinkScheduleEntry's own cancel-every-occurrence loop in
+ * lib/rinkSchedule.ts already relies on), so this never checks
+ * isPastCancellationCutoff at all — every still-confirmed occurrence gets
+ * cancelled regardless of how close it is to starting.
+ */
+export async function cancelBookingSeriesAsStaff(
+  seriesId: string
+): Promise<{ cancelled: number; alreadyCancelled: number }> {
+  const occurrences = await fetchSeriesBookings(seriesId)
+  let cancelled = 0
+  let alreadyCancelled = 0
+  for (const occurrence of occurrences) {
+    if (occurrence.status === 'cancelled') {
+      alreadyCancelled++
+      continue
+    }
+    await cancelBooking(occurrence.id)
+    cancelled++
+  }
+  return { cancelled, alreadyCancelled }
+}
+
+/**
  * Admin-only: fixes up who a booking is for, without touching its zone,
  * date/time, or status. Requires the isStaff Firestore rule.
  */

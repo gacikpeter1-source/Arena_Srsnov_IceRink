@@ -209,6 +209,7 @@
     "selectRink": "Select a rink",
     "selectZone": "Select a zone",
     "confirmCancel": "Cancel this reservation?",
+    "confirmCancelSeries": "Cancel every occurrence in this series? This can't be undone.",
     "noBookingsInRange": "No reservations in this date range.",
     "exportExcel": "Export to Excel",
     "importExcel": "Import from Excel",

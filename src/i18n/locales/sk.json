@@ -209,6 +209,7 @@
     "selectRink": "Vyberte ľadovú plochu",
     "selectZone": "Vyberte zónu",
     "confirmCancel": "Zrušiť túto rezerváciu?",
+    "confirmCancelSeries": "Zrušiť všetky termíny v tejto sérii? Táto akcia sa nedá vrátiť späť.",
     "noBookingsInRange": "V tomto období nie sú žiadne rezervácie.",
     "exportExcel": "Exportovať do Excelu",
     "importExcel": "Importovať z Excelu",

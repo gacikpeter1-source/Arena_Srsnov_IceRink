@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClubData } from '@/hooks/useClubData'
-import { cancelBooking, fetchBookingsInRange, createBooking, SlotUnavailableError } from '@/lib/bookings'
+import { cancelBooking, cancelBookingSeriesAsStaff, fetchBookingsInRange, createBooking, SlotUnavailableError } from '@/lib/bookings'
 import { downloadImportTemplate, exportBookingsToExcel, parseBookingsWorkbook } from '@/lib/excel'
 import { addDays, formatDateISO, localizedName } from '@/lib/utils'
 import { Booking } from '@/types'
@@ -132,6 +132,22 @@ export default function AdminDashboardPage() {
       refreshBookings()
     } catch (err) {
       console.error('Error cancelling booking:', err)
+      alert(t('common.error'))
+    }
+  }
+
+  // Cancels every occurrence sharing this booking's seriesId, not just the
+  // one row clicked — staff are exempt from the public cancellation cutoff
+  // here too (cancelBookingSeriesAsStaff), same as the plain single-booking
+  // Cancel button above.
+  const handleCancelSeries = async (booking: Booking & { id: string }) => {
+    if (!booking.seriesId) return
+    if (!confirm(t('admin.confirmCancelSeries'))) return
+    try {
+      await cancelBookingSeriesAsStaff(booking.seriesId)
+      refreshBookings()
+    } catch (err) {
+      console.error('Error cancelling series:', err)
       alert(t('common.error'))
     }
   }
@@ -403,6 +419,11 @@ export default function AdminDashboardPage() {
                           {b.status === 'confirmed' && (
                             <Button size="sm" variant="destructive" onClick={() => handleCancel(b)}>
                               {t('common.cancel')}
+                            </Button>
+                          )}
+                          {b.status === 'confirmed' && b.seriesId && (
+                            <Button size="sm" variant="destructive" onClick={() => handleCancelSeries(b)}>
+                              {t('admin.cancelSeries')}
                             </Button>
                           )}
                         </div>
