@@ -33,8 +33,17 @@ export interface BoardItem {
  * schedule data without duplicating the fetch/poll/compute logic. Owns its
  * own polling (same `today`-recomputed-per-poll fix documented where this
  * logic originally lived) and a 30s clock tick for live/finished state.
+ *
+ * `previewDate` (optional, `yyyy-mm-dd`) lets a caller load a day other than
+ * today — RinkScheduleBoardPage's `?date=` param uses this so staff can
+ * check tomorrow's (or any future day's) board before it's actually live,
+ * without waiting for midnight. When set to anything other than the real
+ * current date, every item is forced to the 'upcoming' tier (see `nowMin`
+ * below) — there's no real "now" on a day that isn't today, so nothing
+ * should render as live/next just because its start-of-day minute happens
+ * to numerically match the real clock.
  */
-export function useRinkScheduleBoardData(lang: string) {
+export function useRinkScheduleBoardData(lang: string, previewDate?: string) {
   const { club, rinks, zones } = useClubData()
   const [bookings, setBookings] = useState<(Booking & { id: string })[]>([])
   const [entries, setEntries] = useState<(RinkScheduleEntry & { id: string })[]>([])
@@ -47,20 +56,21 @@ export function useRinkScheduleBoardData(lang: string) {
   // `refresh` deliberately recomputes "today" from a fresh `new Date()` on
   // every call, rather than closing over a `today` computed once at the
   // effect's own setup — see RinkScheduleBoardPage's original history for
-  // the midnight bug this avoids.
+  // the midnight bug this avoids. A `previewDate` overrides which day is
+  // actually fetched, independent of that fix.
   useEffect(() => {
     if (!club) return
     const refresh = async () => {
-      const today = formatDateISO(new Date())
+      const day = previewDate ?? formatDateISO(new Date())
       const [b, e, tournaments] = await Promise.all([
-        fetchBookingsInRange(club.id, today, today),
+        fetchBookingsInRange(club.id, day, day),
         fetchRinkScheduleEntries(club.id),
         fetchTournaments(club.id)
       ])
       const matchLists = await Promise.all(tournaments.map((tr) => fetchTournamentMatches(tr.id)))
       setBookings(b)
       setEntries(e)
-      setMatches(matchLists.flat().filter((m) => m.date === today && m.location === 'rink'))
+      setMatches(matchLists.flat().filter((m) => m.date === day && m.location === 'rink'))
     }
     refresh().finally(() => setLoading(false))
     const interval = setInterval(refresh, POLL_MS)
@@ -72,14 +82,15 @@ export function useRinkScheduleBoardData(lang: string) {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [club])
+  }, [club, previewDate])
 
   useEffect(() => {
     const clock = setInterval(() => setNow(new Date()), CLOCK_TICK_MS)
     return () => clearInterval(clock)
   }, [])
 
-  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const isPreviewingOtherDay = !!previewDate && previewDate !== formatDateISO(new Date())
+  const nowMin = isPreviewingOtherDay ? -1 : now.getHours() * 60 + now.getMinutes()
 
   const zoneName = (zoneId: string) => {
     const zone = zones.find((z) => z.id === zoneId)
@@ -156,5 +167,5 @@ export function useRinkScheduleBoardData(lang: string) {
   })
   itemsByRink.forEach((items) => items.sort((a, b) => a.startMin - b.startMin))
 
-  return { club, zones, loading, now, nowMin, activeRinks, itemsByRink }
+  return { club, zones, loading, now, nowMin, activeRinks, itemsByRink, isPreviewingOtherDay }
 }

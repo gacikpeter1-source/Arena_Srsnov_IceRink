@@ -29,10 +29,14 @@ export default function RinkScheduleBoardPage() {
   const { staff } = useAuth()
   const [searchParams] = useSearchParams()
   const isTvMode = searchParams.get('display') === 'tv'
+  const previewDate = searchParams.get('date') || undefined
   const canManage = staff?.isTrainer || staff?.role === 'assistant' || staff?.role === 'owner' || staff?.role === 'superadmin'
   const backFallback = canManage ? '/admin/rozvrh' : '/'
 
-  const { club, loading, now, nowMin, activeRinks, itemsByRink } = useRinkScheduleBoardData(i18n.language)
+  const { club, loading, now, nowMin, activeRinks, itemsByRink, isPreviewingOtherDay } = useRinkScheduleBoardData(
+    i18n.language,
+    previewDate
+  )
 
   // "Piatok 30.09.2026 09:45" — a fixed, language-independent format for the
   // TV header clock (this is a physical display, not something a viewer
@@ -44,17 +48,31 @@ export default function RinkScheduleBoardPage() {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${BOARD_DAY_NAMES[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
+  // Preview mode has no real "now" to show a clock for — the previewed
+  // date's own day name + date stand in for it instead, built from the
+  // `yyyy-mm-dd` string's own parts (not `new Date(previewDate)`) so this
+  // never risks a UTC/local day-boundary shift, same reasoning formatDateISO
+  // itself documents.
+  function formatPreviewDate(iso: string): string {
+    const [y, m, d] = iso.split('-').map(Number)
+    return `${BOARD_DAY_NAMES[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, '0')}.${String(m).padStart(2, '0')}.${y}`
+  }
 
   if (isTvMode) {
     return (
       <div className="h-full w-full bg-background-dark flex flex-col p-3 gap-2 text-white">
+        {isPreviewingOtherDay && previewDate && (
+          <div className="shrink-0 rounded-lg border border-status-warning bg-status-warning/15 px-3 py-1 text-center text-status-warning text-sm sm:text-base font-bold">
+            {t('rinkSchedule.previewBadge', { date: formatPreviewDate(previewDate) })}
+          </div>
+        )}
         <div className="shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-border bg-background-card px-4" style={{ height: '6vh' }}>
           <Link
             to="/rozvrh"
             replace
             className="justify-self-start mono text-text-secondary text-sm sm:text-lg whitespace-nowrap hover:text-primary"
           >
-            {formatBoardClock(now)}
+            {isPreviewingOtherDay && previewDate ? formatPreviewDate(previewDate) : formatBoardClock(now)}
           </Link>
           <h1 className="justify-self-center min-w-0 text-[clamp(1.1rem,3.2vw,3rem)] font-bold text-primary text-center truncate">
             {club?.name ?? t('rinkSchedule.title')}

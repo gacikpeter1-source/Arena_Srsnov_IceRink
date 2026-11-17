@@ -69,6 +69,11 @@ export default function RinkSchedulePage() {
   const [filterName, setFilterName] = useState('')
   const hasActiveFilter = !!(filterRinkId || filterDate || filterTime || filterName)
 
+  // Defaults to tomorrow — the most common use case ("did I plan tomorrow
+  // correctly?") — but staff can pick any date. Purely a read-only query
+  // param passed to the TV screen; nothing here writes anything.
+  const [previewDate, setPreviewDate] = useState(formatDateISO(addDays(new Date(), 1)))
+
   const [rinkId, setRinkId] = useState('')
   const [zoneId, setZoneId] = useState('')
   const [teamName, setTeamName] = useState('')
@@ -407,6 +412,27 @@ export default function RinkSchedulePage() {
             <div className="mt-2 rounded-md border border-border bg-background-dark px-3 py-2">
               <p className="text-text-muted text-xs">{t('rinkSchedule.tvShortcutHint')}</p>
               <p className="mono text-primary text-xl font-bold">{window.location.origin}/tv</p>
+            </div>
+            <div className="mt-2 rounded-md border border-border bg-background-dark px-3 py-2 space-y-2">
+              <p className="text-white text-sm font-medium">{t('rinkSchedule.previewTitle')}</p>
+              <p className="text-text-muted text-xs">{t('rinkSchedule.previewHint')}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="date"
+                  value={previewDate}
+                  onChange={(e) => setPreviewDate(e.target.value)}
+                  className="w-auto"
+                />
+                <Link
+                  to={`/rozvrh?display=tv&date=${previewDate}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button type="button" size="sm" variant="secondary">
+                    {t('rinkSchedule.previewOpen')}
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </CardContent>

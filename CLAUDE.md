@@ -4111,6 +4111,36 @@ composer. Shown/hidden under the exact same condition as the SMS button
 shows only the "not set up" fallback message, no dangling Call button
 with nothing to call.
 
+**Staff can preview the `/rozvrh?display=tv` board for a day other than
+today, read-only.** A club wanted to verify tomorrow's (or any future
+day's) board looks correct — every event scheduled, nothing missing —
+without waiting for that day to actually arrive. `useRinkScheduleBoardData`
+(`src/hooks/useRinkScheduleBoardData.ts`) gained an optional second
+`previewDate` (`yyyy-mm-dd`) parameter: when set, it fetches that date's
+bookings/matches instead of the real today's, and forces `nowMin` to `-1`
+whenever the previewed date isn't the real current date — nothing should
+render in the live/next (green/red) tiers on a day that isn't actually
+happening right now, so a preview always shows every item in the plain
+"later" (yellow) tier regardless of what the real wall-clock time
+numerically is. `RinkScheduleBoardPage.tsx` reads this from a `?date=`
+query param (alongside the existing `?display=tv`) — same "one route,
+query params pick the case" pattern already used throughout this app —
+and swaps the TV header's live clock for the previewed date's own day
+name + date, plus a small "NÁHĽAD — <date>" banner so a screenshot or a
+passer-by glancing at the screen can't mistake a preview for the real
+live board. `RinkScheduleAlternatingBoardPage.tsx` (which shares the same
+hook) doesn't pass this param at all, so it's completely unaffected —
+preview is scoped to the plain hallway board only, not the striedačka
+cycling screen.
+
+Reachable from `/admin/rozvrh` (`RinkSchedulePage.tsx`) via a small date
+picker + "Otvoriť náhľad" button in the existing TV-screen card, defaulting
+to tomorrow (the most common case) but open to any date — opens the
+preview in a new tab via a plain link, nothing is written anywhere. Purely
+a read-side query param change — no new Firestore field, no rules change,
+and no risk to the live board even if visited directly, since it only
+ever changes which already-public day's data loads.
+
 ## Cognitive training ("Kognitívny tréning")
 
 A fourth, independent planning domain (alongside Training Reservations,
