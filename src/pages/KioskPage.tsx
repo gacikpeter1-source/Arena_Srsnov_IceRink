@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Ticket, ShoppingCart, ChevronLeft, CreditCard, Printer, Mail, CheckCircle2, Minus, Plus, X } from 'lucide-react'
+import { Ticket, ShoppingCart, ChevronLeft, CreditCard, Printer, Mail, QrCode, CheckCircle2, Minus, Plus, X } from 'lucide-react'
 import { useClubData } from '@/hooks/useClubData'
 import {
   createKioskCheckoutSession,
@@ -13,7 +13,7 @@ import { generateQrDataUrl } from '@/lib/qrcode'
 import { KioskOrder, KioskOrderLine, KioskProduct } from '@/types'
 
 type Screen = 'select' | 'detail' | 'order' | 'redirecting' | 'confirming' | 'timedOut' | 'success'
-type Delivery = 'choice' | 'email-form' | 'email-sent' | 'printed' | null
+type Delivery = 'choice' | 'email-form' | 'email-sent' | 'printed' | 'shown' | null
 
 interface CartLine extends KioskOrderLine {
   id: string
@@ -195,6 +195,17 @@ export default function KioskPage() {
       window.print()
       setDelivery('printed')
     })
+  }
+
+  // No printer/e-mail needed at all — just show the QR large enough on the
+  // kiosk's own screen for the customer to photograph with their phone
+  // before walking to the entrance.
+  const handleShowQr = async () => {
+    if (!order) return
+    const url = `${window.location.origin}/kiosk/vstup/${order.id}/${order.cancellationToken}`
+    const qr = await generateQrDataUrl(url)
+    setPrintQr(qr)
+    setDelivery('shown')
   }
 
   const handleSendEmail = async () => {
@@ -479,6 +490,14 @@ export default function KioskPage() {
                   <Mail className="h-6 w-6 text-primary" />
                   <span className="font-bold text-sm">Poslať e-mailom</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={handleShowQr}
+                  className="flex flex-col items-center gap-2 w-28 sm:w-36 rounded-2xl border-2 border-border bg-background-card py-4 sm:py-5 px-3"
+                >
+                  <QrCode className="h-6 w-6 text-primary" />
+                  <span className="font-bold text-sm">Zobraziť QR</span>
+                </button>
               </div>
             </>
           )}
@@ -514,6 +533,13 @@ export default function KioskPage() {
             <div className="flex items-center gap-4 bg-background-card border border-border rounded-2xl px-6 py-4 max-w-sm">
               <Printer className="h-10 w-10 text-primary shrink-0" />
               <p className="text-sm text-left">Váš lístok sa tlačí — odtrhnite si ho a naskenujte pri vstupe.</p>
+            </div>
+          )}
+
+          {delivery === 'shown' && printQr && (
+            <div className="flex flex-col items-center gap-3 bg-background-card border border-border rounded-2xl px-6 py-5">
+              <img src={printQr} alt="QR kód vstupenky" className="w-56 h-56 sm:w-64 sm:h-64 rounded-lg bg-white p-2" />
+              <p className="text-sm text-text-secondary">Odfoťte si tento QR kód a naskenujte ho pri vstupe.</p>
             </div>
           )}
 
