@@ -462,6 +462,96 @@ export const sendKioskOrderEmail = onCall(async (request) => {
   return { ok: true };
 });
 
+interface CreateKioskTerminalConnectionTokenInput {
+  clubId: string;
+}
+
+/**
+ * A Stripe Terminal connection token, scoped to the club's connected
+ * account — the native Android kiosk-wrapper app (see hardware/android-
+ * kiosk-wrapper's own README, which doesn't exist in this web project;
+ * the wrapper app is a separate native project) calls this once per
+ * Terminal SDK session to authenticate itself with Stripe before it can
+ * discover/connect to the WisePad 3 reader. Public/no-auth, same trust
+ * level as every other callable in this file — a connection token alone
+ * can't charge anything on its own, it only lets the SDK talk to Stripe at
+ * all.
+ */
+export const createKioskTerminalConnectionToken = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  const { clubId } = (request.data ?? {}) as Partial<CreateKioskTerminalConnectionTokenInput>;
+  if (!clubId) {
+    throw new HttpsError("invalid-argument", "Missing clubId.");
+  }
+
+  const db = getFirestore();
+  const clubSnap = await db.doc(`clubs/${clubId}`).get();
+  const club = clubSnap.data() as { stripeAccountId?: string } | undefined;
+  if (!club?.stripeAccountId) {
+    throw new HttpsError("failed-precondition", "This club has no connected Stripe account.");
+  }
+
+  const stripe = new Stripe(stripeSecretKey.value());
+  const connectionToken = await stripe.terminal.connectionTokens.create({}, { stripeAccount: club.stripeAccountId });
+  return { secret: connectionToken.secret };
+});
+
+interface CreateKioskTerminalPaymentIntentInput {
+  clubId: string;
+  orderId: string;
+}
+
+/**
+ * A card-present PaymentIntent for one already-created, still-pending
+ * KioskOrder — the native wrapper app's counterpart to
+ * createKioskCheckoutSession above, used when the kiosk is driven by the
+ * physical WisePad 3 reader instead of redirecting to a hosted Checkout
+ * page. The wrapper app passes the returned `clientSecret` straight into
+ * the Terminal SDK's own collectPaymentMethod/confirmPaymentIntent calls;
+ * this function never talks to the reader itself, it only ever decides
+ * the amount (read from the order, never trusted from the caller).
+ */
+export const createKioskTerminalPaymentIntent = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  const { clubId, orderId } = (request.data ?? {}) as Partial<CreateKioskTerminalPaymentIntentInput>;
+  if (!clubId || !orderId) {
+    throw new HttpsError("invalid-argument", "Missing clubId/orderId.");
+  }
+
+  const db = getFirestore();
+  const clubSnap = await db.doc(`clubs/${clubId}`).get();
+  const club = clubSnap.data() as { stripeAccountId?: string; paymentsEnabled?: boolean } | undefined;
+  if (!club?.stripeAccountId) {
+    throw new HttpsError("failed-precondition", "This club has no connected Stripe account.");
+  }
+  if (!club.paymentsEnabled) {
+    throw new HttpsError("failed-precondition", "Payments are not enabled for this club.");
+  }
+
+  const orderRef = db.doc(`kioskOrders/${orderId}`);
+  const orderSnap = await orderRef.get();
+  const order = orderSnap.data() as { clubId?: string; status?: string; totalAmount?: number } | undefined;
+  if (!order || order.clubId !== clubId) {
+    throw new HttpsError("not-found", "Order not found.");
+  }
+  if (order.status !== "pending" || !order.totalAmount) {
+    throw new HttpsError("failed-precondition", "This order has no pending payment to collect.");
+  }
+
+  const stripe = new Stripe(stripeSecretKey.value());
+  const paymentIntent = await stripe.paymentIntents.create(
+    {
+      amount: Math.round(order.totalAmount * 100),
+      currency: "eur",
+      payment_method_types: ["card_present"],
+      capture_method: "automatic",
+      metadata: { clubId, kind: "kiosk-terminal", orderId }
+    },
+    { stripeAccount: club.stripeAccountId }
+  );
+
+  await orderRef.update({ paymentIntentId: paymentIntent.id });
+  return { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
+});
+
 interface CreateTicketCheckoutSessionInput {
   clubId: string;
   kind: RegistrationKind;
@@ -688,6 +778,45 @@ export const stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhoo
   } catch (err) {
     logger.error("Stripe webhook signature verification failed", err);
     res.status(400).send("Webhook signature verification failed");
+    return;
+  }
+
+  // Card-present kiosk payments (the native WisePad-3 wrapper app, via
+  // createKioskTerminalPaymentIntent above) confirm through a PaymentIntent
+  // directly, never a Checkout Session, so they arrive as their own event
+  // type — handled separately from the Checkout-based flows below, which
+  // never produce a payment_intent.succeeded event carrying this metadata
+  // shape. The live webhook listens to a broad set of event types (see
+  // CLAUDE.md), so payment_intent.succeeded is almost certainly already
+  // selected on the Stripe Dashboard side; if it isn't, this branch simply
+  // never fires and the order sits 'pending' — check the dashboard's event
+  // selection if a Terminal payment doesn't mark an order paid.
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const metadata = paymentIntent.metadata ?? {};
+    if (metadata.kind !== "kiosk-terminal") {
+      // Not a kiosk Terminal payment — nothing else in this app currently
+      // needs this event type.
+      res.status(200).send("ignored");
+      return;
+    }
+    const { clubId, orderId } = metadata;
+    if (!clubId || !orderId) {
+      logger.warn("Stripe webhook: kiosk-terminal payment_intent missing expected metadata", { paymentIntentId: paymentIntent.id });
+      res.status(200).send("missing metadata");
+      return;
+    }
+    const db = getFirestore();
+    const orderRef = db.doc(`kioskOrders/${orderId}`);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(orderRef);
+      if (!snap.exists) return;
+      const order = snap.data() as { status?: string };
+      // Idempotency: Stripe can (and does) redeliver the same event.
+      if (order.status === "paid") return;
+      tx.update(orderRef, { status: "paid", paidAt: Timestamp.now(), paymentIntentId: paymentIntent.id });
+    });
+    res.status(200).send("ok");
     return;
   }
 

@@ -22,7 +22,9 @@ export {
   stripeWebhook,
   sendTrainingConfirmationEmail,
   createKioskCheckoutSession,
-  sendKioskOrderEmail
+  sendKioskOrderEmail,
+  createKioskTerminalConnectionToken,
+  createKioskTerminalPaymentIntent
 } from "./payments";
 export { gateStatus, gateScanCheckIn } from "./gate";
 
