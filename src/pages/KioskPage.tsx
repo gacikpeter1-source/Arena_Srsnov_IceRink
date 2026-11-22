@@ -230,13 +230,7 @@ export default function KioskPage() {
       {/* Top bar — no nav, no back, no menu: nothing to tap your way out with. */}
       <div className="shrink-0 h-14 flex items-center justify-between gap-3 px-4 sm:px-5 border-b border-border">
         <div className="flex items-center gap-2.5 min-w-0">
-          {club?.logoUrl ? (
-            <img src={club.logoUrl} alt="" className="h-7 w-7 rounded-md object-cover shrink-0" />
-          ) : (
-            <div className="h-7 w-7 shrink-0 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
-              {club?.name?.slice(0, 2).toUpperCase() ?? 'AS'}
-            </div>
-          )}
+          <img src="/icon-192.png" alt="" className="h-7 w-7 rounded-md shrink-0" />
           <span className="font-bold text-sm sm:text-base truncate">{club?.name ?? 'Pokladňa'}</span>
         </div>
         <span className="shrink-0 text-xs text-text-muted mono">kiosk režim</span>
