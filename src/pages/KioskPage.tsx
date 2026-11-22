@@ -228,24 +228,29 @@ export default function KioskPage() {
   return (
     <div className="h-screen w-screen overflow-hidden bg-background-dark text-white flex flex-col print:hidden">
       {/* Top bar — no nav, no back, no menu: nothing to tap your way out with. */}
-      <div className="shrink-0 h-14 flex items-center justify-between px-5 border-b border-border">
-        <div className="flex items-center gap-2.5">
+      <div className="shrink-0 h-14 flex items-center justify-between gap-3 px-4 sm:px-5 border-b border-border">
+        <div className="flex items-center gap-2.5 min-w-0">
           {club?.logoUrl ? (
-            <img src={club.logoUrl} alt="" className="h-7 w-7 rounded-md object-cover" />
+            <img src={club.logoUrl} alt="" className="h-7 w-7 rounded-md object-cover shrink-0" />
           ) : (
-            <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
+            <div className="h-7 w-7 shrink-0 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
               {club?.name?.slice(0, 2).toUpperCase() ?? 'AS'}
             </div>
           )}
-          <span className="font-bold text-sm sm:text-base">{club?.name ?? 'Pokladňa'}</span>
+          <span className="font-bold text-sm sm:text-base truncate">{club?.name ?? 'Pokladňa'}</span>
         </div>
-        <span className="text-xs text-text-muted mono">kiosk režim</span>
+        <span className="shrink-0 text-xs text-text-muted mono">kiosk režim</span>
       </div>
 
-      {/* SELECT */}
+      {/* SELECT — fluid grid (no fixed breakpoints): tile width stays
+          between MIN/MAX via auto-fill, so a phone gets 2 narrow columns
+          and a wide tablet/monitor gets several comfortably-sized ones
+          instead of a handful of oversized tiles. The whole area is capped
+          at max-w-5xl and centered so it doesn't stretch indefinitely on a
+          very wide screen. */}
       {screen === 'select' && (
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4 content-start">
+        <div className="flex-1 min-h-0 flex flex-col items-center">
+          <div className="w-full max-w-5xl flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pt-4 grid grid-cols-[repeat(auto-fill,minmax(130px,180px))] justify-center gap-3 sm:gap-4 content-start">
             {loadingProducts ? (
               <p className="text-text-muted col-span-full">Načítava sa...</p>
             ) : products.length === 0 ? (
@@ -259,27 +264,27 @@ export default function KioskPage() {
                     key={product.id}
                     type="button"
                     onClick={() => openDetail(product)}
-                    className="relative aspect-[4/3] rounded-2xl bg-background-card border border-border flex flex-col items-center justify-center gap-2 p-3 hover:border-primary transition-colors"
+                    className="relative aspect-[4/3] rounded-2xl bg-background-card border border-border flex flex-col items-center justify-center gap-1.5 sm:gap-2 p-2.5 sm:p-3 hover:border-primary transition-colors"
                   >
                     {count > 0 && (
-                      <span className="absolute -top-2.5 -right-2.5 min-w-[32px] h-8 px-2.5 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-extrabold text-sm shadow">
+                      <span className="absolute -top-2.5 -right-2.5 min-w-[30px] h-7 sm:h-8 px-2 sm:px-2.5 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-extrabold text-xs sm:text-sm shadow">
                         ×{count}
                       </span>
                     )}
-                    <div className="h-14 w-14 rounded-2xl bg-background-dark flex items-center justify-center text-primary">
-                      <Ticket className="h-7 w-7" />
+                    <div className="h-11 w-11 sm:h-14 sm:w-14 rounded-2xl bg-background-dark flex items-center justify-center text-primary">
+                      <Ticket className="h-5 w-5 sm:h-7 sm:w-7" />
                     </div>
-                    <p className="font-extrabold text-base text-center leading-tight">{product.name}</p>
-                    <p className="mono text-text-muted text-sm">od {fmt(fromPrice)} €</p>
+                    <p className="font-extrabold text-sm sm:text-base text-center leading-tight">{product.name}</p>
+                    <p className="mono text-text-muted text-xs sm:text-sm">od {fmt(fromPrice)} €</p>
                   </button>
                 )
               })
             )}
           </div>
 
-          <div className="shrink-0 m-4 rounded-2xl bg-background-card border border-border px-5 py-4 flex items-center justify-between gap-4">
+          <div className="shrink-0 w-full max-w-5xl mx-auto my-3 sm:my-4 rounded-2xl bg-background-card border border-border px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
                 <ShoppingCart className="h-5 w-5" />
               </div>
               <div>
@@ -303,7 +308,7 @@ export default function KioskPage() {
 
       {/* DETAIL */}
       {screen === 'detail' && detailProduct && (
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col px-6 py-5 max-w-xl w-full mx-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col px-4 sm:px-6 py-5 max-w-xl w-full mx-auto">
           <button
             type="button"
             onClick={() => setScreen('select')}
@@ -377,7 +382,7 @@ export default function KioskPage() {
 
       {/* ORDER REVIEW */}
       {screen === 'order' && (
-        <div className="flex-1 min-h-0 flex flex-col px-6 py-5 max-w-2xl w-full mx-auto">
+        <div className="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-5 max-w-2xl w-full mx-auto">
           <button
             type="button"
             onClick={() => setScreen('select')}
@@ -463,11 +468,11 @@ export default function KioskPage() {
           {delivery === 'choice' && (
             <>
               <p className="text-text-muted text-sm">Ako chcete dostať svoj lístok (QR kód)?</p>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="flex flex-col items-center gap-2 w-36 rounded-2xl border-2 border-border bg-background-card py-5 px-3"
+                  className="flex flex-col items-center gap-2 w-28 sm:w-36 rounded-2xl border-2 border-border bg-background-card py-4 sm:py-5 px-3"
                 >
                   <Printer className="h-6 w-6 text-primary" />
                   <span className="font-bold text-sm">Vytlačiť</span>
@@ -475,7 +480,7 @@ export default function KioskPage() {
                 <button
                   type="button"
                   onClick={() => setDelivery('email-form')}
-                  className="flex flex-col items-center gap-2 w-36 rounded-2xl border-2 border-border bg-background-card py-5 px-3"
+                  className="flex flex-col items-center gap-2 w-28 sm:w-36 rounded-2xl border-2 border-border bg-background-card py-4 sm:py-5 px-3"
                 >
                   <Mail className="h-6 w-6 text-primary" />
                   <span className="font-bold text-sm">Poslať e-mailom</span>
