@@ -34,6 +34,7 @@
     "cognitiveTraining": "Kognitívny tréning",
     "manageTournaments": "Spravovať turnaje",
     "subscription": "Cenník / Môj plán",
+    "manageKiosk": "Kiosk — položky a ceny",
     "website": "Webová stránka",
     "contactUs": "Kontaktujte nás"
   },
@@ -571,6 +572,25 @@
     "reserveSmsUnavailable": "SMS rezervácia momentálne nie je nastavená, kontaktujte prosím klub telefonicky.",
     "reserveSmsBody": "Chcem rezervovať: {{date}} {{time}} {{zone}}",
     "reserveViaApp": "Rezervovať cez appku"
+  },
+  "kiosk": {
+    "title": "Kiosk — položky a ceny",
+    "intro": "Nastavte, čo sa ponúka na predajnom kiosku pri vstupe do haly a za akú cenu. Zmena sa prejaví na tablete okamžite.",
+    "notAuthorizedTitle": "Nedostupné",
+    "notAuthorizedNotice": "Nemáte prístup k nastaveniam kiosku.",
+    "none": "Zatiaľ žiadne položky.",
+    "newProduct": "Nová položka",
+    "editProduct": "Upraviť položku",
+    "productName": "Názov (zobrazí sa zákazníkovi)",
+    "productNamePlaceholder": "napr. Verejné korčuľovanie",
+    "variants": "Varianty a ceny",
+    "variantNamePlaceholder": "napr. Dospelí",
+    "addVariant": "Pridať variantu",
+    "removeVariant": "Odstrániť variantu",
+    "addProduct": "Pridať položku",
+    "activate": "Aktivovať {{name}}",
+    "deactivate": "Deaktivovať {{name}}",
+    "confirmDelete": "Zmazať položku \"{{name}}\" z kiosku?"
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",

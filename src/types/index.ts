@@ -424,6 +424,68 @@ export interface PhoneQrCode {
   createdAt: Date
 }
 
+// A priced variant of a KioskProduct below (e.g. "Dospelí"/"Dieťa"/"S
+// voucherom" for "Verejné korčuľovanie") — `id` is a stable per-variant key
+// (not a Firestore doc id of its own; variants live inline on their
+// product doc) so a KioskOrderLine can reference exactly which variant was
+// bought even after the product's other variants are edited/reordered.
+export interface KioskVariant {
+  id: string
+  name: string
+  price: number
+}
+
+// Self-service ticket catalog for the entrance kiosk tablet (see CLAUDE.md
+// — a touch kiosk, one square tile per product, tap-to-pick-a-variant then
+// quantity, card payment via a connected Stripe reader). Plain CRUD, no
+// translations field (unlike Zone/Rink) — the kiosk is a fixed physical
+// device at the venue, not something a visitor picks a language for, same
+// "fixed kiosk copy" reasoning the TV boards' own Slovak-only strings
+// already use elsewhere in this app.
+export interface KioskProduct {
+  id: string
+  clubId: string
+  name: string
+  variants: KioskVariant[]
+  active: boolean
+  sortOrder: number
+  createdBy: string
+  createdByName: string
+  createdAt: Date
+}
+
+export interface KioskOrderLine {
+  productId: string
+  productName: string
+  variantId: string
+  variantName: string
+  unitPrice: number
+  qty: number
+}
+
+// One kiosk purchase, possibly covering several different products/
+// variants at once (the "Zobraziť objednávku" cart) — created `pending`
+// by the kiosk itself before redirecting to Stripe Checkout, same
+// create-then-pay shape as a TrainingRegistration's own `payment` object;
+// only the Stripe webhook (functions/src/payments.ts) is ever allowed to
+// flip `status` to 'paid' (see firestore.rules — no client-writable path
+// for that field at all).
+export interface KioskOrder {
+  id: string
+  clubId: string
+  lines: KioskOrderLine[]
+  totalAmount: number
+  currency: 'EUR'
+  status: 'pending' | 'paid'
+  confirmationCode: string
+  cancellationToken: string
+  checkoutSessionId?: string
+  createdAt: Date
+  paidAt?: Date
+  checkedInAt?: Date
+  deliveryEmail?: string
+}
+
 // Role hierarchy (ice-rink admin duties only — see isTrainer below for the
 // separate, orthogonal training-reservations track):
 // - superadmin: full control, and the only role that can grant/revoke 'owner'

@@ -480,6 +480,29 @@ service cloud.firestore {
       allow create, update, delete: if isTrainer() || isStaffMember();
     }
 
+    // Entrance kiosk's self-service ticket catalog (see KioskProduct in
+    // src/types/index.ts) — public read (the kiosk tablet has no login),
+    // but writes are owner/superadmin-only, per explicit product direction
+    // ("v Kiosk backende bude nastavovať majiteľ ceny a lístky") — narrower
+    // than freeIceSlots/rinkScheduleEntries above, which also trust a plain
+    // assistant/trainer.
+    match /kioskProducts/{id} {
+      allow read: if true;
+      allow create, update, delete: if isOwnerOrAbove();
+    }
+
+    // One kiosk purchase (see KioskOrder in src/types/index.ts) — created
+    // public/no-login by the kiosk itself, same trust level as a customer
+    // booking. `status` only ever moves 'pending' -> 'paid' via the Stripe
+    // webhook's Admin SDK write (bypasses rules entirely), so there is no
+    // client-writable update path at all here, unlike bookings' own public
+    // status-transition rule.
+    match /kioskOrders/{id} {
+      allow read: if isOwnerOrAbove();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
     // Staff-managed "call this number" QR codes (see PhoneQrCode in
     // src/types/index.ts) — public read since the striedačka TV board that
     // displays them has no login, writes restricted to the same ice-rink

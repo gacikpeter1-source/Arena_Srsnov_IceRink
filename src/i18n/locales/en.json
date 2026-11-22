@@ -34,6 +34,7 @@
     "cognitiveTraining": "Cognitive training",
     "manageTournaments": "Manage tournaments",
     "subscription": "Pricing / My plan",
+    "manageKiosk": "Kiosk — items & prices",
     "website": "Website",
     "contactUs": "Contact us"
   },
@@ -571,6 +572,25 @@
     "reserveSmsUnavailable": "SMS reservation isn't set up yet — please contact the club by phone.",
     "reserveSmsBody": "I'd like to reserve: {{date}} {{time}} {{zone}}",
     "reserveViaApp": "Reserve via app"
+  },
+  "kiosk": {
+    "title": "Kiosk — items & prices",
+    "intro": "Set up what's offered on the entrance kiosk and at what price. Changes apply on the tablet immediately.",
+    "notAuthorizedTitle": "Not available",
+    "notAuthorizedNotice": "You don't have access to the kiosk settings.",
+    "none": "No items yet.",
+    "newProduct": "New item",
+    "editProduct": "Edit item",
+    "productName": "Name (shown to the customer)",
+    "productNamePlaceholder": "e.g. Public skating",
+    "variants": "Variants & prices",
+    "variantNamePlaceholder": "e.g. Adults",
+    "addVariant": "Add variant",
+    "removeVariant": "Remove variant",
+    "addProduct": "Add item",
+    "activate": "Activate {{name}}",
+    "deactivate": "Deactivate {{name}}",
+    "confirmDelete": "Delete item \"{{name}}\" from the kiosk?"
   },
   "trainerIceLog": {
     "title": "Trainer ice log",

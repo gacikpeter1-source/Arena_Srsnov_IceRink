@@ -194,6 +194,18 @@ export default function HeaderMenu({ club }: HeaderMenuProps) {
               {t('nav.subscription')}
             </Link>
           )}
+          {/* Owner/superadmin only, same gate as Subscription above — pricing
+              for the entrance kiosk is an owner-level decision, see
+              AdminKioskPage.tsx's own doc comment. */}
+          {canViewSubscription && (
+            <Link
+              to="/admin/kiosk"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-text-secondary hover:text-primary hover:bg-background-dark"
+            >
+              {t('nav.manageKiosk')}
+            </Link>
+          )}
           {club && (
             <div className="px-4 py-2">
               <ContactUsButton club={club} />
