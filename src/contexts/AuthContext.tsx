@@ -39,7 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser)
       if (firebaseUser) {
         const staffSnap = await getDoc(doc(db, 'staff', firebaseUser.uid))
-        setStaff(staffSnap.exists() ? (staffSnap.data() as StaffUser) : null)
+        // The staff/{uid} doc's own data never stores `uid` as a field (it's
+        // just the doc's id) — force it from the real authenticated user
+        // here rather than trusting the raw Firestore data, which left
+        // `staff.uid` silently `undefined` at runtime for every account that
+        // signed in normally (only the two signup flows, which build this
+        // object by hand right after creating the doc, ever set it).
+        setStaff(staffSnap.exists() ? ({ ...(staffSnap.data() as StaffUser), uid: firebaseUser.uid }) : null)
       } else {
         setStaff(null)
       }
