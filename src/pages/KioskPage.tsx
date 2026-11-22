@@ -182,6 +182,16 @@ export default function KioskPage() {
 
   const removeCartLine = (id: string) => setCart((prev) => prev.filter((l) => l.id !== id))
 
+  // Abandons the whole order (not just one line) from the review screen —
+  // no KioskOrder doc exists yet at this point (only created once a pay
+  // button is tapped), so there's nothing to clean up server-side, just
+  // the in-memory cart.
+  const handleCancelOrder = () => {
+    setCart([])
+    setPayError(null)
+    setScreen('select')
+  }
+
   const countByProduct = (productId: string) => cart.filter((l) => l.productId === productId).reduce((s, l) => s + l.qty, 0)
 
   const totalCount = cart.reduce((s, l) => s + l.qty, 0)
@@ -464,7 +474,12 @@ export default function KioskPage() {
           >
             <ChevronLeft className="h-4 w-4" /> Pridať ďalšie položky
           </button>
-          <h1 className="font-extrabold text-2xl mb-3">Vaša objednávka</h1>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h1 className="font-extrabold text-2xl">Vaša objednávka</h1>
+            <button type="button" onClick={handleCancelOrder} className="shrink-0 text-status-danger text-sm font-semibold">
+              Zrušiť objednávku
+            </button>
+          </div>
 
           {payError && <p className="text-status-danger text-sm mb-3">{payError}</p>}
 
