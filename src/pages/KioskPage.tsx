@@ -12,7 +12,7 @@ import {
 import { generateQrDataUrl } from '@/lib/qrcode'
 import { KioskOrder, KioskOrderLine, KioskProduct } from '@/types'
 
-type Screen = 'select' | 'detail' | 'order' | 'redirecting' | 'confirming' | 'timedOut' | 'success'
+type Screen = 'select' | 'detail' | 'order' | 'redirecting' | 'waitingForPhone' | 'confirming' | 'timedOut' | 'phoneCancelled' | 'success'
 type Delivery = 'choice' | 'email-form' | 'email-sent' | 'printed' | 'shown' | null
 
 interface CartLine extends KioskOrderLine {
@@ -20,7 +20,14 @@ interface CartLine extends KioskOrderLine {
 }
 
 const POLL_MS = 2500
+// Short timeout for the tablet-redirects-itself flow — the customer is
+// already mid-Checkout when this starts polling, so a stuck/abandoned
+// payment should surface quickly. The phone-QR flow (below) needs much
+// longer: the customer still has to pick up their phone, scan, wait for
+// Checkout to load, and type/approve a payment, all while the tablet just
+// sits there with nothing else to do.
 const POLL_TIMEOUT_MS = 30000
+const PHONE_POLL_TIMEOUT_MS = 180000
 
 function fmt(n: number): string {
   return n.toFixed(2).replace('.', ',')
@@ -68,8 +75,41 @@ export default function KioskPage() {
   const [emailBusy, setEmailBusy] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
   const [printQr, setPrintQr] = useState<string | null>(null)
+  const [payQr, setPayQr] = useState<string | null>(null)
+  const isPhoneDevice = searchParams.get('src') === 'phone'
 
   const startedReturnFlowRef = useRef(false)
+  const pollCancelledRef = useRef(false)
+
+  // Shared by both ways this page ever learns a KioskOrder got paid: the
+  // tablet redirecting itself to Checkout and coming back (short timeout —
+  // the customer is already mid-payment when this starts), and the
+  // phone-QR flow below (long timeout — the tablet is just waiting idle
+  // while the customer does everything on their own phone). Only
+  // stripeWebhook ever actually flips `status` to 'paid' (see this file's
+  // own top comment) — this never decides payment success on its own.
+  const pollForPayment = (orderId: string, timeoutMs: number, onFound?: () => void) => {
+    pollCancelledRef.current = false
+    const startedAt = Date.now()
+    const poll = async () => {
+      if (pollCancelledRef.current) return
+      const found = await fetchKioskOrder(orderId)
+      if (pollCancelledRef.current) return
+      if (found?.status === 'paid') {
+        setOrder(found)
+        setDelivery('choice')
+        setScreen('success')
+        onFound?.()
+        return
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        setScreen('timedOut')
+        return
+      }
+      setTimeout(poll, POLL_MS)
+    }
+    poll()
+  }
 
   useEffect(() => {
     if (!club) return
@@ -91,30 +131,18 @@ export default function KioskPage() {
     startedReturnFlowRef.current = true
 
     if (status === 'cancelled') {
-      setScreen('select')
+      // On the customer's own phone (the QR-scan flow below), the tablet
+      // is the one still waiting/polling — this tab just needs a short,
+      // self-contained "you can close this" message, not the full tile
+      // picker a cancel on the tablet itself resets to.
+      setScreen(isPhoneDevice ? 'phoneCancelled' : 'select')
       setSearchParams({}, { replace: true })
       return
     }
     if (status !== 'success') return
 
     setScreen('confirming')
-    const startedAt = Date.now()
-    const poll = async () => {
-      const found = await fetchKioskOrder(orderId)
-      if (found?.status === 'paid') {
-        setOrder(found)
-        setDelivery('choice')
-        setScreen('success')
-        setSearchParams({}, { replace: true })
-        return
-      }
-      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
-        setScreen('timedOut')
-        return
-      }
-      setTimeout(poll, POLL_MS)
-    }
-    poll()
+    pollForPayment(orderId, POLL_TIMEOUT_MS, () => setSearchParams({}, { replace: true }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
@@ -159,22 +187,25 @@ export default function KioskPage() {
   const totalCount = cart.reduce((s, l) => s + l.qty, 0)
   const totalPrice = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0)
 
+  const createOrderFromCart = (clubId: string) =>
+    createKioskOrder({
+      clubId,
+      lines: cart.map((line) => ({
+        productId: line.productId,
+        productName: line.productName,
+        variantId: line.variantId,
+        variantName: line.variantName,
+        unitPrice: line.unitPrice,
+        qty: line.qty
+      }))
+    })
+
   const handlePay = async () => {
     if (!club || cart.length === 0) return
     setPayBusy(true)
     setPayError(null)
     try {
-      const orderId = await createKioskOrder({
-        clubId: club.id,
-        lines: cart.map((line) => ({
-          productId: line.productId,
-          productName: line.productName,
-          variantId: line.variantId,
-          variantName: line.variantName,
-          unitPrice: line.unitPrice,
-          qty: line.qty
-        }))
-      })
+      const orderId = await createOrderFromCart(club.id)
       setScreen('redirecting')
       const url = await createKioskCheckoutSession({ clubId: club.id, orderId, appOrigin: window.location.origin })
       window.location.href = url
@@ -184,6 +215,42 @@ export default function KioskPage() {
     } finally {
       setPayBusy(false)
     }
+  }
+
+  // Alternative to handlePay above: instead of redirecting the shared wall
+  // tablet itself to Stripe (typing a card number on a public screen), show
+  // a QR of the same Checkout URL and let the customer complete payment on
+  // their OWN phone — saved card / Apple Pay / Google Pay, and nobody else
+  // reads their card details over their shoulder. The tablet never
+  // navigates away; it just polls the order (pollForPayment, long timeout)
+  // until the phone's own payment completes, then shows the same success
+  // screen the direct-entry flow would have. `viaPhone: true` tags the
+  // Checkout Session's success/cancel URLs with `&src=phone` so that when
+  // THIS SAME /kiosk route loads again on the customer's phone, it knows
+  // not to offer the "Vytlačiť" option there (no printer next to a phone).
+  const handlePayViaPhone = async () => {
+    if (!club || cart.length === 0) return
+    setPayBusy(true)
+    setPayError(null)
+    try {
+      const orderId = await createOrderFromCart(club.id)
+      const url = await createKioskCheckoutSession({ clubId: club.id, orderId, appOrigin: window.location.origin, viaPhone: true })
+      const qr = await generateQrDataUrl(url)
+      setPayQr(qr)
+      setScreen('waitingForPhone')
+      pollForPayment(orderId, PHONE_POLL_TIMEOUT_MS)
+    } catch {
+      setPayError('Platbu sa nepodarilo spustiť. Skúste to prosím znova.')
+      setScreen('order')
+    } finally {
+      setPayBusy(false)
+    }
+  }
+
+  const handleCancelWaitingForPhone = () => {
+    pollCancelledRef.current = true
+    setPayQr(null)
+    setScreen('order')
   }
 
   const handlePrint = async () => {
@@ -226,12 +293,14 @@ export default function KioskPage() {
   }
 
   const handleNewOrder = () => {
+    pollCancelledRef.current = true
     setCart([])
     setOrder(null)
     setDelivery(null)
     setEmail('')
     setEmailError(null)
     setPrintQr(null)
+    setPayQr(null)
     startedReturnFlowRef.current = false
     setScreen('select')
   }
@@ -422,23 +491,58 @@ export default function KioskPage() {
             ))}
           </div>
 
-          <div className="shrink-0 mt-4 rounded-2xl bg-background-card border border-border px-5 py-4 flex items-center justify-between">
+          <div className="shrink-0 mt-4 rounded-2xl bg-background-card border border-border px-5 py-4 flex flex-col gap-3">
             <div>
               <p className="text-xs text-text-muted">
                 Spolu — {totalCount} {totalCount === 1 ? 'lístok' : 'lístky'}
               </p>
               <p className="mono text-2xl font-extrabold">{fmt(totalPrice)} €</p>
             </div>
-            <button
-              type="button"
-              disabled={payBusy || cart.length === 0}
-              onClick={handlePay}
-              className="flex items-center gap-2.5 rounded-xl bg-primary text-primary-foreground font-extrabold text-base px-7 py-4 disabled:opacity-60"
-            >
-              <CreditCard className="h-5 w-5" />
-              {payBusy ? 'Spracúva sa...' : 'Zaplatiť kartou'}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                disabled={payBusy || cart.length === 0}
+                onClick={handlePay}
+                className="flex-1 flex items-center justify-center gap-2.5 rounded-xl bg-primary text-primary-foreground font-extrabold text-base px-5 py-3.5 disabled:opacity-60"
+              >
+                <CreditCard className="h-5 w-5" />
+                Zaplatiť kartou tu
+              </button>
+              <button
+                type="button"
+                disabled={payBusy || cart.length === 0}
+                onClick={handlePayViaPhone}
+                className="flex-1 flex items-center justify-center gap-2.5 rounded-xl border-2 border-primary text-primary font-extrabold text-base px-5 py-3.5 disabled:opacity-60"
+              >
+                <QrCode className="h-5 w-5" />
+                Zaplatiť cez QR v telefóne
+              </button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* WAITING FOR PHONE — tablet shows the QR, polls in the background */}
+      {screen === 'waitingForPhone' && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center">
+          {payQr && <img src={payQr} alt="QR kód na platbu" className="w-56 h-56 sm:w-64 sm:h-64 rounded-lg bg-white p-2" />}
+          <div>
+            <p className="font-extrabold text-xl">Naskenujte QR kód telefónom</p>
+            <p className="text-text-secondary text-sm mt-1">Platbu dokončíte pohodlne vo svojom telefóne — {fmt(totalPrice)} €</p>
+          </div>
+          <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <button type="button" onClick={handleCancelWaitingForPhone} className="rounded-xl border border-border px-6 py-3 font-semibold text-sm">
+            Zrušiť
+          </button>
+        </div>
+      )}
+
+      {/* PHONE-SIDE "payment cancelled" — reached only on the customer's
+          own phone (src=phone), which has nothing else to fall back to. */}
+      {screen === 'phoneCancelled' && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="font-bold text-lg">Platba bola zrušená.</p>
+          <p className="text-text-muted text-sm">Túto stránku môžete zavrieť.</p>
         </div>
       )}
 
@@ -474,14 +578,16 @@ export default function KioskPage() {
             <>
               <p className="text-text-muted text-sm">Ako chcete dostať svoj lístok (QR kód)?</p>
               <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="flex flex-col items-center gap-2 w-28 sm:w-36 rounded-2xl border-2 border-border bg-background-card py-4 sm:py-5 px-3"
-                >
-                  <Printer className="h-6 w-6 text-primary" />
-                  <span className="font-bold text-sm">Vytlačiť</span>
-                </button>
+                {!isPhoneDevice && (
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="flex flex-col items-center gap-2 w-28 sm:w-36 rounded-2xl border-2 border-border bg-background-card py-4 sm:py-5 px-3"
+                  >
+                    <Printer className="h-6 w-6 text-primary" />
+                    <span className="font-bold text-sm">Vytlačiť</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setDelivery('email-form')}

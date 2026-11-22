@@ -275,6 +275,8 @@ interface CreateKioskCheckoutSessionInput {
   clubId: string;
   orderId: string;
   appOrigin: string;
+  // See src/lib/kiosk.ts's own doc comment on this field.
+  viaPhone?: boolean;
 }
 
 /**
@@ -286,10 +288,11 @@ interface CreateKioskCheckoutSessionInput {
  */
 export const createKioskCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (request) => {
   const data = (request.data ?? {}) as Partial<CreateKioskCheckoutSessionInput>;
-  const { clubId, orderId, appOrigin } = data;
+  const { clubId, orderId, appOrigin, viaPhone } = data;
   if (!clubId || !orderId || !appOrigin) {
     throw new HttpsError("invalid-argument", "Missing clubId/orderId/appOrigin.");
   }
+  const returnSuffix = viaPhone ? "&src=phone" : "";
 
   const db = getFirestore();
   const clubSnap = await db.doc(`clubs/${clubId}`).get();
@@ -323,8 +326,8 @@ export const createKioskCheckoutSession = onCall({ secrets: [stripeSecretKey] },
         },
         quantity: line.qty
       })),
-      success_url: `${appOrigin}/kiosk?status=success&orderId=${orderId}`,
-      cancel_url: `${appOrigin}/kiosk?status=cancelled&orderId=${orderId}`,
+      success_url: `${appOrigin}/kiosk?status=success&orderId=${orderId}${returnSuffix}`,
+      cancel_url: `${appOrigin}/kiosk?status=cancelled&orderId=${orderId}${returnSuffix}`,
       metadata: { clubId, kind: "kiosk", orderId },
       payment_intent_data: { metadata: { clubId, kind: "kiosk", orderId } }
     },

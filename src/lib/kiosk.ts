@@ -127,6 +127,12 @@ interface CreateKioskCheckoutSessionInput {
   clubId: string
   orderId: string
   appOrigin: string
+  // Set when the customer will complete Checkout on their OWN phone (a QR
+  // scanned off the kiosk tablet) rather than the tablet redirecting
+  // itself — tags the session's success/cancel URLs with `&src=phone` so
+  // KioskPage.tsx knows not to offer "Vytlačiť" when /kiosk loads again on
+  // that phone (no printer next to it).
+  viaPhone?: boolean
 }
 
 const createKioskCheckoutSessionCallable = httpsCallable<CreateKioskCheckoutSessionInput, { url: string }>(
