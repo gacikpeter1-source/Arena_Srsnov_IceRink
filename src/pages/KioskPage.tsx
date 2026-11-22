@@ -244,8 +244,15 @@ export default function KioskPage() {
     setPayError(null)
     try {
       const orderId = await createOrderFromCart(club.id)
-      const url = await createKioskCheckoutSession({ clubId: club.id, orderId, appOrigin: window.location.origin, viaPhone: true })
-      const qr = await generateQrDataUrl(url)
+      await createKioskCheckoutSession({ clubId: club.id, orderId, appOrigin: window.location.origin, viaPhone: true })
+      // The QR encodes OUR OWN short redirect link, not the real (200+
+      // character) Stripe Checkout URL directly — that URL is long enough
+      // to need a QR too dense to reliably scan at a normal on-screen
+      // kiosk size (the same lesson already learned for the "striedačka"
+      // board's own QR, see CLAUDE.md). KioskPayRedirectPage.tsx reads the
+      // real URL (checkoutUrl, stored on the order by the call above) and
+      // bounces the phone there.
+      const qr = await generateQrDataUrl(`${window.location.origin}/kiosk/pay/${orderId}`, { errorCorrectionLevel: 'L' })
       setPayQr(qr)
       setScreen('waitingForPhone')
       pollForPayment(orderId, PHONE_POLL_TIMEOUT_MS)
@@ -540,7 +547,14 @@ export default function KioskPage() {
       {/* WAITING FOR PHONE — tablet shows the QR, polls in the background */}
       {screen === 'waitingForPhone' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center">
-          {payQr && <img src={payQr} alt="QR kód na platbu" className="w-56 h-56 sm:w-64 sm:h-64 rounded-lg bg-white p-2" />}
+          {payQr && (
+            <img
+              src={payQr}
+              alt="QR kód na platbu"
+              className="w-64 h-64 sm:w-72 sm:h-72 rounded-lg bg-white p-2"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          )}
           <div>
             <p className="font-extrabold text-xl">Naskenujte QR kód telefónom</p>
             <p className="text-text-secondary text-sm mt-1">Platbu dokončíte pohodlne vo svojom telefóne — {fmt(totalPrice)} €</p>

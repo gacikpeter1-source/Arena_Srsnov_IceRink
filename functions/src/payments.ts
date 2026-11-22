@@ -338,7 +338,7 @@ export const createKioskCheckoutSession = onCall({ secrets: [stripeSecretKey] },
     throw new HttpsError("internal", "Stripe did not return a Checkout Session URL.");
   }
 
-  await orderRef.update({ checkoutSessionId: session.id });
+  await orderRef.update({ checkoutSessionId: session.id, checkoutUrl: session.url });
   return { url: session.url };
 });
 

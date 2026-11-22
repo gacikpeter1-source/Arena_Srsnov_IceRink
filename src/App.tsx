@@ -40,6 +40,7 @@ const AdminSubscriptionPage = lazy(() => import('./pages/admin/AdminSubscription
 const AdminKioskPage = lazy(() => import('./pages/admin/AdminKioskPage'))
 const KioskPage = lazy(() => import('./pages/KioskPage'))
 const KioskTicketPage = lazy(() => import('./pages/KioskTicketPage'))
+const KioskPayRedirectPage = lazy(() => import('./pages/KioskPayRedirectPage'))
 const QrScanPage = lazy(() => import('./pages/admin/QrScanPage'))
 const RinkSchedulePage = lazy(() => import('./pages/admin/RinkSchedulePage'))
 const FreeIceSlotsPage = lazy(() => import('./pages/admin/FreeIceSlotsPage'))
@@ -81,6 +82,7 @@ export default function App() {
   const isTvScreen =
     location.pathname === '/rozvrh/strieda' ||
     location.pathname === '/kiosk' ||
+    location.pathname.startsWith('/kiosk/pay/') ||
     location.pathname.startsWith('/treningy/kognitivny-tv') ||
     (['/turnaje', '/rozvrh'].includes(location.pathname) && new URLSearchParams(location.search).get('display') === 'tv')
 
@@ -140,6 +142,7 @@ export default function App() {
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/rozvrh/strieda" element={<RinkScheduleAlternatingBoardPage />} />
           <Route path="/kiosk" element={<KioskPage />} />
+          <Route path="/kiosk/pay/:orderId" element={<KioskPayRedirectPage />} />
           <Route path="/kiosk/vstup/:orderId/:token" element={<KioskTicketPage />} />
           <Route path="/treningy/kognitivny-tv" element={<CognitiveTvPage />} />
           <Route path="/treningy/kognitivny-tv/:code" element={<CognitiveTvPage />} />

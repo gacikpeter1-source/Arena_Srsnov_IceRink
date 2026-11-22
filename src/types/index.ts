@@ -480,6 +480,13 @@ export interface KioskOrder {
   confirmationCode: string
   cancellationToken: string
   checkoutSessionId?: string
+  // The Checkout Session's own hosted-page URL, stored so a short redirect
+  // page (/kiosk/pay/:orderId, see KioskPayRedirectPage.tsx) can send a
+  // customer's phone there without the QR itself having to encode the full
+  // (very long, 200+ character) Stripe URL — a QR that dense turned out to
+  // be unreliable to scan at a normal on-screen kiosk size, same lesson
+  // already learned for the "striedačka" board's own QR (see CLAUDE.md).
+  checkoutUrl?: string
   createdAt: Date
   paidAt?: Date
   checkedInAt?: Date
