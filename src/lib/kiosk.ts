@@ -1,6 +1,8 @@
-import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
-import { db } from './firebase'
-import { KioskProduct, KioskVariant } from '@/types'
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from './firebase'
+import { KioskOrder, KioskOrderLine, KioskProduct, KioskVariant } from '@/types'
+import { generateConfirmationCode, generateToken } from './utils'
 
 // Plain CRUD for the entrance kiosk's product catalog — see KioskProduct in
 // src/types/index.ts. Same shape/conventions as lib/freeIceSlots.ts (a
@@ -82,4 +84,62 @@ export async function setKioskProductActive(id: string, active: boolean): Promis
 
 export async function deleteKioskProduct(id: string): Promise<void> {
   await deleteDoc(doc(db, 'kioskProducts', id))
+}
+
+// ---------------------------------------------------------------------
+// Kiosk orders (the customer-facing "select tiles -> pay" flow,
+// KioskPage.tsx) — see KioskOrder in src/types/index.ts. Real-money
+// payment is handled the same way as training registrations: this module
+// only ever creates the 'pending' order doc; createKioskCheckoutSession/
+// stripeWebhook (functions/src/payments.ts) are the only things that ever
+// move it to 'paid'.
+// ---------------------------------------------------------------------
+
+export async function createKioskOrder(input: { clubId: string; lines: KioskOrderLine[] }): Promise<string> {
+  const ref = doc(collection(db, 'kioskOrders'))
+  await setDoc(ref, {
+    clubId: input.clubId,
+    lines: input.lines,
+    totalAmount: input.lines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0),
+    currency: 'EUR',
+    status: 'pending',
+    confirmationCode: generateConfirmationCode(),
+    cancellationToken: generateToken(),
+    createdAt: serverTimestamp()
+  })
+  return ref.id
+}
+
+export async function fetchKioskOrder(id: string): Promise<(KioskOrder & { id: string }) | null> {
+  const snap = await getDoc(doc(db, 'kioskOrders', id))
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as KioskOrder & { id: string }) : null
+}
+
+interface CreateKioskCheckoutSessionInput {
+  clubId: string
+  orderId: string
+  appOrigin: string
+}
+
+const createKioskCheckoutSessionCallable = httpsCallable<CreateKioskCheckoutSessionInput, { url: string }>(
+  functions,
+  'createKioskCheckoutSession'
+)
+
+export async function createKioskCheckoutSession(input: CreateKioskCheckoutSessionInput): Promise<string> {
+  const result = await createKioskCheckoutSessionCallable(input)
+  return result.data.url
+}
+
+interface SendKioskOrderEmailInput {
+  clubId: string
+  orderId: string
+  email: string
+  appOrigin: string
+}
+
+const sendKioskOrderEmailCallable = httpsCallable<SendKioskOrderEmailInput, { ok: true }>(functions, 'sendKioskOrderEmail')
+
+export async function sendKioskOrderEmail(input: SendKioskOrderEmailInput): Promise<void> {
+  await sendKioskOrderEmailCallable(input)
 }

@@ -493,12 +493,14 @@ service cloud.firestore {
 
     // One kiosk purchase (see KioskOrder in src/types/index.ts) — created
     // public/no-login by the kiosk itself, same trust level as a customer
-    // booking. `status` only ever moves 'pending' -> 'paid' via the Stripe
-    // webhook's Admin SDK write (bypasses rules entirely), so there is no
-    // client-writable update path at all here, unlike bookings' own public
-    // status-transition rule.
+    // booking. Public read, same convention as trainingRegistrations above
+    // (the kiosk's own success screen polls this doc by its own Firestore
+    // auto-id — effectively unguessable — the same de facto "proof this is
+    // yours" this app accepts everywhere else). `status` only ever moves
+    // 'pending' -> 'paid' via the Stripe webhook's Admin SDK write (bypasses
+    // rules entirely), so there is no client-writable update path at all.
     match /kioskOrders/{id} {
-      allow read: if isOwnerOrAbove();
+      allow read: if true;
       allow create: if true;
       allow update, delete: if false;
     }

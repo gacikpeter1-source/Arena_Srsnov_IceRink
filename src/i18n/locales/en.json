@@ -576,6 +576,7 @@
   "kiosk": {
     "title": "Kiosk — items & prices",
     "intro": "Set up what's offered on the entrance kiosk and at what price. Changes apply on the tablet immediately.",
+    "openKiosk": "Open the kiosk (new tab)",
     "notAuthorizedTitle": "Not available",
     "notAuthorizedNotice": "You don't have access to the kiosk settings.",
     "none": "No items yet.",

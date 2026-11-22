@@ -160,6 +160,9 @@ export default function AdminKioskPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">{t('kiosk.title')}</h1>
         <p className="text-text-secondary text-sm mt-1">{t('kiosk.intro')}</p>
+        <a href="/kiosk" target="_blank" rel="noreferrer" className="inline-block mt-2 text-primary hover:text-primary-gold text-sm underline">
+          {t('kiosk.openKiosk')}
+        </a>
       </div>
 
       {clubLoading || loading ? (

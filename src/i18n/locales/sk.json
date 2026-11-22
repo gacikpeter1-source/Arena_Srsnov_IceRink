@@ -576,6 +576,7 @@
   "kiosk": {
     "title": "Kiosk — položky a ceny",
     "intro": "Nastavte, čo sa ponúka na predajnom kiosku pri vstupe do haly a za akú cenu. Zmena sa prejaví na tablete okamžite.",
+    "openKiosk": "Otvoriť kiosk (nová karta)",
     "notAuthorizedTitle": "Nedostupné",
     "notAuthorizedNotice": "Nemáte prístup k nastaveniam kiosku.",
     "none": "Zatiaľ žiadne položky.",

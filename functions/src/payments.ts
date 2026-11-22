@@ -246,6 +246,222 @@ function buildTicketsPdfBase64(params: {
   });
 }
 
+// ---------------------------------------------------------------------
+// Entrance kiosk ("Riešenie 2" in CLAUDE.md) — a self-service tablet at
+// the door where a customer taps tiles to build an order (see
+// KioskProduct/KioskOrder, src/types/index.ts, and KioskPage.tsx), pays by
+// card, then chooses to print or email their ticket. One KioskOrder can
+// cover several different products/variants/quantities at once, so its
+// Checkout Session always gets one line_item per order line (an itemized
+// Stripe receipt) rather than one lump sum, unlike the single-price
+// training flow above. Deliberately its own small set of functions
+// (not a `kind: "kiosk"` branch bolted onto the training-specific types
+// above) since a kiosk order's shape (`lines`, no `tickets`/attendeeCount)
+// genuinely differs from a registration's.
+// ---------------------------------------------------------------------
+
+interface KioskOrderLineData {
+  productName: string;
+  variantName: string;
+  unitPrice: number;
+  qty: number;
+}
+
+function kioskCheckInPath(orderId: string, token: string): string {
+  return `/kiosk/vstup/${orderId}/${token}`;
+}
+
+interface CreateKioskCheckoutSessionInput {
+  clubId: string;
+  orderId: string;
+  appOrigin: string;
+}
+
+/**
+ * Creates a Stripe Checkout Session for one already-created, still-pending
+ * KioskOrder — createKioskOrder (src/lib/kiosk.ts) already decided the
+ * lines/amounts before this is ever called; this function only reads
+ * what's already there. Public/no-auth, same trust level as
+ * createTicketCheckoutSession above.
+ */
+export const createKioskCheckoutSession = onCall({ secrets: [stripeSecretKey] }, async (request) => {
+  const data = (request.data ?? {}) as Partial<CreateKioskCheckoutSessionInput>;
+  const { clubId, orderId, appOrigin } = data;
+  if (!clubId || !orderId || !appOrigin) {
+    throw new HttpsError("invalid-argument", "Missing clubId/orderId/appOrigin.");
+  }
+
+  const db = getFirestore();
+  const clubSnap = await db.doc(`clubs/${clubId}`).get();
+  const club = clubSnap.data() as { stripeAccountId?: string; paymentsEnabled?: boolean } | undefined;
+  if (!club?.stripeAccountId) {
+    throw new HttpsError("failed-precondition", "This club has no connected Stripe account.");
+  }
+  if (!club.paymentsEnabled) {
+    throw new HttpsError("failed-precondition", "Payments are not enabled for this club.");
+  }
+
+  const orderRef = db.doc(`kioskOrders/${orderId}`);
+  const orderSnap = await orderRef.get();
+  const order = orderSnap.data() as { clubId?: string; status?: string; lines?: KioskOrderLineData[] } | undefined;
+  if (!order || order.clubId !== clubId) {
+    throw new HttpsError("not-found", "Order not found.");
+  }
+  if (order.status !== "pending" || !order.lines || order.lines.length === 0) {
+    throw new HttpsError("failed-precondition", "This order has no pending payment to collect.");
+  }
+
+  const stripe = new Stripe(stripeSecretKey.value());
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: "payment",
+      line_items: order.lines.map((line) => ({
+        price_data: {
+          currency: "eur",
+          product_data: { name: `${line.productName} — ${line.variantName}` },
+          unit_amount: Math.round(line.unitPrice * 100)
+        },
+        quantity: line.qty
+      })),
+      success_url: `${appOrigin}/kiosk?status=success&orderId=${orderId}`,
+      cancel_url: `${appOrigin}/kiosk?status=cancelled&orderId=${orderId}`,
+      metadata: { clubId, kind: "kiosk", orderId },
+      payment_intent_data: { metadata: { clubId, kind: "kiosk", orderId } }
+    },
+    { stripeAccount: club.stripeAccountId }
+  );
+
+  if (!session.url) {
+    throw new HttpsError("internal", "Stripe did not return a Checkout Session URL.");
+  }
+
+  await orderRef.update({ checkoutSessionId: session.id });
+  return { url: session.url };
+});
+
+/**
+ * A single-page PDF ticket for a whole KioskOrder — unlike
+ * buildTicketsPdfBase64 above (one page per person), a kiosk order is
+ * always checked in as one unit (see gateScanCheckIn's kiosk branch,
+ * functions/src/gate.ts), so one QR covers the whole purchase regardless
+ * of how many lines/quantities it has.
+ */
+function buildKioskOrderPdfBase64(params: {
+  clubName: string;
+  confirmationCode: string;
+  lines: KioskOrderLineData[];
+  totalAmount: number;
+  qrPngBuffer: Buffer;
+}): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A5", margin: 40 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks).toString("base64")));
+    doc.on("error", reject);
+
+    doc.registerFont("Regular", FONT_REGULAR);
+    doc.registerFont("Bold", FONT_BOLD);
+
+    doc.fontSize(18).font("Bold").text(params.clubName, { align: "center" });
+    doc.moveDown(0.5);
+    doc.fontSize(14).font("Bold").text("Vstupenka", { align: "center" });
+    doc.moveDown(1);
+
+    doc.fontSize(11).font("Regular");
+    params.lines.forEach((line) => {
+      doc.text(`${line.qty}× ${line.productName} — ${line.variantName}  (${(line.unitPrice * line.qty).toFixed(2).replace(".", ",")} €)`);
+    });
+    doc.moveDown(0.5);
+    doc.font("Bold").text(`Spolu: ${params.totalAmount.toFixed(2).replace(".", ",")} €`);
+    doc.font("Regular").text(`Potvrdzovací kód: ${params.confirmationCode}`);
+    doc.moveDown(1.5);
+
+    const qrSize = 220;
+    const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const qrX = doc.page.margins.left + (contentWidth - qrSize) / 2;
+    doc.image(params.qrPngBuffer, qrX, doc.y, { width: qrSize, height: qrSize });
+    doc.y += qrSize + 12;
+
+    doc.fontSize(10).fillColor("#666666").text("Naskenujte tento QR kód pri vstupe.", { align: "center" });
+    doc.fillColor("#000000");
+
+    doc.end();
+  });
+}
+
+interface SendKioskOrderEmailInput {
+  clubId: string;
+  orderId: string;
+  email: string;
+  appOrigin: string;
+}
+
+/**
+ * Emails a paid KioskOrder's ticket (PDF, same reasoning as
+ * sendTicketConfirmationEmail above for why it's a real attachment and not
+ * an inline <img>) — called directly by the kiosk once the customer
+ * chooses "Poslať e-mailom" over printing, so the email address is never
+ * collected before payment (an anonymous walk-up purchase otherwise needs
+ * no contact info at all). Re-reads the order itself rather than trusting
+ * whatever the client claims, same trust boundary as every other public
+ * callable in this file.
+ */
+export const sendKioskOrderEmail = onCall(async (request) => {
+  const data = (request.data ?? {}) as Partial<SendKioskOrderEmailInput>;
+  const { clubId, orderId, email, appOrigin } = data;
+  if (!clubId || !orderId || !email || !appOrigin) {
+    throw new HttpsError("invalid-argument", "Missing clubId/orderId/email/appOrigin.");
+  }
+
+  const db = getFirestore();
+  const [orderSnap, clubSnap] = await Promise.all([db.doc(`kioskOrders/${orderId}`).get(), db.doc(`clubs/${clubId}`).get()]);
+  const order = orderSnap.data() as
+    | {
+        clubId?: string;
+        status?: string;
+        confirmationCode?: string;
+        cancellationToken?: string;
+        lines?: KioskOrderLineData[];
+        totalAmount?: number;
+      }
+    | undefined;
+  if (!order || order.clubId !== clubId) {
+    throw new HttpsError("not-found", "Order not found.");
+  }
+  if (order.status !== "paid" || !order.cancellationToken || !order.confirmationCode) {
+    throw new HttpsError("failed-precondition", "This order isn't paid yet.");
+  }
+  const clubName = (clubSnap.data() as { name?: string } | undefined)?.name ?? "";
+
+  const checkInUrl = `${appOrigin}${kioskCheckInPath(orderId, order.cancellationToken)}`;
+  const qrPngBuffer = await QRCode.toBuffer(checkInUrl, { width: 320, margin: 2 });
+  const pdfBase64 = await buildKioskOrderPdfBase64({
+    clubName,
+    confirmationCode: order.confirmationCode,
+    lines: order.lines ?? [],
+    totalAmount: order.totalAmount ?? 0,
+    qrPngBuffer
+  });
+
+  await db.collection("mail").add({
+    to: email,
+    message: {
+      subject: `Vstupenka – ${clubName}`,
+      html: `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #111;">
+        <h2 style="margin: 0 0 16px;">${clubName}</h2>
+        <p>Ďakujeme za nákup. Vaša vstupenka s QR kódom je priložená ako PDF súbor.</p>
+        <p style="margin: 4px 0;">Potvrdzovací kód: <strong>${order.confirmationCode}</strong></p>
+      </div>`
+    },
+    attachments: [{ filename: "vstupenka.pdf", content: pdfBase64, contentType: "application/pdf", encoding: "base64" }]
+  });
+
+  await db.doc(`kioskOrders/${orderId}`).update({ deliveryEmail: email });
+
+  return { ok: true };
+});
+
 interface CreateTicketCheckoutSessionInput {
   clubId: string;
   kind: RegistrationKind;
@@ -488,6 +704,39 @@ export const stripeWebhook = onRequest({ secrets: [stripeSecretKey, stripeWebhoo
 
   const metadata = session.metadata ?? {};
   const clubId = metadata.clubId;
+
+  // Kiosk orders are handled entirely separately from the training
+  // session/bundle flow below — a different collection, different fields
+  // (`status` directly on the doc, not nested under `payment.`), and
+  // deliberately NO automatic confirmation email here: the customer picks
+  // print-or-email AFTER returning to the kiosk's own success screen (see
+  // sendKioskOrderEmail above), since an anonymous walk-up purchase never
+  // collects an email address before payment at all.
+  if (metadata.kind === "kiosk") {
+    const orderId = metadata.orderId;
+    if (!clubId || !orderId) {
+      logger.warn("Stripe webhook: kiosk checkout session missing expected metadata", { sessionId: session.id });
+      res.status(200).send("missing metadata");
+      return;
+    }
+    const db = getFirestore();
+    const orderRef = db.doc(`kioskOrders/${orderId}`);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(orderRef);
+      if (!snap.exists) return;
+      const order = snap.data() as { status?: string };
+      // Idempotency: Stripe can (and does) redeliver the same event.
+      if (order.status === "paid") return;
+      tx.update(orderRef, {
+        status: "paid",
+        paidAt: Timestamp.now(),
+        paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : (session.payment_intent?.id ?? null)
+      });
+    });
+    res.status(200).send("ok");
+    return;
+  }
+
   const kind = metadata.kind as RegistrationKind | undefined;
   const registrationId = metadata.registrationId;
   if (!clubId || !kind || !registrationId) {

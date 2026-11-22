@@ -58,6 +58,13 @@ export const gateStatus = onRequest(async (req, res) => {
 // returns "0" and stays a staff-assisted (phone) check-in only.
 const SESSION_CANCEL_PATH = /^\/treningy\/zrusit\/([^/]+)\/([^/]+)$/;
 
+// A kiosk order's own QR (see sendKioskOrderEmail, functions/src/
+// payments.ts) — one order is always checked in as a single unit
+// regardless of how many lines/quantities it covers (unlike a training
+// registration's per-person tickets above), so there's no `?ticket=`
+// param to resolve here at all.
+const KIOSK_CHECKIN_PATH = /^\/kiosk\/vstup\/([^/]+)\/([^/]+)$/;
+
 /**
  * Polled-into by the ESP32's GM65 barcode/QR module (see
  * hardware/esp32-turnstile-gate) as `GET /gateScanCheckIn?data=<urlencoded
@@ -96,6 +103,30 @@ export const gateScanCheckIn = onRequest(async (req, res) => {
     ticketId = parsed.searchParams.get("ticket");
   } catch {
     res.status(200).send("0");
+    return;
+  }
+
+  const kioskMatch = pathname.match(KIOSK_CHECKIN_PATH);
+  if (kioskMatch) {
+    const [, orderId, token] = kioskMatch;
+    const db = getFirestore();
+    const orderRef = db.doc(`kioskOrders/${orderId}`);
+    let shouldOpenKiosk = false;
+    try {
+      shouldOpenKiosk = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(orderRef);
+        if (!snap.exists) return false;
+        const order = snap.data() as { clubId?: string; cancellationToken?: string; status?: string; checkedInAt?: Timestamp };
+        if (order.clubId !== clubId || order.cancellationToken !== token) return false;
+        if (order.status !== "paid") return false;
+        if (order.checkedInAt) return false;
+        tx.update(orderRef, { checkedInAt: Timestamp.now() });
+        return true;
+      });
+    } catch (err) {
+      logger.error("gateScanCheckIn: failed to validate/check in kiosk order", err);
+    }
+    res.status(200).send(shouldOpenKiosk ? "1" : "0");
     return;
   }
 

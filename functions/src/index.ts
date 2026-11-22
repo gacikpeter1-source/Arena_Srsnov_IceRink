@@ -17,7 +17,13 @@ import * as nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
 import { getGameGenerator } from "./cognitiveGames/registry";
 import { buildPlanFromTasks, buildIntervalPlanFromTasks, totalPlanDurationMs } from "./cognitiveGames/engine";
-export { createTicketCheckoutSession, stripeWebhook, sendTrainingConfirmationEmail } from "./payments";
+export {
+  createTicketCheckoutSession,
+  stripeWebhook,
+  sendTrainingConfirmationEmail,
+  createKioskCheckoutSession,
+  sendKioskOrderEmail
+} from "./payments";
 export { gateStatus, gateScanCheckIn } from "./gate";
 
 initializeApp();

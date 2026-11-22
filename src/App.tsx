@@ -38,6 +38,8 @@ const TournamentCreatePage = lazy(() => import('./pages/admin/TournamentCreatePa
 const TournamentDetailPage = lazy(() => import('./pages/admin/TournamentDetailPage'))
 const AdminSubscriptionPage = lazy(() => import('./pages/admin/AdminSubscriptionPage'))
 const AdminKioskPage = lazy(() => import('./pages/admin/AdminKioskPage'))
+const KioskPage = lazy(() => import('./pages/KioskPage'))
+const KioskTicketPage = lazy(() => import('./pages/KioskTicketPage'))
 const QrScanPage = lazy(() => import('./pages/admin/QrScanPage'))
 const RinkSchedulePage = lazy(() => import('./pages/admin/RinkSchedulePage'))
 const FreeIceSlotsPage = lazy(() => import('./pages/admin/FreeIceSlotsPage'))
@@ -73,8 +75,12 @@ export default function App() {
   // /treningy/kognitivny-tv(/:code) is likewise always a kiosk screen —
   // same reasoning as /rozvrh/strieda — hence startsWith rather than an
   // exact match, since the :code variant has a dynamic path segment.
+  // /kiosk is likewise always a locked kiosk screen — same reasoning as
+  // /rozvrh/strieda above (no non-kiosk variant exists at all), so there's
+  // deliberately no UI way out of it.
   const isTvScreen =
     location.pathname === '/rozvrh/strieda' ||
+    location.pathname === '/kiosk' ||
     location.pathname.startsWith('/treningy/kognitivny-tv') ||
     (['/turnaje', '/rozvrh'].includes(location.pathname) && new URLSearchParams(location.search).get('display') === 'tv')
 
@@ -133,6 +139,8 @@ export default function App() {
           <Route path="/volny-lad" element={<FreeIceListPage />} />
           <Route path="/rozvrh" element={<RinkScheduleBoardPage />} />
           <Route path="/rozvrh/strieda" element={<RinkScheduleAlternatingBoardPage />} />
+          <Route path="/kiosk" element={<KioskPage />} />
+          <Route path="/kiosk/vstup/:orderId/:token" element={<KioskTicketPage />} />
           <Route path="/treningy/kognitivny-tv" element={<CognitiveTvPage />} />
           <Route path="/treningy/kognitivny-tv/:code" element={<CognitiveTvPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
