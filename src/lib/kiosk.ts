@@ -115,6 +115,14 @@ export async function fetchKioskOrder(id: string): Promise<(KioskOrder & { id: s
   return snap.exists() ? ({ id: snap.id, ...snap.data() } as KioskOrder & { id: string }) : null
 }
 
+// Staff phone-camera fallback check-in (QrScanPage.tsx) for when the ESP32
+// turnstile hardware is down — see gateScanCheckIn's own kiosk branch
+// (functions/src/gate.ts) for the primary path. A whole order is always
+// checked in as one unit, same as that path.
+export async function markKioskOrderCheckIn(orderId: string, checkedInBy: string): Promise<void> {
+  await updateDoc(doc(db, 'kioskOrders', orderId), { checkedInAt: serverTimestamp(), checkedInBy })
+}
+
 interface CreateKioskCheckoutSessionInput {
   clubId: string
   orderId: string

@@ -591,7 +591,9 @@
     "addProduct": "Add item",
     "activate": "Activate {{name}}",
     "deactivate": "Deactivate {{name}}",
-    "confirmDelete": "Delete item \"{{name}}\" from the kiosk?"
+    "confirmDelete": "Delete item \"{{name}}\" from the kiosk?",
+    "ticketTitle": "Kiosk ticket",
+    "notPaidNotice": "This order hasn't been paid for yet."
   },
   "trainerIceLog": {
     "title": "Trainer ice log",

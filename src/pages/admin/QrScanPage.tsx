@@ -6,9 +6,10 @@ import { collection, doc, getDoc, getDocs, query, Timestamp, where } from 'fireb
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { markSessionAttendance, markBundleSessionAttendance, markSessionTicketCheckIn, markBundleTicketCheckIn } from '@/lib/training'
+import { markKioskOrderCheckIn } from '@/lib/kiosk'
 import { triggerGateOpen } from '@/lib/gate'
 import { formatDateISO } from '@/lib/utils'
-import { RegistrationTicket, TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
+import { KioskOrder, RegistrationTicket, TrainingBundle, TrainingBundleRegistration, TrainingRegistration, TrainingSession } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import BackButton from '@/components/BackButton'
@@ -56,6 +57,12 @@ type Result =
       originalAttendanceBySession: TrainingBundleRegistration['attendanceBySession']
       originalTicketCheckInsBySession: TrainingBundleRegistration['ticketCheckInsBySession']
     }
+  | {
+      kind: 'kiosk'
+      order: KioskOrder & { id: string }
+      wasAlreadyCheckedIn: boolean
+      wasAlreadyCheckedInAt: Date | undefined
+    }
   | { kind: 'unsupported' }
   | { kind: 'invalid' }
 
@@ -75,7 +82,11 @@ type Result =
  * falls back to the original whole-party check-in in one tap — see
  * CLAUDE.md's "Fáza 5" note for that original rationale. Ice-booking QRs
  * are recognized but not actionable here — Booking has no attendance
- * concept yet.
+ * concept yet. Also recognizes a kiosk order's own QR (/kiosk/vstup/...,
+ * see KioskPage.tsx/sendKioskOrderEmail) as a fallback for when the
+ * entrance's ESP32 turnstile hardware (the primary path, gateScanCheckIn
+ * in functions/src/gate.ts) is down — one order is always checked in as a
+ * single unit, same as that path.
  */
 export default function QrScanPage() {
   const { t } = useTranslation()
@@ -123,9 +134,24 @@ export default function QrScanPage() {
 
     const sessionMatch = path.match(/^\/treningy\/zrusit\/([^/]+)\/([^/]+)$/)
     const bundleMatch = path.match(/^\/treningy\/kurz\/zrusit\/([^/]+)\/([^/]+)$/)
+    const kioskMatch = path.match(/^\/kiosk\/vstup\/([^/]+)\/([^/]+)$/)
     const isBooking = /^\/my-booking\/[^/]+\/[^/]+$/.test(path)
 
-    if (sessionMatch) {
+    if (kioskMatch) {
+      const [, orderId, token] = kioskMatch
+      const snap = await getDoc(doc(db, 'kioskOrders', orderId))
+      if (!snap.exists() || snap.data().cancellationToken !== token) {
+        setResult({ kind: 'invalid' })
+        return
+      }
+      const order = { id: snap.id, ...snap.data() } as KioskOrder & { id: string }
+      setResult({
+        kind: 'kiosk',
+        order,
+        wasAlreadyCheckedIn: !!order.checkedInAt,
+        wasAlreadyCheckedInAt: order.checkedInAt
+      })
+    } else if (sessionMatch) {
       const [, regId, token] = sessionMatch
       const snap = await getDoc(doc(db, 'trainingRegistrations', regId))
       if (!snap.exists() || snap.data().cancellationToken !== token) {
@@ -194,6 +220,18 @@ export default function QrScanPage() {
       // See lib/gate.ts's own doc comment — fire-and-forget, never blocks
       // or fails the check-in itself.
       triggerGateOpen(staff.clubId)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleMarkKioskPresent = async () => {
+    if (!result || result.kind !== 'kiosk' || !user) return
+    setBusyId(result.order.id)
+    try {
+      await markKioskOrderCheckIn(result.order.id, user.uid)
+      setResult({ ...result, order: { ...result.order, checkedInAt: new Date(), checkedInBy: user.uid } })
+      if (staff) triggerGateOpen(staff.clubId)
     } finally {
       setBusyId(null)
     }
@@ -279,12 +317,44 @@ export default function QrScanPage() {
         <Card className="arena-card">
           <CardHeader>
             <CardTitle className="text-white text-lg">
-              {result.kind === 'session' || result.kind === 'bundle' ? result.reg.name : t('qrScan.resultTitle')}
+              {result.kind === 'session' || result.kind === 'bundle'
+                ? result.reg.name
+                : result.kind === 'kiosk'
+                  ? t('kiosk.ticketTitle')
+                  : t('qrScan.resultTitle')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {result.kind === 'invalid' && <p className="text-status-danger text-sm">{t('qrScan.invalidCode')}</p>}
             {result.kind === 'unsupported' && <p className="text-status-muted text-sm">{t('qrScan.bookingNotSupported')}</p>}
+
+            {result.kind === 'kiosk' && (
+              <div className="space-y-3">
+                <div className="text-text-secondary text-sm space-y-1">
+                  {result.order.lines.map((l, i) => (
+                    <p key={i} className="text-white">
+                      {l.qty}× {l.productName} — {l.variantName}
+                    </p>
+                  ))}
+                  <p className="mono text-primary">{result.order.confirmationCode}</p>
+                </div>
+                {result.order.status !== 'paid' && <p className="text-status-muted text-sm">{t('kiosk.notPaidNotice')}</p>}
+                {result.wasAlreadyCheckedIn && (
+                  <p className="text-status-danger text-sm font-semibold bg-status-danger/10 border border-status-danger/30 rounded-md px-3 py-2">
+                    {t('qrScan.alreadyScannedWarning', { time: formatCheckedInAt(result.wasAlreadyCheckedInAt) })}
+                  </p>
+                )}
+                {result.order.status === 'paid' && (
+                  <Button
+                    onClick={handleMarkKioskPresent}
+                    disabled={busyId === result.order.id || !!result.order.checkedInAt}
+                    className="w-full bg-primary hover:bg-primary-gold text-primary-foreground"
+                  >
+                    {result.order.checkedInAt ? t('trainerRoster.checkedIn') : t('trainerRoster.markPresent')}
+                  </Button>
+                )}
+              </div>
+            )}
 
             {result.kind === 'session' && (() => {
               const isCheckedIn = result.ticket ? result.reg.ticketCheckIns?.[result.ticket.id]?.checkedIn === true : result.reg.attendance?.checkedIn === true

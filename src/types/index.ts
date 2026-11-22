@@ -483,6 +483,7 @@ export interface KioskOrder {
   createdAt: Date
   paidAt?: Date
   checkedInAt?: Date
+  checkedInBy?: string
   deliveryEmail?: string
 }
 

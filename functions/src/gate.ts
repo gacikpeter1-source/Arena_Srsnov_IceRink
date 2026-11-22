@@ -120,7 +120,7 @@ export const gateScanCheckIn = onRequest(async (req, res) => {
         if (order.clubId !== clubId || order.cancellationToken !== token) return false;
         if (order.status !== "paid") return false;
         if (order.checkedInAt) return false;
-        tx.update(orderRef, { checkedInAt: Timestamp.now() });
+        tx.update(orderRef, { checkedInAt: Timestamp.now(), checkedInBy: "gate-scanner" });
         return true;
       });
     } catch (err) {

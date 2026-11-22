@@ -502,7 +502,19 @@ service cloud.firestore {
     match /kioskOrders/{id} {
       allow read: if true;
       allow create: if true;
-      allow update, delete: if false;
+      // Entrance QR-scan check-in fallback (QrScanPage.tsx) — same staff
+      // roles that page already gates scanning on for training tickets
+      // (isTrainer() included only because that page doesn't branch its
+      // access check by ticket kind, same pre-existing shared-page
+      // property, not something new to kiosk tickets specifically). Can
+      // only ever set checkedInAt/checkedInBy once, on an already-paid
+      // order — mirrors the primary ESP32 gate path's own one-time
+      // transactional check in functions/src/gate.ts.
+      allow update: if (isTrainer() || isStaffMember())
+        && resource.data.status == 'paid'
+        && !('checkedInAt' in resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkedInAt', 'checkedInBy']);
+      allow delete: if false;
     }
 
     // Staff-managed "call this number" QR codes (see PhoneQrCode in

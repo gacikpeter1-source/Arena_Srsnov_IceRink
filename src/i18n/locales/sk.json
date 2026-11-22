@@ -591,7 +591,9 @@
     "addProduct": "Pridať položku",
     "activate": "Aktivovať {{name}}",
     "deactivate": "Deaktivovať {{name}}",
-    "confirmDelete": "Zmazať položku \"{{name}}\" z kiosku?"
+    "confirmDelete": "Zmazať položku \"{{name}}\" z kiosku?",
+    "ticketTitle": "Vstupenka z kiosku",
+    "notPaidNotice": "Táto objednávka ešte nie je zaplatená."
   },
   "trainerIceLog": {
     "title": "Evidencia trénerov na ľade",
