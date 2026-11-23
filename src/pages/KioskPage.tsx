@@ -323,7 +323,7 @@ export default function KioskPage() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background-dark text-white flex flex-col print:hidden">
+    <div className="h-dvh w-full overflow-hidden bg-background-dark text-white flex flex-col print:hidden">
       {/* Top bar — no nav, no back, no menu: nothing to tap your way out with. */}
       <div className="shrink-0 h-14 flex items-center justify-between gap-3 px-4 sm:px-5 border-b border-border">
         <div className="flex items-center gap-2.5 min-w-0">

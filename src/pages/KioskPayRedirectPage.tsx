@@ -29,7 +29,7 @@ export default function KioskPayRedirectPage() {
   }, [orderId])
 
   return (
-    <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 bg-background-dark text-white text-center px-6">
+    <div className="h-dvh w-full flex flex-col items-center justify-center gap-4 bg-background-dark text-white text-center px-6">
       {notFound ? (
         <p className="text-text-secondary">Túto platbu sa nepodarilo nájsť. Skúste prosím znova naskenovať QR kód na kiosku.</p>
       ) : (
